@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { Bell, Wallet, Eye, EyeOff, Lock, ChevronRight, History, CheckCircle, AlertCircle, Copy, Edit2 } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
+import { useUser } from "@clerk/react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface BalanceData {
@@ -15,7 +15,7 @@ function formatXAF(amount: number): string {
 }
 
 export default function Home() {
-  const { user } = useAuth();
+  const { user } = useUser();
   const [digits, setDigits] = useState<string[]>(Array(10).fill(""));
   const [balance, setBalance] = useState<BalanceData | null>(null);
   const [showBalance, setShowBalance] = useState(true);
@@ -27,7 +27,7 @@ export default function Home() {
   const enteredCode = digits.join("");
   const isComplete = enteredCode.length === 10 && !digits.includes("");
 
-  const displayId = user ? `HG${String(user.id).padStart(10, "0")}` : "HG----------";
+  const displayId = user ? `HG${(user.id ?? "").slice(-8).toUpperCase()}` : "HG----------";
 
   const checkBalance = useCallback(async (code: string) => {
     setChecking(true);
