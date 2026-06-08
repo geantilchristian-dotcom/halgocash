@@ -142,10 +142,6 @@ export default function SignInPage() {
           </div>
         </div>
 
-        {/* Heading */}
-        <h1 className="text-white text-[22px] font-black mb-0.5">Bienvenue de retour !</h1>
-        <p className="text-white/50 text-sm mb-4">Connectez-vous à votre compte</p>
-
         {/* Clerk SignIn widget */}
         <div className="w-full max-w-sm">
           <SignIn
