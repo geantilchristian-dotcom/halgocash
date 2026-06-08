@@ -20,11 +20,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       <nav
-        className={`fixed bottom-0 left-0 right-0 flex justify-around z-50 transition-colors ${
-          isDark
-            ? "bg-[#0f2418] border-t border-white/10 shadow-[0_-1px_6px_rgba(0,0,0,0.4)]"
-            : "bg-white border-t border-gray-100 shadow-[0_-1px_6px_rgba(0,0,0,0.06)]"
-        }`}
+        className="fixed bottom-0 left-0 right-0 flex justify-around z-50"
+        style={{
+          background: "linear-gradient(90deg, #0a1f0e 0%, #0f3d1c 40%, #16a34a 100%)",
+          boxShadow: "0 -4px 20px rgba(10,31,14,0.45)",
+        }}
       >
         {navItems.map(({ href, icon: Icon, label }) => {
           const isActive = location === href || location.startsWith(href + "/");
@@ -35,18 +35,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-full bg-[#F5C518]" />
                 )}
                 <Icon
-                  className={`w-6 h-6 mt-1 transition-colors ${
-                    isActive
-                      ? isDark ? "text-[#8DC63F]" : "text-[#0f3d1c]"
-                      : isDark ? "text-gray-600" : "text-gray-400"
-                  }`}
+                  className="w-6 h-6 mt-1 transition-colors"
+                  style={{ color: isActive ? "#F5C518" : "rgba(255,255,255,0.45)" }}
+                  strokeWidth={isActive ? 2.5 : 1.8}
                 />
                 <span
-                  className={`text-[9px] font-bold uppercase tracking-wide transition-colors ${
-                    isActive
-                      ? isDark ? "text-[#8DC63F]" : "text-[#0f3d1c]"
-                      : isDark ? "text-gray-600" : "text-gray-400"
-                  }`}
+                  className="text-[9px] font-bold uppercase tracking-wide transition-colors"
+                  style={{ color: isActive ? "#F5C518" : "rgba(255,255,255,0.45)" }}
                 >
                   {label}
                 </span>
