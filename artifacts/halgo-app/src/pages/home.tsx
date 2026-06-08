@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import {
   X, QrCode, Zap, Sparkles, Send, Loader2,
   ChevronRight, Bell, ArrowUpCircle,
-  Ticket, Clock, HelpCircle, Headphones, Settings,
+  Ticket, Clock,
   AlertCircle, CheckCircle, MapPin, Scan,
 } from "lucide-react";
 import { useUser } from "@clerk/react";
@@ -441,34 +441,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── Raccourcis ── */}
-        <div>
-          <p className={`text-[11px] font-bold uppercase tracking-widest mb-3 px-1 ${subText}`}>Raccourcis</p>
-          <div className={`rounded-3xl shadow-sm overflow-hidden ${isDark ? "bg-[#0f2418]" : "bg-white"}`}>
-            {[
-              { label: "Aide",        sub: "FAQ & tutoriels",         icon: HelpCircle,  color: "#22c55e" },
-              { label: "Support",     sub: "Contactez-nous",          icon: Headphones,  color: "#3b82f6" },
-              { label: "Paramètres",  sub: "Compte, parrainer & préférences", icon: Settings, color: "#a855f7" },
-            ].map(({ label, sub, icon: Icon, color }, idx, arr) => (
-              <button
-                key={label}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 transition-colors active:opacity-70 ${isDark ? "hover:bg-white/5" : "hover:bg-gray-50"} ${idx < arr.length - 1 ? `border-b ${isDark ? "border-white/5" : "border-gray-100"}` : ""}`}
-              >
-                <div
-                  className="w-9 h-9 rounded-2xl flex items-center justify-center shrink-0"
-                  style={{ background: `${color}22` }}
-                >
-                  <Icon className="w-4.5 h-4.5" style={{ width: 18, height: 18, color }} strokeWidth={2} />
-                </div>
-                <div className="flex-1 text-left">
-                  <p className={`font-bold text-sm leading-none ${cardText}`}>{label}</p>
-                  <p className={`text-[11px] mt-0.5 ${subText}`}>{sub}</p>
-                </div>
-                <ChevronRight className={`w-4 h-4 ${subText}`} />
-              </button>
-            ))}
-          </div>
-        </div>
 
       </div>
 
