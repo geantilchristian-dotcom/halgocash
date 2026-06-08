@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import {
-  X, QrCode, Zap, Sparkles, Send, Loader2,
+  X, QrCode, Sparkles, Send, Loader2,
   ChevronRight, Bell,
   Ticket, Clock, Home as HomeIcon,
   AlertCircle, CheckCircle, MapPin, Scan,
@@ -182,18 +182,15 @@ export default function Home() {
     <div className={`min-h-dvh flex flex-col transition-colors ${bg}`}>
 
       {/* ── Header ── */}
-      <header className={`flex items-center justify-between px-4 pt-5 pb-3 ${isDark ? "bg-[#080f0a]" : "bg-[#f4f5f0]"}`}>
-        <div className="flex flex-col items-start leading-none">
-          <span className={`font-black text-[28px] tracking-tight leading-none ${isDark ? "text-white" : "text-gray-900"}`}>
-            HALGO
-          </span>
-          <div className="flex items-center gap-0.5 -mt-0.5">
-            <span className="font-black text-[28px] italic text-[#22c55e] tracking-tight leading-none">CASH</span>
-            <Zap className="w-5 h-5 text-[#F5C518] fill-[#F5C518]" />
-          </div>
-        </div>
+      <header className={`relative flex items-center justify-center px-4 pt-4 pb-2 ${isDark ? "bg-[#080f0a]" : "bg-[#f4f5f0]"}`}>
+        <img
+          src="/logo-halgo-cash.png"
+          alt="Halgo Cash"
+          className="w-52 object-contain"
+          style={{ background: "none" }}
+        />
         <button
-          className="relative w-10 h-10 rounded-full flex items-center justify-center"
+          className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center"
           style={{ background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }}
         >
           <Bell className={`w-5 h-5 ${isDark ? "text-white/70" : "text-gray-600"}`} />
