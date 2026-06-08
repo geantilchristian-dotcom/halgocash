@@ -1,11 +1,12 @@
 import { Link, useLocation } from "wouter";
-import { Home, User, Settings } from "lucide-react";
+import { Home, User, Settings, Ticket } from "lucide-react";
 import { useTheme } from "@/lib/theme-context";
 
 const navItems = [
-  { href: "/app", icon: Home, label: "ACCUEIL" },
-  { href: "/app/profile", icon: User, label: "PROFIL" },
-  { href: "/app/settings", icon: Settings, label: "PARAMÈTRE" },
+  { href: "/app",          icon: Home,    label: "ACCUEIL"  },
+  { href: "/app/coupons",  icon: Ticket,  label: "COUPON"   },
+  { href: "/app/profile",  icon: User,    label: "PROFIL"   },
+  { href: "/app/settings", icon: Settings,label: "PARAMÈTRE"},
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {

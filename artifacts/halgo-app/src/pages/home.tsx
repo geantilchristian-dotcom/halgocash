@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
-import { Bell, Eye, EyeOff, Lock, ChevronRight, History, CheckCircle, AlertCircle, Copy, Phone, User, ArrowDownLeft, ArrowUpRight, X } from "lucide-react";
+import { Bell, Eye, EyeOff, Lock, ChevronRight, History, CheckCircle, AlertCircle, Copy, Phone, User, ArrowUpRight, X, QrCode } from "lucide-react";
 import { useUser } from "@clerk/react";
+import { QRCodeSVG } from "qrcode.react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTheme } from "@/lib/theme-context";
 
@@ -25,6 +26,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showRetrait, setShowRetrait] = useState(false);
+  const [showQR, setShowQR] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const enteredCode = digits.join("");
@@ -104,12 +106,11 @@ export default function Home() {
     inputRefs.current[0]?.focus();
   };
 
-  /* ── formatted code display ── */
-  const codeDisplay = digits.map((d, i) => {
-    const char = d || "–";
-    if (i === 4 || i === 8) return " " + char;
-    return char;
-  }).join(" ");
+  /* ── formatted code display — grouped, single line ── */
+  const g1 = digits.slice(0, 4).map((d) => d || "–").join("");
+  const g2 = digits.slice(4, 8).map((d) => d || "–").join("");
+  const g3 = digits.slice(8, 10).map((d) => d || "–").join("");
+  const codeDisplay = `${g1} · ${g2} · ${g3}`;
 
   const card = isDark ? "bg-[#0f2418] border-white/10" : "bg-white border-gray-100";
   const cardText = isDark ? "text-white" : "text-gray-900";
@@ -239,19 +240,19 @@ export default function Home() {
             <div className="flex gap-2 mt-2">
               <button
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-[0.98]"
-                style={{ background: "rgba(255,255,255,0.12)", color: "#fff", border: "1px solid rgba(255,255,255,0.15)" }}
-                onClick={() => alert("Fonctionnalité dépôt à venir")}
-              >
-                <ArrowDownLeft className="w-4 h-4 text-[#8DC63F]" />
-                DÉPÔT
-              </button>
-              <button
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-[0.98]"
                 style={{ background: "linear-gradient(135deg, #F5C518, #d4a017)", color: "#0f3d1c", boxShadow: "0 4px 14px rgba(245,197,24,0.35)" }}
                 onClick={() => setShowRetrait(true)}
               >
                 <ArrowUpRight className="w-4 h-4" />
                 RETRAIT
+              </button>
+              <button
+                className="px-4 flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-[0.98]"
+                style={{ background: "rgba(255,255,255,0.13)", color: "#fff", border: "1px solid rgba(255,255,255,0.18)" }}
+                onClick={() => setShowQR(true)}
+              >
+                <QrCode className="w-4 h-4" />
+                MON QR
               </button>
             </div>
           </div>
@@ -276,18 +277,14 @@ export default function Home() {
             </div>
           </div>
 
-          {/* ── NUMBER DISPLAY ── */}
+          {/* ── NUMBER DISPLAY — bordeaux, single line ── */}
           <div
-            className={`mb-3 py-2.5 px-4 rounded-xl flex items-center justify-center transition-all ${
-              isDark ? "bg-black/30 border border-white/10" : "bg-[#f0f7f1] border border-[#c8e6c9]"
-            }`}
+            className="mb-3 py-3 px-4 rounded-xl flex items-center justify-center overflow-hidden"
+            style={{ background: "#6B1414" }}
           >
             <span
-              className={`font-mono font-black text-xl tracking-[0.25em] transition-colors ${
-                enteredCode.length > 0
-                  ? isDark ? "text-[#8DC63F]" : "text-[#0f3d1c]"
-                  : isDark ? "text-gray-600" : "text-gray-300"
-              }`}
+              className="font-mono font-black text-[17px] tracking-[0.18em] text-white whitespace-nowrap"
+              style={{ letterSpacing: "0.18em" }}
             >
               {codeDisplay}
             </span>
@@ -416,6 +413,62 @@ export default function Home() {
                 ⚠️ Vérifiez d'abord votre code pour accéder au retrait.
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── QR Code Modal ── */}
+      {showQR && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowQR(false)} />
+          <div
+            className={`relative w-full max-w-sm rounded-t-3xl p-6 pb-12 transition-colors ${isDark ? "bg-[#0f2418]" : "bg-white"}`}
+            style={{ boxShadow: "0 -8px 40px rgba(0,0,0,0.4)" }}
+          >
+            <div className="w-10 h-1 rounded-full bg-gray-300 mx-auto mb-5" />
+            <div className="flex items-center justify-between mb-2">
+              <h2 className={`text-lg font-black uppercase tracking-wider ${cardText}`}>Mon QR Code</h2>
+              <button onClick={() => setShowQR(false)}
+                className={`w-8 h-8 rounded-full flex items-center justify-center ${isDark ? "bg-white/10" : "bg-gray-100"}`}>
+                <X className={`w-4 h-4 ${subText}`} />
+              </button>
+            </div>
+            <p className={`text-xs mb-5 ${subText}`}>
+              Présentez ce QR code à un vendeur Halgo Cash pour recevoir un paiement.
+            </p>
+
+            {/* QR Code */}
+            <div className="flex flex-col items-center gap-4">
+              <div
+                className="p-4 rounded-2xl"
+                style={{ background: "#fff", boxShadow: "0 4px 24px rgba(0,0,0,0.15)" }}
+              >
+                <QRCodeSVG
+                  value={JSON.stringify({
+                    type: "halgo-pay",
+                    id: displayId,
+                    name: displayName,
+                    phone: rawPhone ?? "",
+                  })}
+                  size={200}
+                  bgColor="#ffffff"
+                  fgColor="#0f3d1c"
+                  level="M"
+                  includeMargin={false}
+                />
+              </div>
+
+              {/* ID badge */}
+              <div
+                className="px-5 py-2 rounded-xl flex items-center gap-2"
+                style={{ background: "linear-gradient(135deg, #0f3d1c, #1a5c2a)" }}
+              >
+                <span className="font-mono font-black text-[#8DC63F] text-sm tracking-wider">{displayId}</span>
+              </div>
+              <p className={`text-xs text-center ${subText}`}>
+                {displayName}
+              </p>
+            </div>
           </div>
         </div>
       )}

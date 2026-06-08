@@ -10,6 +10,7 @@ import { Layout } from "@/components/layout";
 import Home from "@/pages/home";
 import Profile from "@/pages/profile";
 import Settings from "@/pages/settings";
+import Coupons from "@/pages/coupons";
 import NotFound from "@/pages/not-found";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
@@ -90,6 +91,7 @@ function AppRoutes() {
         <Layout>
           <Switch>
             <Route path="/app" component={Home} />
+            <Route path="/app/coupons" component={Coupons} />
             <Route path="/app/profile" component={Profile} />
             <Route path="/app/settings" component={Settings} />
             <Route path="/app/*?" component={NotFound} />
