@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Settings as SettingsIcon, Loader2, User, KeyRound, ShieldCheck, Plus, Store } from "lucide-react";
+import { Settings as SettingsIcon, Loader2, User, KeyRound, ShieldCheck, Plus, Store, Trash2, AlertTriangle, X } from "lucide-react";
 
 async function apiFetch(path: string, options?: RequestInit) {
   const res = await fetch(path, {
@@ -28,6 +28,28 @@ export default function Settings() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // Reset modal state
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const RESET_WORD = "VIDER";
+
+  const resetMutation = useMutation({
+    mutationFn: () =>
+      apiFetch("/api/admin/reset", { method: "DELETE" }),
+    onSuccess: (data: { deletedTickets: number; deletedWithdrawals: number }) => {
+      setShowResetModal(false);
+      setResetConfirmText("");
+      void queryClient.invalidateQueries();
+      toast({
+        title: "Stock vidé avec succès",
+        description: `${data.deletedTickets} billets et ${data.deletedWithdrawals} retraits supprimés.`,
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Erreur lors de la réinitialisation", description: err.message, variant: "destructive" });
+    },
+  });
 
   // Admin credentials
   const [username, setUsername] = useState(user?.username ?? "");
@@ -101,6 +123,81 @@ export default function Settings() {
 
   return (
     <div className="space-y-6 max-w-2xl">
+
+      {/* ── Reset confirmation modal ── */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
+          <div className="w-full max-w-md rounded-2xl bg-zinc-900 border border-red-800 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-800">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-red-900/40 border border-red-700 flex items-center justify-center">
+                  <Trash2 className="w-4 h-4 text-red-400" />
+                </div>
+                <div>
+                  <p className="font-bold text-white text-sm">Vider tout le stock</p>
+                  <p className="text-xs text-zinc-400">Action irréversible</p>
+                </div>
+              </div>
+              <button onClick={() => { setShowResetModal(false); setResetConfirmText(""); }}
+                className="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center hover:bg-zinc-700 transition-colors">
+                <X className="w-3.5 h-3.5 text-zinc-400" />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
+              <div className="rounded-lg bg-red-950/50 border border-red-800/60 p-3 space-y-1.5">
+                <p className="text-red-300 font-semibold text-sm flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  Cette action va supprimer définitivement :
+                </p>
+                <ul className="text-red-400/80 text-xs space-y-1 pl-5 list-disc">
+                  <li>Tous les billets (tous les lots, toutes les séries)</li>
+                  <li>Tous les retraits en attente et payés</li>
+                  <li>Tous les historiques d'activation joueurs</li>
+                </ul>
+                <p className="text-red-400 text-xs font-bold mt-1">
+                  Aucune annulation possible après confirmation.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-zinc-300 text-xs">
+                  Tapez <span className="font-black text-red-400 font-mono">{RESET_WORD}</span> pour confirmer
+                </Label>
+                <Input
+                  value={resetConfirmText}
+                  onChange={(e) => setResetConfirmText(e.target.value.toUpperCase())}
+                  placeholder={RESET_WORD}
+                  className="bg-zinc-800 border-zinc-700 text-white font-mono font-bold"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <Button
+                  variant="ghost"
+                  className="flex-1 text-zinc-400 hover:text-white border border-zinc-700"
+                  onClick={() => { setShowResetModal(false); setResetConfirmText(""); }}
+                  disabled={resetMutation.isPending}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  className="flex-1 bg-red-700 hover:bg-red-600 text-white font-bold disabled:opacity-40"
+                  disabled={resetConfirmText !== RESET_WORD || resetMutation.isPending}
+                  onClick={() => resetMutation.mutate()}
+                >
+                  {resetMutation.isPending
+                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Suppression…</>
+                    : <><Trash2 className="w-4 h-4 mr-2" />Vider le stock</>
+                  }
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
         <SettingsIcon className="w-6 h-6 text-indigo-400" />
         <div>
@@ -207,6 +304,38 @@ export default function Settings() {
               Modifier le mot de passe
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* ── Danger Zone ── */}
+      <Card className="bg-zinc-900 border-red-800/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-red-400 text-base flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4" />
+            Zone Danger
+          </CardTitle>
+          <CardDescription className="text-zinc-500">
+            Ces actions sont irréversibles. Utilisez avec extrême prudence.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-start justify-between gap-4 p-4 rounded-lg bg-red-950/20 border border-red-900/40">
+            <div>
+              <p className="text-white text-sm font-semibold">Vider tout le stock</p>
+              <p className="text-zinc-400 text-xs mt-1">
+                Supprime l'intégralité des billets (tous les lots et séries) ainsi que
+                tous les retraits en attente et payés. Les soldes joueurs sont remis à zéro.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              className="shrink-0 bg-red-800 hover:bg-red-700 text-white border border-red-700 font-semibold"
+              onClick={() => setShowResetModal(true)}
+            >
+              <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+              Vider le stock
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

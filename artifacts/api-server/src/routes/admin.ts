@@ -453,6 +453,22 @@ router.post("/admin/workers", requireAdmin, async (req: Request, res: Response):
   });
 });
 
+// DELETE /api/admin/reset — wipe ALL tickets and ALL pending withdrawals
+router.delete("/admin/reset", requireAdmin, async (_req: Request, res: Response): Promise<void> => {
+  const deletedTickets = await db.delete(ticketsTable).returning({ id: ticketsTable.id });
+  const deletedWithdrawals = await db.delete(withdrawalsTable).returning({ id: withdrawalsTable.id });
+
+  logger.info(
+    { tickets: deletedTickets.length, withdrawals: deletedWithdrawals.length },
+    "Admin performed full stock reset",
+  );
+
+  res.json({
+    deletedTickets: deletedTickets.length,
+    deletedWithdrawals: deletedWithdrawals.length,
+  });
+});
+
 // GET /api/admin/withdrawals — all withdrawals
 router.get("/admin/withdrawals", requireAdmin, async (_req: Request, res: Response): Promise<void> => {
   const rows = await db
