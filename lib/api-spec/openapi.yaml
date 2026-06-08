@@ -1,22 +1,28 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Halgo ticket booking and mobile money API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: balance
+    description: Balance operations
+  - name: destinations
+    description: Destination operations
+  - name: bookings
+    description: Booking operations
+  - name: transactions
+    description: Transaction operations
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +30,98 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /balance/check:
+    post:
+      operationId: checkBalance
+      tags: [balance]
+      summary: Check balance with a 10-digit code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BalanceCheckInput"
+      responses:
+        "200":
+          description: Balance result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalanceResult"
+        "404":
+          description: Code not found
+
+  /destinations:
+    get:
+      operationId: listDestinations
+      tags: [destinations]
+      summary: List available destinations
+      responses:
+        "200":
+          description: List of destinations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Destination"
+
+  /transactions:
+    get:
+      operationId: listTransactions
+      tags: [transactions]
+      summary: List recent transactions for a code
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+
+  /bookings:
+    post:
+      operationId: createBooking
+      tags: [bookings]
+      summary: Create a new ticket booking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingInput"
+      responses:
+        "201":
+          description: Booking confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "400":
+          description: Invalid booking data
+
+  /bookings/summary:
+    get:
+      operationId: getBookingSummary
+      tags: [bookings]
+      summary: Get booking summary stats
+      responses:
+        "200":
+          description: Summary stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingSummary"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +132,99 @@ components:
       required:
         - status
 
+    BalanceCheckInput:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          minLength: 10
+          maxLength: 10
+
+    BalanceResult:
+      type: object
+      required: [code, balance, currency]
+      properties:
+        code:
+          type: string
+        balance:
+          type: number
+        currency:
+          type: string
+        ownerName:
+          type: ["string", "null"]
+
+    Destination:
+      type: object
+      required: [id, name, price]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        price:
+          type: number
+        zone:
+          type: ["string", "null"]
+
+    Transaction:
+      type: object
+      required: [id, type, amount, date]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        amount:
+          type: number
+        date:
+          type: string
+        description:
+          type: ["string", "null"]
+        iconType:
+          type: ["string", "null"]
+
+    BookingInput:
+      type: object
+      required: [code, destinationId, quantity, ticketType]
+      properties:
+        code:
+          type: string
+        destinationId:
+          type: integer
+        quantity:
+          type: integer
+        ticketType:
+          type: string
+
+    Booking:
+      type: object
+      required: [id, destinationId, quantity, ticketType, totalAmount, status, createdAt]
+      properties:
+        id:
+          type: integer
+        destinationId:
+          type: integer
+        destinationName:
+          type: ["string", "null"]
+        quantity:
+          type: integer
+        ticketType:
+          type: string
+        totalAmount:
+          type: number
+        status:
+          type: string
+        createdAt:
+          type: string
+
+    BookingSummary:
+      type: object
+      required: [totalBookings, totalRevenue, popularDestination]
+      properties:
+        totalBookings:
+          type: integer
+        totalRevenue:
+          type: number
+        popularDestination:
+          type: ["string", "null"]

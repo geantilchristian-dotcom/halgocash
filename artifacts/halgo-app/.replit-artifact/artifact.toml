@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Halgo App"
+version = "1.0.0"
+id = "artifacts/halgo-app"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19165
+
+[services.development]
+run = "pnpm --filter @workspace/halgo-app run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/halgo-app", "run", "build" ]
+publicDir = "artifacts/halgo-app/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19165"
+BASE_PATH = "/"
