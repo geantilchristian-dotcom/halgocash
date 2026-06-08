@@ -1,4 +1,7 @@
 import { pool } from "@workspace/db";
+import { db, usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import bcrypt from "bcryptjs";
 import { logger } from "./logger";
 
 export async function runMigrations() {
@@ -88,8 +91,32 @@ export async function runMigrations() {
       CREATE INDEX IF NOT EXISTS IDX_session_expire ON session (expire)
     `);
 
+    // Add new columns to users table (idempotent)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN NOT NULL DEFAULT FALSE`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_ip VARCHAR(45)`);
+
     logger.info("Database migrations completed successfully");
   } finally {
     client.release();
+  }
+}
+
+export async function seedAdmin() {
+  const existing = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.role, "admin"))
+    .limit(1);
+
+  if (existing.length === 0) {
+    const passwordHash = await bcrypt.hash("Halgo@2024!", 12);
+    await db.insert(usersTable).values({
+      email: "admin@halgo.cash",
+      username: "admin",
+      passwordHash,
+      role: "admin",
+    });
+    logger.info("Compte admin créé — identifiant: admin  mot de passe: Halgo@2024!");
   }
 }

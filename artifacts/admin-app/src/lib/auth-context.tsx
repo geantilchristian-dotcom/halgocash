@@ -1,33 +1,61 @@
 import { createContext, useContext, ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useGetMe, useLogin, useRegister, useLogout } from "@workspace/api-client-react";
-import type { AuthUser, LoginInput, RegisterInput } from "@workspace/api-client-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
+interface AuthUser {
+  id: number;
+  email: string;
+  username: string;
+  role: string;
+  vendorId?: number | null;
+}
 
 interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
-  login: (data: LoginInput) => Promise<AuthUser>;
-  register: (data: RegisterInput) => Promise<AuthUser>;
+  login: (identifier: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+async function apiFetch(path: string, options?: RequestInit) {
+  const res = await fetch(path, {
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    ...options,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const err = new Error(body.error ?? "Erreur réseau") as Error & { data: unknown };
+    err.data = body;
+    throw err;
+  }
+  return res.json();
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const { data: user, isLoading } = useGetMe({ query: { retry: false } });
-  const loginMutation = useLogin();
-  const registerMutation = useRegister();
-  const logoutMutation = useLogout();
 
-  const login = async (data: LoginInput) => {
-    const result = await loginMutation.mutateAsync({ data });
-    await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-    return result;
-  };
+  const { data: user, isLoading } = useQuery<AuthUser | null>({
+    queryKey: ["/api/auth/me"],
+    queryFn: () => apiFetch("/api/auth/me").catch(() => null),
+    retry: false,
+  });
 
-  const register = async (data: RegisterInput) => {
-    const result = await registerMutation.mutateAsync({ data });
+  const loginMutation = useMutation({
+    mutationFn: ({ identifier, password }: { identifier: string; password: string }) =>
+      apiFetch("/api/admin/login", {
+        method: "POST",
+        body: JSON.stringify({ identifier, password }),
+      }),
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: () => apiFetch("/api/auth/logout", { method: "POST" }),
+  });
+
+  const login = async (identifier: string, password: string): Promise<AuthUser> => {
+    const result = await loginMutation.mutateAsync({ identifier, password });
     await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
     return result;
   };
@@ -39,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user: user ?? null, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user: user ?? null, isLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

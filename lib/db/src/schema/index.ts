@@ -47,6 +47,9 @@ export const usersTable = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   role: text("role").notNull().default("player"),
   vendorId: integer("vendor_id"),
+  isSuspended: boolean("is_suspended").notNull().default(false),
+  lastLoginAt: timestamp("last_login_at"),
+  lastLoginIp: varchar("last_login_ip", { length: 45 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

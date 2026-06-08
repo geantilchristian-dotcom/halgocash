@@ -6,13 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ShieldCheck, Loader2 } from "lucide-react";
-import { Link } from "wouter";
+import { ShieldCheck, Loader2, Info } from "lucide-react";
 
 export default function Login() {
   const [, setLocation] = useLocation();
   const { login } = useAuth();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,14 +21,14 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      const user = await login({ email, password });
+      const user = await login(identifier, password);
       if (user.role !== "admin") {
         setError("Accès réservé aux administrateurs");
         return;
       }
       setLocation("/");
     } catch (err: unknown) {
-      const message = (err as { data?: { error?: string } })?.data?.error ?? "Identifiants incorrects";
+      const message = (err as { message?: string })?.message ?? "Identifiants incorrects";
       setError(message);
     } finally {
       setLoading(false);
@@ -45,14 +44,16 @@ export default function Login() {
           </div>
           <div>
             <p className="text-white font-bold text-lg leading-none">Halgo Cash</p>
-            <p className="text-zinc-400 text-xs">CONTROL ROOM</p>
+            <p className="text-zinc-400 text-xs tracking-widest uppercase">Control Room</p>
           </div>
         </div>
 
         <Card className="bg-zinc-900 border-zinc-800">
           <CardHeader className="pb-2">
             <CardTitle className="text-white text-xl">Administration</CardTitle>
-            <CardDescription className="text-zinc-400">Accès réservé au personnel autorisé</CardDescription>
+            <CardDescription className="text-zinc-400">
+              Accès réservé au personnel autorisé
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -61,17 +62,21 @@ export default function Login() {
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
+
               <div className="space-y-2">
-                <Label className="text-zinc-300 text-sm">Email administrateur</Label>
+                <Label className="text-zinc-300 text-sm">Identifiant administrateur</Label>
                 <Input
-                  type="email"
-                  placeholder="admin@halgo.cd"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="text"
+                  placeholder="admin"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-indigo-500"
+                  autoComplete="username"
                   required
                 />
+                <p className="text-zinc-500 text-xs">Nom d'utilisateur ou email</p>
               </div>
+
               <div className="space-y-2">
                 <Label className="text-zinc-300 text-sm">Mot de passe</Label>
                 <Input
@@ -80,9 +85,11 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-indigo-500"
+                  autoComplete="current-password"
                   required
                 />
               </div>
+
               <Button
                 type="submit"
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
@@ -92,12 +99,17 @@ export default function Login() {
                 Accéder au tableau de bord
               </Button>
             </form>
-            <p className="text-center text-zinc-500 text-xs mt-4">
-              Pas de compte admin ?{" "}
-              <Link href="/register" className="text-indigo-400 hover:underline">
-                Créer un compte
-              </Link>
-            </p>
+
+            <div className="mt-4 p-3 bg-zinc-800/50 rounded-lg flex items-start gap-2">
+              <Info className="w-3.5 h-3.5 text-indigo-400 mt-0.5 shrink-0" />
+              <p className="text-zinc-500 text-xs">
+                Identifiant par défaut: <span className="text-zinc-300 font-mono">admin</span>
+                {" / "}
+                <span className="text-zinc-300 font-mono">Halgo@2024!</span>
+                <br />
+                Modifiable dans Paramètres.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>

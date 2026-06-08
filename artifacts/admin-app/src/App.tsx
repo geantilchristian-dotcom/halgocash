@@ -10,7 +10,9 @@ import Tickets from "@/pages/tickets";
 import Vendors from "@/pages/vendors";
 import Winners from "@/pages/winners";
 import Login from "@/pages/login";
-import Register from "@/pages/register";
+import Users from "@/pages/users";
+import GenerateCodes from "@/pages/generate-codes";
+import Settings from "@/pages/settings";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Loader2 } from "lucide-react";
 
@@ -28,7 +30,7 @@ function ProtectedRouter() {
     );
   }
 
-  const isAuthRoute = location === "/login" || location === "/register";
+  const isAuthRoute = location === "/login";
 
   if (!user && !isAuthRoute) {
     return <Redirect to="/login" />;
@@ -42,7 +44,6 @@ function ProtectedRouter() {
     return (
       <Switch>
         <Route path="/login" component={Login} />
-        <Route path="/register" component={Register} />
       </Switch>
     );
   }
@@ -53,8 +54,11 @@ function ProtectedRouter() {
         <Route path="/" component={Dashboard} />
         <Route path="/draws" component={Draws} />
         <Route path="/tickets" component={Tickets} />
+        <Route path="/generate-codes" component={GenerateCodes} />
         <Route path="/vendors" component={Vendors} />
         <Route path="/winners" component={Winners} />
+        <Route path="/users" component={Users} />
+        <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

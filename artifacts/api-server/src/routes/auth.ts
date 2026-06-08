@@ -40,16 +40,16 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     .values({ email, username, passwordHash, role: role ?? "player", vendorId: vendorId ?? null })
     .returning();
 
-  req.session.userId = user.id;
+  req.session.userId = user!.id;
 
-  req.log.info({ userId: user.id, role: user.role }, "User registered");
+  req.log.info({ userId: user!.id, role: user!.role }, "User registered");
 
   res.status(201).json({
-    id: user.id,
-    email: user.email,
-    username: user.username,
-    role: user.role,
-    vendorId: user.vendorId,
+    id: user!.id,
+    email: user!.email,
+    username: user!.username,
+    role: user!.role,
+    vendorId: user!.vendorId,
   });
 });
 
@@ -73,11 +73,26 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
+  if (user.isSuspended) {
+    res.status(403).json({ error: "Compte suspendu. Contactez l'administrateur." });
+    return;
+  }
+
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
     res.status(401).json({ error: "Email ou mot de passe incorrect" });
     return;
   }
+
+  const ip =
+    (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??
+    req.socket.remoteAddress ??
+    "unknown";
+
+  await db
+    .update(usersTable)
+    .set({ lastLoginAt: new Date(), lastLoginIp: ip })
+    .where(eq(usersTable.id, user.id));
 
   req.session.userId = user.id;
 
@@ -117,6 +132,12 @@ router.get("/auth/me", async (req, res): Promise<void> => {
   if (!user) {
     req.session.destroy(() => {});
     res.status(401).json({ error: "Session invalide" });
+    return;
+  }
+
+  if (user.isSuspended) {
+    req.session.destroy(() => {});
+    res.status(403).json({ error: "Compte suspendu" });
     return;
   }
 
