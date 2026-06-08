@@ -200,72 +200,134 @@ export default function Home() {
         </button>
       </header>
 
-      <div className="px-4 pb-24 space-y-4 flex-1">
+      <div className="px-4 pb-24 flex-1 space-y-3 mt-3">
 
         {/* ── Balance Card ── */}
         <div
-          className="rounded-3xl overflow-hidden shadow-xl relative"
-          style={{ background: "linear-gradient(135deg, #0a1f0e 0%, #0f3d1c 45%, #1a5c2a 80%, #0f3d1c 100%)" }}
+          className="rounded-3xl overflow-hidden shadow-2xl relative"
+          style={{
+            background: "linear-gradient(135deg, #0a2010 0%, #0d3318 40%, #165c28 75%, #0d3318 100%)",
+            border: "1.5px solid rgba(245,197,24,0.25)",
+          }}
         >
-          <div className="absolute top-0 right-0 w-44 h-44 rounded-full pointer-events-none"
-            style={{ background: "radial-gradient(circle, rgba(141,198,63,0.18) 0%, transparent 70%)", transform: "translate(25%,-30%)" }} />
-          <div className="absolute bottom-0 left-0 w-36 h-36 rounded-full pointer-events-none"
-            style={{ background: "radial-gradient(circle, rgba(245,197,24,0.1) 0%, transparent 70%)", transform: "translate(-25%,30%)" }} />
+          {/* Decorative glows */}
+          <div className="absolute top-0 right-0 w-48 h-48 pointer-events-none"
+            style={{ background: "radial-gradient(circle, rgba(141,198,63,0.12) 0%, transparent 65%)", transform: "translate(15%,-20%)" }} />
+          <div className="absolute bottom-0 left-0 w-36 h-36 pointer-events-none"
+            style={{ background: "radial-gradient(circle, rgba(245,197,24,0.08) 0%, transparent 65%)", transform: "translate(-15%,20%)" }} />
+          {/* Dollar watermark */}
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none select-none text-[120px] font-black opacity-[0.04] text-[#8DC63F] leading-none">$</div>
 
-          <div className="relative z-10 px-5 pt-4 pb-4 flex flex-col items-center text-center">
-            {/* Top row: SOLDE DISPONIBLE + KIVU */}
-            <div className="flex items-center justify-between w-full mb-4">
-              <p className="font-black text-white/65 uppercase tracking-[0.25em] text-base leading-none">
-                SOLDE <span className="text-white/35 font-semibold text-[11px] tracking-widest align-middle ml-1">DISPONIBLE</span>
-              </p>
-              <div className="flex items-center gap-1 px-2.5 py-1 rounded-full"
-                style={{ background: "rgba(141,198,63,0.18)", border: "1px solid rgba(141,198,63,0.35)" }}>
-                <MapPin className="w-3 h-3 text-[#8DC63F]" />
-                <span className="text-[#8DC63F] text-[10px] font-bold tracking-wide">KIVU</span>
+          <div className="relative z-10 px-5 pt-4 pb-4">
+
+            {/* ── Top row ── */}
+            <div className="flex items-start justify-between mb-5">
+              {/* Wallet + SOLDE */}
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(245,197,24,0.15)", border: "1.5px solid rgba(245,197,24,0.4)" }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F5C518" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/>
+                    <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/>
+                    <path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-white font-black text-base uppercase tracking-widest leading-none">SOLDE</p>
+                  <p className="text-white/40 text-[10px] font-semibold uppercase tracking-[0.2em] mt-0.5">DISPONIBLE</p>
+                </div>
+              </div>
+              {/* KIVU pill */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                style={{ background: "rgba(10,32,16,0.7)", border: "1.5px solid rgba(245,197,24,0.5)" }}>
+                <MapPin className="w-3 h-3 text-[#F5C518]" />
+                <span className="text-[#F5C518] text-[11px] font-black tracking-widest">KIVU</span>
               </div>
             </div>
 
-            {/* Balance */}
-            <div className="transition-all duration-300 flex flex-col items-center" style={{ transform: balanceFlash ? "scale(1.03)" : "scale(1)" }}>
-              {balance === null ? (
-                <div className="h-14 w-40 rounded-lg animate-pulse mb-1" style={{ background: "rgba(255,255,255,0.1)" }} />
-              ) : (
-                <div className="flex items-end gap-2 justify-center">
-                  <span
-                    className="leading-none"
-                    style={{
-                      fontFamily: "'Oswald', sans-serif",
-                      fontWeight: 700,
-                      fontSize: balance >= 100000 ? "3rem" : "3.8rem",
-                      color: balanceFlash ? "#8DC63F" : "#fff",
-                      transition: "color 0.5s",
-                      letterSpacing: "0.02em",
-                    }}
-                  >
-                    {formatFC(balance)}
-                  </span>
-                  <span className="text-white/40 text-xl font-bold mb-2" style={{ fontFamily: "'Oswald', sans-serif" }}>FC</span>
+            {/* ── Amount row ── */}
+            <div className="flex items-center justify-between mb-2">
+              {/* Amount */}
+              <div className="transition-all duration-300" style={{ transform: balanceFlash ? "scale(1.03)" : "scale(1)" }}>
+                {balance === null ? (
+                  <div className="h-14 w-36 rounded-lg animate-pulse" style={{ background: "rgba(255,255,255,0.08)" }} />
+                ) : (
+                  <div className="flex items-end gap-1.5">
+                    <span
+                      className="leading-none"
+                      style={{
+                        fontFamily: "'Oswald', sans-serif",
+                        fontWeight: 700,
+                        fontSize: balance >= 100000 ? "2.8rem" : "3.6rem",
+                        background: balanceFlash
+                          ? "linear-gradient(180deg, #8DC63F, #5a9e2f)"
+                          : "linear-gradient(180deg, #FFD700 0%, #F5C518 60%, #c9980f 100%)",
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                        backgroundClip: "text",
+                        transition: "all 0.5s",
+                        letterSpacing: "0.01em",
+                        textShadow: "none",
+                        filter: "drop-shadow(0 2px 6px rgba(245,197,24,0.4))",
+                      }}
+                    >
+                      {formatFC(balance)}
+                    </span>
+                    <span
+                      className="mb-1.5 font-black text-lg"
+                      style={{ fontFamily: "'Oswald', sans-serif", color: "rgba(245,197,24,0.7)" }}
+                    >
+                      FC
+                    </span>
+                  </div>
+                )}
+                {/* USD pill */}
+                {balance !== null && balance > 0 && (
+                  <div className="inline-flex items-center px-3 py-1 rounded-full mt-2"
+                    style={{ background: "rgba(22,92,40,0.8)", border: "1px solid rgba(141,198,63,0.3)" }}>
+                    <span className="text-[#8DC63F] text-[11px] font-bold">≈ {(balance / 2800).toFixed(2)} USD</span>
+                  </div>
+                )}
+                {balance !== null && balance === 0 && (
+                  <p className="text-white/30 text-[11px] font-medium mt-1">Grattez un ticket pour gagner</p>
+                )}
+              </div>
+
+              {/* Coins decorative */}
+              <div className="flex flex-col items-center justify-end pb-1 mr-2 select-none pointer-events-none">
+                <span style={{ fontSize: 44, lineHeight: 1, filter: "drop-shadow(0 4px 8px rgba(245,197,24,0.5))" }}>🪙</span>
+                <div className="flex gap-0.5 -mt-1">
+                  <span style={{ fontSize: 32, lineHeight: 1, filter: "drop-shadow(0 3px 6px rgba(245,197,24,0.4))" }}>🪙</span>
+                  <span style={{ fontSize: 32, lineHeight: 1, filter: "drop-shadow(0 3px 6px rgba(245,197,24,0.4))" }}>🪙</span>
                 </div>
-              )}
-              {balance !== null && balance > 0 && (
-                <p className="text-[#8DC63F]/70 text-[12px] font-medium mt-1">≈ {(balance / 2800).toFixed(2)} USD</p>
-              )}
-              {balance !== null && balance === 0 && (
-                <p className="text-white/30 text-[11px] font-medium mt-1">Grattez un ticket pour gagner</p>
-              )}
+              </div>
             </div>
 
-            {/* Divider */}
-            <div className="w-full h-px my-4" style={{ background: "rgba(255,255,255,0.08)" }} />
+            {/* ── Dotted divider ── */}
+            <div className="flex items-center gap-2 my-4">
+              <div className="flex-1 border-t border-dashed" style={{ borderColor: "rgba(245,197,24,0.2)" }} />
+              <span style={{ color: "#F5C518", opacity: 0.5, fontSize: 12 }}>✦</span>
+              <div className="flex-1 border-t border-dashed" style={{ borderColor: "rgba(245,197,24,0.2)" }} />
+            </div>
 
-            {/* Retrait button */}
+            {/* ── Retrait button ── */}
             <button
               onClick={openRetrait}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-black text-[13px] uppercase tracking-wider transition-all active:scale-[0.97]"
-              style={{ background: "linear-gradient(90deg, #F5C518, #d4a017)", color: "#0a1f0e", boxShadow: "0 4px 18px rgba(245,197,24,0.4)" }}
+              className="w-full flex items-center py-3.5 rounded-2xl font-black text-[14px] uppercase tracking-wider transition-all active:scale-[0.97] relative overflow-hidden"
+              style={{
+                background: "linear-gradient(90deg, #F5C518 0%, #e6b800 60%, #d4a017 100%)",
+                color: "#0a1f0e",
+                boxShadow: "0 4px 20px rgba(245,197,24,0.45), inset 0 1px 0 rgba(255,255,255,0.3)",
+              }}
             >
-              <Send className="w-4 h-4" />
-              RETRAIT
+              <span className="flex-1 flex items-center justify-center gap-2">
+                <Send className="w-4 h-4" />
+                RETRAIT
+              </span>
+              <span className="absolute right-4 w-7 h-7 rounded-lg flex items-center justify-center"
+                style={{ background: "rgba(10,31,14,0.2)" }}>
+                <ChevronRight className="w-4 h-4" />
+              </span>
             </button>
           </div>
         </div>
