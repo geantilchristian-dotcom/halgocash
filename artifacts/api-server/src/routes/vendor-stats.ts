@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, count, sum, isNotNull, isNull, and } from "drizzle-orm";
+import { eq, count, sum, isNotNull, isNull, and, desc } from "drizzle-orm";
 import { db, usersTable, ticketsTable, vendorsTable, withdrawalsTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
@@ -91,6 +91,54 @@ router.get("/vendor/stats", async (req, res): Promise<void> => {
     pendingWithdrawals: Number(pendingRow?.cnt ?? 0),
     pendingAmount: parseFloat(String(pendingRow?.total ?? "0")),
   });
+});
+
+// GET /api/vendor/tickets — list tickets assigned to the logged-in vendor
+router.get("/vendor/tickets", async (req, res): Promise<void> => {
+  const vendorUserId = req.session.userId;
+  if (!vendorUserId) {
+    res.status(401).json({ error: "Non authentifié" });
+    return;
+  }
+
+  const [vendorUser] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, vendorUserId))
+    .limit(1);
+
+  if (!vendorUser?.vendorId) {
+    res.status(403).json({ error: "Accès vendeur requis" });
+    return;
+  }
+
+  const vid = vendorUser.vendorId;
+  const filter = String(req.query["filter"] ?? "all");
+
+  const baseWhere = eq(ticketsTable.vendorId, vid);
+  const whereClause =
+    filter === "available" ? and(baseWhere, isNull(ticketsTable.registeredAt)) :
+    filter === "scratched" ? and(baseWhere, isNotNull(ticketsTable.registeredAt)) :
+    filter === "winners"   ? and(baseWhere, isNotNull(ticketsTable.registeredAt), eq(ticketsTable.isWinner, true)) :
+    baseWhere;
+
+  const tickets = await db
+    .select({
+      id: ticketsTable.id,
+      code: ticketsTable.code,
+      series: ticketsTable.series,
+      price: ticketsTable.price,
+      isWinner: ticketsTable.isWinner,
+      prizeAmount: ticketsTable.prizeAmount,
+      registeredAt: ticketsTable.registeredAt,
+      createdAt: ticketsTable.createdAt,
+    })
+    .from(ticketsTable)
+    .where(whereClause)
+    .orderBy(desc(ticketsTable.registeredAt), desc(ticketsTable.createdAt))
+    .limit(300);
+
+  res.json({ tickets });
 });
 
 // POST /api/vendor/receive-tickets — acknowledge all pending tickets as received
