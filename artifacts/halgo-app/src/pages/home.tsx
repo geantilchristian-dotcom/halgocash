@@ -246,36 +246,34 @@ export default function Home() {
             </div>
 
             {/* ── Amount row ── */}
-            <div className="flex items-center justify-between mb-2">
-              {/* Amount */}
+            <div className="mb-2">
               <div className="transition-all duration-300" style={{ transform: balanceFlash ? "scale(1.03)" : "scale(1)" }}>
                 {balance === null ? (
-                  <div className="h-14 w-36 rounded-lg animate-pulse" style={{ background: "rgba(255,255,255,0.08)" }} />
+                  <div className="h-16 w-48 rounded-lg animate-pulse" style={{ background: "rgba(255,255,255,0.08)" }} />
                 ) : (
-                  <div className="flex items-end gap-1.5">
+                  <div className="flex items-center gap-3">
                     <span
                       className="leading-none"
                       style={{
                         fontFamily: "'Oswald', sans-serif",
                         fontWeight: 700,
-                        fontSize: balance >= 100000 ? "2.8rem" : "3.6rem",
-                        background: balanceFlash
-                          ? "linear-gradient(180deg, #8DC63F, #5a9e2f)"
-                          : "linear-gradient(180deg, #FFD700 0%, #F5C518 60%, #c9980f 100%)",
-                        WebkitBackgroundClip: "text",
-                        WebkitTextFillColor: "transparent",
-                        backgroundClip: "text",
-                        transition: "all 0.5s",
+                        fontSize: balance >= 100000 ? "3.6rem" : "4.4rem",
+                        color: balanceFlash ? "#8DC63F" : "#ffffff",
+                        transition: "color 0.5s",
                         letterSpacing: "0.01em",
-                        textShadow: "none",
-                        filter: "drop-shadow(0 2px 6px rgba(245,197,24,0.4))",
                       }}
                     >
                       {formatFC(balance)}
                     </span>
                     <span
-                      className="mb-1.5 font-black text-lg"
-                      style={{ fontFamily: "'Oswald', sans-serif", color: "rgba(245,197,24,0.7)" }}
+                      style={{
+                        fontFamily: "'Oswald', sans-serif",
+                        fontWeight: 700,
+                        fontSize: balance >= 100000 ? "3.6rem" : "4.4rem",
+                        color: balanceFlash ? "#8DC63F" : "#ffffff",
+                        transition: "color 0.5s",
+                        lineHeight: 1,
+                      }}
                     >
                       FC
                     </span>
@@ -291,15 +289,6 @@ export default function Home() {
                 {balance !== null && balance === 0 && (
                   <p className="text-white/30 text-[11px] font-medium mt-1">Grattez un ticket pour gagner</p>
                 )}
-              </div>
-
-              {/* Coins decorative */}
-              <div className="flex flex-col items-center justify-end pb-1 mr-2 select-none pointer-events-none">
-                <span style={{ fontSize: 44, lineHeight: 1, filter: "drop-shadow(0 4px 8px rgba(245,197,24,0.5))" }}>🪙</span>
-                <div className="flex gap-0.5 -mt-1">
-                  <span style={{ fontSize: 32, lineHeight: 1, filter: "drop-shadow(0 3px 6px rgba(245,197,24,0.4))" }}>🪙</span>
-                  <span style={{ fontSize: 32, lineHeight: 1, filter: "drop-shadow(0 3px 6px rgba(245,197,24,0.4))" }}>🪙</span>
-                </div>
               </div>
             </div>
 
