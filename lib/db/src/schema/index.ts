@@ -94,6 +94,12 @@ export const bannersTable = pgTable("banners", {
 
 export type Banner = typeof bannersTable.$inferSelect;
 
+export const siteSettingsTable = pgTable("site_settings", {
+  key: varchar("key", { length: 100 }).primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const insertVendorSchema = createInsertSchema(vendorsTable).omit({ id: true, createdAt: true });
 export const insertDrawSchema = createInsertSchema(drawsTable).omit({ id: true, createdAt: true, drawnAt: true, winningTicketCode: true, winningNumbers: true, prizePool: true });
 export const insertTicketSchema = createInsertSchema(ticketsTable).omit({ id: true, createdAt: true });

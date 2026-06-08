@@ -8,6 +8,7 @@ import {
 import { useUser } from "@clerk/react";
 import { QRCodeSVG } from "qrcode.react";
 import { useTheme } from "@/lib/theme-context";
+import { PromoBanner } from "@/components/promo-banner";
 
 function formatFC(amount: number): string {
   return new Intl.NumberFormat("fr-FR").format(Math.round(amount)).replace(/\s/g, ".");
@@ -410,31 +411,7 @@ export default function Home() {
         <AdvertisingBanner />
 
         {/* ── Promo Banner ── */}
-        <div
-          className="rounded-3xl overflow-hidden relative shadow-md"
-          style={{ background: "linear-gradient(135deg, #1a5c2a 0%, #22c55e 50%, #F5C518 100%)", minHeight: 90 }}
-        >
-          <div className="absolute inset-0 pointer-events-none"
-            style={{ background: "radial-gradient(ellipse at 80% 50%, rgba(245,197,24,0.5) 0%, transparent 60%)" }} />
-          <div className="relative z-10 px-5 py-4 flex items-center justify-between">
-            <div>
-              <p className="text-white/80 text-[11px] font-bold uppercase tracking-widest mb-0.5">GAGNEZ JUSQU'À</p>
-              <p className="text-white font-black text-2xl leading-none" style={{ textShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>
-                1.000.000 <span className="text-[#F5C518]">CDF</span>
-              </p>
-              <div className="inline-flex items-center px-2.5 py-1 rounded-full mt-2"
-                style={{ background: "rgba(0,0,0,0.25)" }}>
-                <span className="text-white font-black text-[10px] uppercase tracking-widest">CHAQUE SAMEDI</span>
-              </div>
-            </div>
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-              style={{ background: "rgba(255,255,255,0.2)", border: "1.5px solid rgba(255,255,255,0.4)" }}
-            >
-              <ChevronRight className="w-5 h-5 text-white" />
-            </div>
-          </div>
-        </div>
+        <PromoBanner />
 
         {/* ── Activer un Ticket ── */}
         {!showTicketInput ? (

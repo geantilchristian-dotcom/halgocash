@@ -11,6 +11,7 @@ import statsRouter from "./stats";
 import withdrawalsRouter from "./withdrawals";
 import vendorStatsRouter from "./vendor-stats";
 import bannersRouter from "./banners";
+import settingsRouter from "./settings";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(statsRouter);
 router.use(withdrawalsRouter);
 router.use(vendorStatsRouter);
 router.use(bannersRouter);
+router.use(settingsRouter);
 
 export default router;

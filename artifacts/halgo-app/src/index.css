@@ -233,6 +233,37 @@
 .halgo-line-2       { animation: halgo-line-b 1.6s ease-in-out infinite 0.2s; }
 .halgo-line-3       { animation: halgo-line-c 1.6s ease-in-out infinite 0.4s; }
 
+/* ── Promo Banner Animations ── */
+@keyframes promo-slide-left {
+  from { transform: translateX(-28px); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+@keyframes promo-zoom-in {
+  from { transform: scale(0.72); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+@keyframes promo-bounce-in {
+  0%   { transform: scale(0.5) translateY(8px); opacity: 0; }
+  70%  { transform: scale(1.12) translateY(-2px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+@keyframes promo-pulse-amount {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0px rgba(255,255,255,0)); }
+  50%       { transform: scale(1.04); filter: drop-shadow(0 0 12px rgba(255,255,255,0.5)); }
+}
+@keyframes promo-glow-line {
+  0%, 100% { text-shadow: 0 0 0px currentColor; }
+  50%       { text-shadow: 0 0 18px currentColor, 0 0 40px rgba(255,255,255,0.3); }
+}
+@keyframes promo-shimmer-bg {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+@keyframes promo-badge-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.8; transform: scale(1.06); }
+}
+
 /* ── Chips Animations ── */
 @keyframes chips-wiggle {
   0%   { transform: rotate(0deg) scale(1); }
