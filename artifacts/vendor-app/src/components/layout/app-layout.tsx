@@ -1,7 +1,8 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { ScanBarcode, CheckCircle, Ticket, Trophy, User } from "lucide-react";
+import { ScanBarcode, CheckCircle, Ticket, Trophy, User, LogOut } from "lucide-react";
 import { useVendor } from "../../lib/vendor-context";
+import { useAuth } from "../../lib/auth-context";
 import { useListVendors } from "@workspace/api-client-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -12,6 +13,7 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const [location] = useLocation();
   const { selectedVendorId, setSelectedVendorId } = useVendor();
+  const { user, logout } = useAuth();
   const { data: vendors } = useListVendors();
 
   const navItems = [
@@ -47,6 +49,15 @@ export function AppLayout({ children }: AppLayoutProps) {
               ))}
             </SelectContent>
           </Select>
+          {user && (
+            <button
+              onClick={() => logout()}
+              className="text-gray-400 hover:text-white transition-colors p-1"
+              title="Déconnexion"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </header>
 

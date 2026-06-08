@@ -9,6 +9,62 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Create a new account
+ */
+export const registerBodyUsernameMin = 3;
+export const registerBodyUsernameMax = 50;
+
+export const registerBodyPasswordMin = 6;
+
+export const registerBodyRoleDefault = `player`;
+
+export const RegisterBody = zod.object({
+  "email": zod.string().email(),
+  "username": zod.string().min(registerBodyUsernameMin).max(registerBodyUsernameMax),
+  "password": zod.string().min(registerBodyPasswordMin),
+  "role": zod.enum(['player', 'vendor', 'admin']).default(registerBodyRoleDefault),
+  "vendorId": zod.number().nullish()
+})
+
+
+/**
+ * @summary Login with email and password
+ */
+export const LoginBody = zod.object({
+  "email": zod.string().email(),
+  "password": zod.string()
+})
+
+export const LoginResponse = zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "username": zod.string(),
+  "role": zod.enum(['player', 'vendor', 'admin']),
+  "vendorId": zod.number().nullish()
+})
+
+
+/**
+ * @summary Logout current session
+ */
+export const LogoutResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Get current authenticated user
+ */
+export const GetMeResponse = zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "username": zod.string(),
+  "role": zod.enum(['player', 'vendor', 'admin']),
+  "vendorId": zod.number().nullish()
+})
+
+
+/**
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({

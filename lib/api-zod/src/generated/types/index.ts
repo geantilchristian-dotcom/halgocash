@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './authUser';
+export * from './authUserRole';
 export * from './claimPrizeInput';
 export * from './claimResult';
 export * from './createDrawInput';
@@ -18,6 +20,10 @@ export * from './listDrawsStatus';
 export * from './listTicketsParams';
 export * from './listTicketsStatus';
 export * from './listWinnersParams';
+export * from './loginInput';
+export * from './logout200';
+export * from './registerInput';
+export * from './registerInputRole';
 export * from './stats';
 export * from './ticket';
 export * from './ticketStatus';

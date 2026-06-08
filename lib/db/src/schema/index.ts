@@ -40,6 +40,16 @@ export const ticketsTable = pgTable("tickets", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const usersTable = pgTable("users", {
+  id: serial("id").primaryKey(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  username: varchar("username", { length: 50 }).notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  role: text("role").notNull().default("player"),
+  vendorId: integer("vendor_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const transactionsTable = pgTable("transactions", {
   id: serial("id").primaryKey(),
   type: text("type").notNull(),
@@ -56,10 +66,13 @@ export const insertVendorSchema = createInsertSchema(vendorsTable).omit({ id: tr
 export const insertDrawSchema = createInsertSchema(drawsTable).omit({ id: true, createdAt: true, drawnAt: true, winningTicketCode: true, winningNumbers: true, prizePool: true });
 export const insertTicketSchema = createInsertSchema(ticketsTable).omit({ id: true, createdAt: true });
 export const insertTransactionSchema = createInsertSchema(transactionsTable).omit({ id: true, createdAt: true });
+export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true, passwordHash: true });
 
 export type Vendor = typeof vendorsTable.$inferSelect;
 export type Draw = typeof drawsTable.$inferSelect;
 export type Ticket = typeof ticketsTable.$inferSelect;
 export type Transaction = typeof transactionsTable.$inferSelect;
+export type User = typeof usersTable.$inferSelect;
 export type InsertVendor = z.infer<typeof insertVendorSchema>;
 export type InsertDraw = z.infer<typeof insertDrawSchema>;
+export type InsertUser = z.infer<typeof insertUserSchema>;

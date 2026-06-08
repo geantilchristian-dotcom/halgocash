@@ -1,8 +1,16 @@
+databases:
+  - name: halgo-db
+    plan: free
+    databaseName: halgo
+    user: halgo
+
 services:
   - type: web
     name: halgo-api
     runtime: node
-    buildCommand: pnpm install --frozen-lockfile && pnpm run typecheck:libs && pnpm --filter @workspace/api-server run build
+    plan: free
+    rootDir: .
+    buildCommand: npm install -g pnpm && pnpm install && pnpm run typecheck:libs && pnpm --filter @workspace/api-server run build
     startCommand: node --enable-source-maps artifacts/api-server/dist/index.mjs
     envVars:
       - key: NODE_ENV
@@ -10,6 +18,56 @@ services:
       - key: PORT
         value: 10000
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: halgo-db
+          property: connectionString
       - key: SESSION_SECRET
-        sync: false
+        generateValue: true
+
+  - type: web
+    name: halgo-player
+    runtime: static
+    plan: free
+    rootDir: .
+    buildCommand: npm install -g pnpm && pnpm install && pnpm run typecheck:libs && BASE_PATH=/ VITE_API_URL=https://halgo-api.onrender.com pnpm --filter @workspace/halgo-app run build
+    staticPublishPath: artifacts/halgo-app/dist/public
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  - type: web
+    name: halgo-vendor
+    runtime: static
+    plan: free
+    rootDir: .
+    buildCommand: npm install -g pnpm && pnpm install && pnpm run typecheck:libs && BASE_PATH=/ VITE_API_URL=https://halgo-api.onrender.com pnpm --filter @workspace/vendor-app run build
+    staticPublishPath: artifacts/vendor-app/dist/public
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  - type: web
+    name: halgo-admin
+    runtime: static
+    plan: free
+    rootDir: .
+    buildCommand: npm install -g pnpm && pnpm install && pnpm run typecheck:libs && BASE_PATH=/ VITE_API_URL=https://halgo-api.onrender.com pnpm --filter @workspace/admin-app run build
+    staticPublishPath: artifacts/admin-app/dist/public
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  - type: web
+    name: halgo-display
+    runtime: static
+    plan: free
+    rootDir: .
+    buildCommand: npm install -g pnpm && pnpm install && pnpm run typecheck:libs && BASE_PATH=/ pnpm --filter @workspace/display-app run build
+    staticPublishPath: artifacts/display-app/dist/public
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

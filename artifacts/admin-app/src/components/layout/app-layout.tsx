@@ -1,7 +1,8 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Ticket as TicketIcon, Users, Trophy, Coins } from "lucide-react";
+import { LayoutDashboard, Ticket as TicketIcon, Users, Trophy, Coins, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -17,6 +18,7 @@ const navItems = [
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [location] = useLocation();
+  const { user, logout } = useAuth();
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
@@ -36,6 +38,18 @@ export function AppLayout({ children }: AppLayoutProps) {
             );
           })}
         </nav>
+        {user && (
+          <div className="p-4 border-t border-sidebar-border">
+            <div className="text-xs text-sidebar-foreground/50 mb-2">{user.email}</div>
+            <button
+              onClick={() => logout()}
+              className="flex items-center gap-2 text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors w-full"
+            >
+              <LogOut className="h-4 w-4" />
+              Déconnexion
+            </button>
+          </div>
+        )}
       </aside>
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <div className="flex-1 overflow-auto p-6 md:p-8">

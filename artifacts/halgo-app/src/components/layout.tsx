@@ -1,12 +1,14 @@
 import { Link, useLocation } from "wouter";
-import { Ticket, Trophy, MapPin, History, Menu } from "lucide-react";
+import { Ticket, Trophy, MapPin, History, Menu, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState } from "react";
+import { useAuth } from "@/lib/auth-context";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
 
   const navigation = [
     { name: "Check Ticket", href: "/", icon: Ticket },
@@ -57,6 +59,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </Link>
               );
             })}
+            {user && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full text-muted-foreground hover:text-foreground gap-2"
+                onClick={() => logout()}
+              >
+                <LogOut className="w-4 h-4" />
+                {user.username}
+              </Button>
+            )}
           </nav>
 
           {/* Mobile Nav */}

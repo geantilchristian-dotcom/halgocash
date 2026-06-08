@@ -113,6 +113,50 @@ export interface Stats {
   recentWinners: number;
 }
 
+export type RegisterInputRole = typeof RegisterInputRole[keyof typeof RegisterInputRole];
+
+
+export const RegisterInputRole = {
+  player: 'player',
+  vendor: 'vendor',
+  admin: 'admin',
+} as const;
+
+export interface RegisterInput {
+  email: string;
+  /**
+     * @minLength 3
+     * @maxLength 50
+     */
+  username: string;
+  /** @minLength 6 */
+  password: string;
+  role?: RegisterInputRole;
+  vendorId?: number | null;
+}
+
+export interface LoginInput {
+  email: string;
+  password: string;
+}
+
+export type AuthUserRole = typeof AuthUserRole[keyof typeof AuthUserRole];
+
+
+export const AuthUserRole = {
+  player: 'player',
+  vendor: 'vendor',
+  admin: 'admin',
+} as const;
+
+export interface AuthUser {
+  id: number;
+  email: string;
+  username: string;
+  role: AuthUserRole;
+  vendorId?: number | null;
+}
+
 export interface Winner {
   id: number;
   ticketCode: string;
@@ -122,6 +166,10 @@ export interface Winner {
   vendorName?: string | null;
   claimedAt: string;
 }
+
+export type Logout200 = {
+  success: boolean;
+};
 
 export type ListDrawsParams = {
 status?: ListDrawsStatus;
