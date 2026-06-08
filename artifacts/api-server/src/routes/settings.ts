@@ -1,12 +1,17 @@
 import { Router, Request, Response } from "express";
-import { db, siteSettingsTable } from "@workspace/db";
+import { db, siteSettingsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router = Router();
 
-function requireAdmin(req: Request, res: Response): boolean {
-  const u = req.session as { userId?: number; role?: string };
-  if (!u.userId || u.role !== "admin") {
+async function requireAdmin(req: Request, res: Response): Promise<boolean> {
+  const userId = req.session.userId;
+  if (!userId) {
+    res.status(401).json({ error: "Non authentifié" });
+    return false;
+  }
+  const [user] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user || user.role !== "admin") {
     res.status(403).json({ error: "Accès admin requis" });
     return false;
   }
@@ -68,12 +73,12 @@ router.get("/promo-banner", async (_req, res): Promise<void> => {
 });
 
 router.get("/admin/promo-banner", async (req, res): Promise<void> => {
-  if (!requireAdmin(req, res)) return;
+  if (!await requireAdmin(req, res)) return;
   res.json(await getPromoBanner());
 });
 
 router.put("/admin/promo-banner", async (req, res): Promise<void> => {
-  if (!requireAdmin(req, res)) return;
+  if (!await requireAdmin(req, res)) return;
   const config = req.body as PromoBannerConfig;
   if (!config || typeof config !== "object") {
     res.status(400).json({ error: "Config invalide" });
