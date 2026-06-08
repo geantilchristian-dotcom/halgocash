@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Bell, ChevronRight, History, CheckCircle, AlertCircle, X, QrCode, Zap, Sparkles, RotateCcw, Wallet, Send, ChevronDown, Loader2 } from "lucide-react";
+import { ChevronRight, History, CheckCircle, AlertCircle, X, QrCode, Zap, Sparkles, RotateCcw, Wallet, Send, ChevronDown, Loader2 } from "lucide-react";
 import { useUser } from "@clerk/react";
 import { QRCodeSVG } from "qrcode.react";
 import { useTheme } from "@/lib/theme-context";
@@ -38,6 +38,36 @@ function useRollingCounter(target: number | null) {
   }, [target]);
 
   return display;
+}
+
+function AdvertisingBanner() {
+  const [hasImage, setHasImage] = useState<boolean | null>(null);
+  const [ts] = useState(() => Date.now());
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ aspectRatio: "1780/930" }}>
+      {hasImage === false ? (
+        <div className="w-full h-full flex items-center justify-between px-5 py-4 relative"
+          style={{ background: "linear-gradient(135deg, #0f3d1c 0%, #1a5c2a 60%, #0f3d1c 100%)" }}>
+          <div className="absolute inset-0 pointer-events-none"
+            style={{ background: "linear-gradient(120deg, transparent 30%, rgba(141,198,63,0.1) 50%, transparent 70%)" }} />
+          <div className="relative z-10">
+            <p className="text-white/40 text-[9px] font-bold uppercase tracking-[0.25em]">PUBLICITÉ</p>
+            <p className="text-white font-black text-base tracking-wide mt-0.5">HALGO CASH</p>
+            <p className="text-[#8DC63F] text-xs font-semibold">Gagnez jusqu'à 50 000 FC</p>
+          </div>
+        </div>
+      ) : (
+        <img
+          src={`/api/banners/active/image?t=${ts}`}
+          alt="Publicité"
+          className="w-full h-full object-cover"
+          onLoad={() => setHasImage(true)}
+          onError={() => setHasImage(false)}
+        />
+      )}
+    </div>
+  );
 }
 
 export default function Home() {
@@ -244,22 +274,7 @@ export default function Home() {
       <div className="px-4 pt-4 space-y-4">
 
         {/* ── Advertising Banner ── */}
-        <div className="rounded-2xl overflow-hidden relative flex items-center justify-between px-5 py-4"
-          style={{ background: "linear-gradient(135deg, #0f3d1c 0%, #1a5c2a 60%, #0f3d1c 100%)", minHeight: 80 }}>
-          <div className="absolute inset-0 pointer-events-none"
-            style={{ background: "linear-gradient(120deg, transparent 30%, rgba(141,198,63,0.1) 50%, transparent 70%)" }} />
-          <div className="relative z-10">
-            <p className="text-white/40 text-[9px] font-bold uppercase tracking-[0.25em]">PUBLICITÉ</p>
-            <p className="text-white font-black text-base tracking-wide mt-0.5">HALGO CASH</p>
-            <p className="text-[#8DC63F] text-xs font-semibold">Gagnez jusqu'à 50 000 FC</p>
-          </div>
-          <div className="relative z-10 flex items-center justify-center">
-            <div className="w-12 h-12 rounded-full border-2 border-[#F5C518]/40 flex items-center justify-center"
-              style={{ background: "rgba(245,197,24,0.15)" }}>
-              <Bell className="w-5 h-5 text-[#F5C518]" />
-            </div>
-          </div>
-        </div>
+        <AdvertisingBanner />
 
         {/* ── HALGO CASH Logo ── */}
         <div className={`rounded-2xl py-5 px-4 flex flex-col items-center shadow-sm border transition-colors ${card}`}>

@@ -83,6 +83,17 @@ export const withdrawalsTable = pgTable("withdrawals", {
 
 export type Withdrawal = typeof withdrawalsTable.$inferSelect;
 
+export const bannersTable = pgTable("banners", {
+  id: serial("id").primaryKey(),
+  fileName: text("file_name").notNull(),
+  mimeType: text("mime_type").notNull().default("image/png"),
+  imageData: text("image_data").notNull(),
+  isActive: boolean("is_active").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type Banner = typeof bannersTable.$inferSelect;
+
 export const insertVendorSchema = createInsertSchema(vendorsTable).omit({ id: true, createdAt: true });
 export const insertDrawSchema = createInsertSchema(drawsTable).omit({ id: true, createdAt: true, drawnAt: true, winningTicketCode: true, winningNumbers: true, prizePool: true });
 export const insertTicketSchema = createInsertSchema(ticketsTable).omit({ id: true, createdAt: true });

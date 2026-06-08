@@ -10,6 +10,7 @@ import vendorsRouter from "./vendors";
 import statsRouter from "./stats";
 import withdrawalsRouter from "./withdrawals";
 import vendorStatsRouter from "./vendor-stats";
+import bannersRouter from "./banners";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(vendorsRouter);
 router.use(statsRouter);
 router.use(withdrawalsRouter);
 router.use(vendorStatsRouter);
+router.use(bannersRouter);
 
 export default router;

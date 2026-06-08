@@ -11,6 +11,7 @@ import {
   Users,
   ArrowDownLeft,
   BarChart2,
+  Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -26,6 +27,7 @@ const navItems = [
   { href: "/workers",        label: "Annuaire vendeurs",   icon: Users           },
   { href: "/withdrawals",    label: "Retraits joueurs",    icon: ArrowDownLeft   },
   { href: "/rapport",        label: "Rapport",             icon: BarChart2       },
+  { href: "/publicite",      label: "Publicité",           icon: Megaphone       },
   { href: "/settings",       label: "Paramètres",          icon: Settings        },
 ];
 
