@@ -475,7 +475,6 @@ export default function Home() {
                   <X className="w-4.5 h-4.5" style={{ width: 18, height: 18 }} />
                 </button>
               </div>
-              <p className="text-[#0a1f0e]/60 text-[12px] font-semibold mb-4">Entrez le code de ticket gagnant</p>
 
               {activationResult ? (
                 <div
@@ -544,17 +543,19 @@ export default function Home() {
                     </p>
                   )}
 
-                  <button
-                    onClick={activateTicket}
-                    disabled={activating || ticketCode.length === 0}
-                    className="w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
-                    style={{ background: "rgba(0,0,0,0.25)", color: "#fff" }}
-                  >
-                    {activating
-                      ? <Loader2 className="w-4 h-4 animate-spin" />
-                      : <Sparkles className="w-4 h-4" />}
-                    {activating ? "Vérification…" : "ACTIVER"}
-                  </button>
+                  {(ticketCode.length > 0 || activating) && (
+                    <button
+                      onClick={activateTicket}
+                      disabled={activating || ticketCode.length === 0}
+                      className="w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 animate-in fade-in slide-in-from-bottom-2 duration-200"
+                      style={{ background: "rgba(0,0,0,0.25)", color: "#fff" }}
+                    >
+                      {activating
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : <Sparkles className="w-4 h-4" />}
+                      {activating ? "Vérification…" : "ACTIVER"}
+                    </button>
+                  )}
                 </>
               )}
             </div>
