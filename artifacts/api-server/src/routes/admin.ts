@@ -32,34 +32,48 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 /**
- * Build a prize distribution for N tickets.
- * Structure per 1000 codes:
- *   1  × 50 000 FC  (Super Gagnant)
- *   2  × 25 000 FC  (Très Grand Gagnant)
- *  10  × 10 000 FC  (Grand Gagnant)
- *  10  ×  5 000 FC  (Gagnant)
- * 100  ×   price FC  (Remboursé)
- * 877 ×       0  FC  (Perdant)
+ * Build a prize distribution targeting 70% payout / 30% company margin.
+ *
+ * Fixed prizes per 1 000 tickets (scaled by N/1000):
+ *   1  × 50 000 FC  (Super Gagnant)       → 50 000 FC
+ *   2  × 25 000 FC  (Très Grand Gagnant)  → 50 000 FC
+ *  10  × 10 000 FC  (Grand Gagnant)       → 100 000 FC
+ *  10  ×  5 000 FC  (Gagnant)             → 50 000 FC
+ *  Subtotal fixed: 250 000 FC per 1 000 tickets
+ *
+ * Variable "Remboursé" tier (= ticket price):
+ *   petitCount = max(0, N × (0.70 − 250/price))
+ *   This ensures total prizes ≈ 70% of revenue for price ≥ 358 FC.
+ *   For cheaper tickets, fixed prizes already dominate the payout pool.
+ *
+ * Saturday jackpot series use JACKPOT type — handled separately.
  */
 function buildPrizeDistribution(count: number, price: number): { prizeAmount: string | null; isWinner: boolean }[] {
   const r = count / 1000;
 
-  const superCount      = Math.max(count >= 1000 ? 1 : 0, Math.round(1   * r));
-  const tresGrandCount  = Math.max(count >= 500  ? 1 : 0, Math.round(2   * r));
-  const grandCount      = Math.round(10  * r);
-  const gagnantCount    = Math.round(10  * r);
-  const petitCount      = Math.round(100 * r);
+  // Fixed tiers (scaled)
+  const superCount     = count >= 1000 ? Math.round(1  * r) : (count >= 500 ? 1 : 0);
+  const tresGrandCount = count >= 500  ? Math.max(1, Math.round(2  * r)) : 0;
+  const grandCount     = Math.max(0, Math.round(10 * r));
+  const gagnantCount   = Math.max(0, Math.round(10 * r));
+
+  // Variable "Remboursé" tier: fills up to 70% total payout
+  // petitCount = N × max(0, 0.70 − FIXED_PRIZE_PER_TICKET / price)
+  // where FIXED_PRIZE_PER_TICKET = 250 (i.e. 250 000 FC per 1000)
+  const FIXED_PER_TICKET = 250; // FC
+  const petitRatio = Math.max(0, 0.70 - FIXED_PER_TICKET / price);
+  const petitCount = Math.round(count * petitRatio);
 
   const totalWinners = superCount + tresGrandCount + grandCount + gagnantCount + petitCount;
   const loserCount   = Math.max(0, count - totalWinners);
 
   const prizes: { prizeAmount: string | null; isWinner: boolean }[] = [
-    ...Array<null>(superCount).fill(null).map(() => ({ prizeAmount: "50000",        isWinner: true  })),
-    ...Array<null>(tresGrandCount).fill(null).map(() => ({ prizeAmount: "25000",    isWinner: true  })),
-    ...Array<null>(grandCount).fill(null).map(() => ({ prizeAmount: "10000",        isWinner: true  })),
-    ...Array<null>(gagnantCount).fill(null).map(() => ({ prizeAmount: "5000",       isWinner: true  })),
-    ...Array<null>(petitCount).fill(null).map(() => ({ prizeAmount: String(price),  isWinner: true  })),
-    ...Array<null>(loserCount).fill(null).map(() => ({ prizeAmount: null,           isWinner: false })),
+    ...Array<null>(superCount).fill(null).map(() => ({ prizeAmount: "50000",       isWinner: true  })),
+    ...Array<null>(tresGrandCount).fill(null).map(() => ({ prizeAmount: "25000",   isWinner: true  })),
+    ...Array<null>(grandCount).fill(null).map(() => ({ prizeAmount: "10000",       isWinner: true  })),
+    ...Array<null>(gagnantCount).fill(null).map(() => ({ prizeAmount: "5000",      isWinner: true  })),
+    ...Array<null>(petitCount).fill(null).map(() => ({ prizeAmount: String(price), isWinner: true  })),
+    ...Array<null>(loserCount).fill(null).map(() => ({ prizeAmount: null,          isWinner: false })),
   ];
 
   return shuffle(prizes);
@@ -283,6 +297,27 @@ router.get("/admin/batches", requireAdmin, async (_req: Request, res: Response):
     winners: Number(r.winners),
     available: Number(r.available),
   })));
+});
+
+// DELETE /api/admin/batches/:series — delete all tickets in a series (admin only)
+router.delete("/admin/batches/:series", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const { series } = req.params;
+
+  // Safety: refuse to delete series that have scratched tickets
+  const [row] = await db
+    .select({ cnt: sql<number>`COUNT(*) FILTER (WHERE ${ticketsTable.registeredAt} IS NOT NULL)` })
+    .from(ticketsTable)
+    .where(eq(ticketsTable.series, series));
+
+  const scratched = Number(row?.cnt ?? 0);
+  if (scratched > 0) {
+    res.status(409).json({ error: `Impossible de supprimer: ${scratched} billet(s) de ce lot ont déjà été grattés.` });
+    return;
+  }
+
+  const result = await db.delete(ticketsTable).where(eq(ticketsTable.series, series)).returning({ id: ticketsTable.id });
+  logger.info({ series, deleted: result.length }, "Admin deleted ticket batch");
+  res.json({ deleted: result.length });
 });
 
 // GET /api/admin/batches/:series — all tickets in a specific series

@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { History, Trophy, Ticket, ChevronRight, Layers, BarChart2, RefreshCw, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { History, Trophy, Ticket, ChevronRight, Layers, BarChart2, RefreshCw, CheckCircle2, XCircle, Clock, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Batch {
@@ -61,6 +61,31 @@ async function apiFetch<T>(url: string, fallback: T): Promise<T> {
 export default function Tickets() {
   const [selectedSeries, setSelectedSeries] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | "available" | "scratched" | "winners">("all");
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const deleteMutation = useMutation({
+    mutationFn: async (series: string) => {
+      const res = await fetch(`/api/admin/batches/${encodeURIComponent(series)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur lors de la suppression");
+      return data as { deleted: number };
+    },
+    onSuccess: (_data, series) => {
+      if (selectedSeries === series) setSelectedSeries(null);
+      setDeleteConfirm(null);
+      setDeleteError(null);
+      void queryClient.invalidateQueries({ queryKey: ["/api/admin/batches"] });
+    },
+    onError: (err: Error) => {
+      setDeleteError(err.message);
+      setDeleteConfirm(null);
+    },
+  });
 
   const { data: rawBatches, isFetching: loadingBatches, refetch: refetchBatches } = useQuery<Batch[]>({
     queryKey: ["/api/admin/batches"],
@@ -108,44 +133,85 @@ export default function Tickets() {
             Aucun lot généré
           </div>
         ) : (
+          <>
+          {deleteError && (
+            <div className="px-3 py-2 rounded-lg bg-red-900/30 border border-red-700/40 text-red-400 text-xs">
+              {deleteError}
+              <button className="ml-2 underline" onClick={() => setDeleteError(null)}>OK</button>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5 overflow-y-auto pr-1">
             {batches.map((b) => {
               const pct = b.total > 0 ? Math.round((b.scratched / b.total) * 100) : 0;
               const isActive = selectedSeries === b.series;
+              const isConfirming = deleteConfirm === b.series;
+              const isDeleting = deleteMutation.isPending && deleteMutation.variables === b.series;
               return (
-                <button
+                <div
                   key={b.series}
-                  onClick={() => setSelectedSeries(b.series)}
                   className={cn(
-                    "text-left rounded-lg px-3 py-2.5 border transition-all",
+                    "rounded-lg border transition-all",
                     isActive
                       ? "bg-indigo-600/20 border-indigo-500/50 shadow-sm"
-                      : "bg-zinc-900 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/60"
+                      : "bg-zinc-900 border-zinc-800 hover:border-zinc-700"
                   )}
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-white font-mono font-bold text-sm">Série {b.series}</span>
-                    <ChevronRight className={cn("w-3.5 h-3.5 text-zinc-500 transition-transform", isActive && "rotate-90 text-indigo-400")} />
-                  </div>
-                  <p className="text-zinc-500 text-xs mb-2">{formatDate(b.generatedAt)}</p>
-                  <div className="flex items-center gap-2 text-xs mb-2">
-                    <span className="text-zinc-400">{b.total.toLocaleString("fr-FR")} billets</span>
-                    {b.winners > 0 && (
-                      <span className="text-amber-400 font-medium">· {b.winners} gagnant{b.winners > 1 ? "s" : ""}</span>
+                  <button
+                    onClick={() => { setSelectedSeries(b.series); setDeleteConfirm(null); }}
+                    className="w-full text-left px-3 pt-2.5 pb-1"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-white font-mono font-bold text-sm">Série {b.series}</span>
+                      <ChevronRight className={cn("w-3.5 h-3.5 text-zinc-500 transition-transform", isActive && "rotate-90 text-indigo-400")} />
+                    </div>
+                    <p className="text-zinc-500 text-xs mb-2">{formatDate(b.generatedAt)}</p>
+                    <div className="flex items-center gap-2 text-xs mb-2">
+                      <span className="text-zinc-400">{b.total.toLocaleString("fr-FR")} billets</span>
+                      {b.winners > 0 && (
+                        <span className="text-amber-400 font-medium">· {b.winners} gagnant{b.winners > 1 ? "s" : ""}</span>
+                      )}
+                    </div>
+                    <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                    <p className="text-zinc-600 text-[10px] mt-1 mb-1">{pct}% grattés</p>
+                  </button>
+
+                  {/* Delete row */}
+                  <div className="px-3 pb-2 flex items-center justify-end gap-2">
+                    {isConfirming ? (
+                      <>
+                        <span className="text-red-400 text-[10px] flex-1">Supprimer ce lot ?</span>
+                        <button
+                          onClick={() => deleteMutation.mutate(b.series)}
+                          disabled={isDeleting}
+                          className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-600 hover:bg-red-500 text-white disabled:opacity-50 transition-colors"
+                        >
+                          {isDeleting ? "..." : "OUI"}
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm(null)}
+                          className="px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-700 hover:bg-zinc-600 text-zinc-300 transition-colors"
+                        >
+                          Annuler
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeleteConfirm(b.series); setDeleteError(null); }}
+                        className="flex items-center gap-1 text-zinc-600 hover:text-red-400 transition-colors text-[10px]"
+                        title="Supprimer ce lot"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Supprimer
+                      </button>
                     )}
                   </div>
-                  {/* Progress bar */}
-                  <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-indigo-500 rounded-full transition-all"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <p className="text-zinc-600 text-[10px] mt-1">{pct}% grattés</p>
-                </button>
+                </div>
               );
             })}
           </div>
+          </>
         )}
       </div>
 
