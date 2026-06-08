@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useListVendors, useCreateVendor, getListVendorsQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Settings as SettingsIcon, Loader2, User, KeyRound, ShieldCheck, Plus, Store, Trash2, AlertTriangle, X } from "lucide-react";
+import { Settings as SettingsIcon, Loader2, User, KeyRound, ShieldCheck, Trash2, AlertTriangle, X } from "lucide-react";
 
 async function apiFetch(path: string, options?: RequestInit) {
   const res = await fetch(path, {
@@ -59,15 +58,6 @@ export default function Settings() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwError, setPwError] = useState("");
 
-  // Vendor creation
-  const [vendorName, setVendorName] = useState("");
-  const [vendorLocation, setVendorLocation] = useState("");
-  const [vendorPhone, setVendorPhone] = useState("");
-  const [showVendorForm, setShowVendorForm] = useState(false);
-
-  const { data: vendors } = useListVendors();
-  const createVendor = useCreateVendor();
-
   const identMutation = useMutation({
     mutationFn: () =>
       apiFetch("/api/admin/credentials", {
@@ -104,21 +94,6 @@ export default function Settings() {
     if (newPassword !== confirmPassword) { setPwError("Les mots de passe ne correspondent pas"); return; }
     if (newPassword.length < 8) { setPwError("Le mot de passe doit contenir au moins 8 caractères"); return; }
     pwMutation.mutate();
-  };
-
-  const handleCreateVendor = () => {
-    if (!vendorName.trim()) return;
-    createVendor.mutate({ data: { name: vendorName, location: vendorLocation, phone: vendorPhone } }, {
-      onSuccess: () => {
-        setVendorName(""); setVendorLocation(""); setVendorPhone("");
-        setShowVendorForm(false);
-        queryClient.invalidateQueries({ queryKey: getListVendorsQueryKey() });
-        toast({ title: "Vendeur créé avec succès" });
-      },
-      onError: (err: Error) => {
-        toast({ title: "Erreur", description: err.message, variant: "destructive" });
-      },
-    });
   };
 
   return (
@@ -339,84 +314,6 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      {/* Vendor management */}
-      <Card className="bg-zinc-900 border-zinc-800">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-white text-base flex items-center gap-2">
-                <Store className="w-4 h-4 text-zinc-400" />
-                Gestion des vendeurs
-              </CardTitle>
-              <CardDescription className="text-zinc-400 mt-1">
-                Créer et gérer les comptes vendeurs
-              </CardDescription>
-            </div>
-            <Button
-              size="sm"
-              onClick={() => setShowVendorForm(!showVendorForm)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            >
-              <Plus className="w-3.5 h-3.5 mr-1" />
-              Nouveau vendeur
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {showVendorForm && (
-            <div className="p-4 rounded-lg bg-zinc-800/60 border border-zinc-700 space-y-3">
-              <p className="text-zinc-300 text-sm font-semibold">Créer un compte vendeur</p>
-              <div className="grid grid-cols-1 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-zinc-400 text-xs">Nom du vendeur *</Label>
-                  <Input value={vendorName} onChange={(e) => setVendorName(e.target.value)}
-                    placeholder="Jean Mwamba" className="bg-zinc-700 border-zinc-600 text-white text-sm h-9" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-zinc-400 text-xs">Localisation</Label>
-                  <Input value={vendorLocation} onChange={(e) => setVendorLocation(e.target.value)}
-                    placeholder="Kinshasa, Gombe" className="bg-zinc-700 border-zinc-600 text-white text-sm h-9" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-zinc-400 text-xs">Téléphone</Label>
-                  <Input value={vendorPhone} onChange={(e) => setVendorPhone(e.target.value)}
-                    placeholder="+243 81X XXX XXX" className="bg-zinc-700 border-zinc-600 text-white text-sm h-9" />
-                </div>
-              </div>
-              <div className="flex gap-2 pt-1">
-                <Button size="sm" onClick={handleCreateVendor} disabled={createVendor.isPending || !vendorName.trim()}
-                  className="bg-green-700 hover:bg-green-600 text-white">
-                  {createVendor.isPending ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : null}
-                  Créer
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setShowVendorForm(false)}
-                  className="text-zinc-400 hover:text-white">
-                  Annuler
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Vendor list */}
-          {!vendors || vendors.length === 0 ? (
-            <p className="text-zinc-500 text-sm text-center py-4">Aucun vendeur enregistré</p>
-          ) : (
-            <div className="space-y-2">
-              {vendors.map((v) => (
-                <div key={v.id} className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/40 border border-zinc-700/50">
-                  <div>
-                    <p className="text-white text-sm font-medium">{v.name}</p>
-                    <p className="text-zinc-400 text-xs">{v.location ?? "—"} {v.phone ? `· ${v.phone}` : ""}</p>
-                  </div>
-                  <Badge variant={v.status === "active" ? "default" : "secondary"} className="text-xs">
-                    {v.status === "active" ? "Actif" : "Inactif"}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
