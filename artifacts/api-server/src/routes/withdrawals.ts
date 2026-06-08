@@ -1,9 +1,41 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and } from "drizzle-orm";
-import { db, withdrawalsTable, vendorsTable, usersTable } from "@workspace/db";
+import { eq, desc, and, sum, isNotNull } from "drizzle-orm";
+import { db, withdrawalsTable, vendorsTable, usersTable, ticketsTable } from "@workspace/db";
 import { getAuth } from "@clerk/express";
 
 const router: IRouter = Router();
+
+/** Compute the true available balance for a Clerk user.
+ *  availableBalance = sum(won prizes) - sum(paid withdrawals) - sum(pending withdrawals)
+ */
+async function getAvailableBalance(clerkId: string): Promise<number> {
+  const [winsRow] = await db
+    .select({ total: sum(ticketsTable.prizeAmount) })
+    .from(ticketsTable)
+    .where(
+      and(
+        eq(ticketsTable.registeredByClerkId, clerkId),
+        eq(ticketsTable.isWinner, true),
+        isNotNull(ticketsTable.prizeAmount),
+      ),
+    );
+
+  const [paidRow] = await db
+    .select({ total: sum(withdrawalsTable.amount) })
+    .from(withdrawalsTable)
+    .where(and(eq(withdrawalsTable.clerkId, clerkId), eq(withdrawalsTable.status, "paid")));
+
+  const [pendingRow] = await db
+    .select({ total: sum(withdrawalsTable.amount) })
+    .from(withdrawalsTable)
+    .where(and(eq(withdrawalsTable.clerkId, clerkId), eq(withdrawalsTable.status, "pending")));
+
+  const wins    = winsRow?.total    ? parseFloat(String(winsRow.total))    : 0;
+  const paid    = paidRow?.total    ? parseFloat(String(paidRow.total))    : 0;
+  const pending = pendingRow?.total ? parseFloat(String(pendingRow.total)) : 0;
+
+  return Math.max(0, wins - paid - pending);
+}
 
 // POST /api/withdrawals — player creates a withdrawal request (Clerk auth required)
 router.post("/withdrawals", async (req, res): Promise<void> => {
@@ -19,23 +51,9 @@ router.post("/withdrawals", async (req, res): Promise<void> => {
     return;
   }
 
-  // Check balance (sum of all winning tickets for this user)
-  const { sum, isNotNull } = await import("drizzle-orm");
-  const { ticketsTable } = await import("@workspace/db");
-  const [balRow] = await db
-    .select({ total: sum(ticketsTable.prizeAmount) })
-    .from(ticketsTable)
-    .where(
-      and(
-        eq(ticketsTable.registeredByClerkId, userId),
-        eq(ticketsTable.isWinner, true),
-        isNotNull(ticketsTable.prizeAmount),
-      ),
-    );
-  const balance = balRow?.total ? parseFloat(String(balRow.total)) : 0;
-
-  if (amount > balance) {
-    res.status(400).json({ error: `Solde insuffisant. Solde disponible : ${balance} FC` });
+  const available = await getAvailableBalance(userId);
+  if (amount > available) {
+    res.status(400).json({ error: `Solde insuffisant. Solde disponible : ${available} FC` });
     return;
   }
 
@@ -73,6 +91,41 @@ router.post("/withdrawals", async (req, res): Promise<void> => {
   });
 });
 
+// DELETE /api/withdrawals/:token — player cancels their own pending withdrawal
+router.delete("/withdrawals/:token", async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  if (!userId) {
+    res.status(401).json({ error: "Non authentifié" });
+    return;
+  }
+
+  const token = String(req.params["token"]);
+  const [w] = await db
+    .select()
+    .from(withdrawalsTable)
+    .where(eq(withdrawalsTable.token, token))
+    .limit(1);
+
+  if (!w) {
+    res.status(404).json({ error: "Code de retrait introuvable" });
+    return;
+  }
+
+  if (w.clerkId !== userId) {
+    res.status(403).json({ error: "Accès refusé" });
+    return;
+  }
+
+  if (w.status !== "pending") {
+    res.status(409).json({ error: "Seuls les retraits en attente peuvent être annulés" });
+    return;
+  }
+
+  await db.delete(withdrawalsTable).where(eq(withdrawalsTable.token, token));
+
+  res.json({ success: true, cancelled: true });
+});
+
 // GET /api/withdrawals/my — player's own withdrawals
 router.get("/withdrawals/my", async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
@@ -102,7 +155,7 @@ router.get("/withdrawals/my", async (req, res): Promise<void> => {
 
 // GET /api/withdrawals/:token — vendor looks up a withdrawal by token
 router.get("/withdrawals/:token", async (req, res): Promise<void> => {
-  const { token } = req.params;
+  const token = String(req.params["token"]);
   const vendorUserId = req.session.userId;
   if (!vendorUserId) {
     res.status(401).json({ error: "Non authentifié" });
@@ -112,7 +165,7 @@ router.get("/withdrawals/:token", async (req, res): Promise<void> => {
   const [w] = await db
     .select()
     .from(withdrawalsTable)
-    .where(eq(withdrawalsTable.token, token!))
+    .where(eq(withdrawalsTable.token, token))
     .limit(1);
 
   if (!w) {
@@ -151,11 +204,11 @@ router.post("/withdrawals/:token/pay", async (req, res): Promise<void> => {
     return;
   }
 
-  const { token } = req.params;
+  const token = String(req.params["token"]);
   const [w] = await db
     .select()
     .from(withdrawalsTable)
-    .where(eq(withdrawalsTable.token, token!))
+    .where(eq(withdrawalsTable.token, token))
     .limit(1);
 
   if (!w) {
@@ -175,10 +228,9 @@ router.post("/withdrawals/:token/pay", async (req, res): Promise<void> => {
       paidByVendorId: vendorUser.vendorId,
       paidAt: new Date(),
     })
-    .where(eq(withdrawalsTable.token, token!))
+    .where(eq(withdrawalsTable.token, token))
     .returning();
 
-  // Fetch vendor name for response
   const [vendor] = await db
     .select({ name: vendorsTable.name })
     .from(vendorsTable)
@@ -235,4 +287,5 @@ router.get("/vendor/withdrawals", async (req, res): Promise<void> => {
   );
 });
 
+export { getAvailableBalance };
 export default router;

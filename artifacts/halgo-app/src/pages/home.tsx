@@ -62,6 +62,8 @@ export default function Home() {
   const [retraitLoading, setRetraitLoading] = useState(false);
   const [retraitQR, setRetraitQR] = useState<{ token: string; amount: number; qrValue: string } | null>(null);
   const [retraitError, setRetraitError] = useState<string | null>(null);
+  const [retraitPaid, setRetraitPaid] = useState<{ paidAt: string } | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchBalance = useCallback(async () => {
     try {
@@ -138,9 +140,55 @@ export default function Home() {
     setTicketCode(""); setActivationResult(null); setActivationError(null);
   };
 
+  // Poll withdrawal status every 3s while QR is displayed
+  useEffect(() => {
+    if (!retraitQR || retraitPaid) {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      return;
+    }
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch("/api/withdrawals/my", { credentials: "include" });
+        if (!res.ok) return;
+        const data = await res.json() as Array<{ token: string; status: string; paidAt: string | null }>;
+        const match = data.find((w) => w.token === retraitQR.token);
+        if (match?.status === "paid" && match.paidAt) {
+          clearInterval(pollRef.current!);
+          pollRef.current = null;
+          setRetraitPaid({ paidAt: match.paidAt });
+          void fetchBalance(); // refresh balance immediately
+        }
+      } catch { /* silent */ }
+    }, 3000);
+    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+  }, [retraitQR, retraitPaid]);
+
+  const cancelPendingRetrait = async (token: string) => {
+    try {
+      await fetch(`/api/withdrawals/${encodeURIComponent(token)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+    } catch { /* silent — best effort */ }
+  };
+
+  const closeRetrait = () => {
+    if (retraitQR && !retraitPaid) {
+      // Cancel the pending withdrawal so the amount is freed immediately
+      void cancelPendingRetrait(retraitQR.token);
+    }
+    setShowRetrait(false);
+    setRetraitQR(null);
+    setRetraitPaid(null);
+    setRetraitAmount("");
+    setRetraitError(null);
+    void fetchBalance();
+  };
+
   const openRetrait = () => {
     setRetraitAmount("");
     setRetraitQR(null);
+    setRetraitPaid(null);
     setRetraitError(null);
     setShowRetrait(true);
   };
@@ -482,7 +530,7 @@ export default function Home() {
                 </p>
               </div>
               <button
-                onClick={() => setShowRetrait(false)}
+                onClick={closeRetrait}
                 className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
                 style={{ background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }}
               >
@@ -491,38 +539,76 @@ export default function Home() {
             </div>
 
             {retraitQR ? (
-              /* ── QR Code state ── */
-              <div className="px-5 py-6 flex flex-col items-center gap-4 text-center">
-                <p className={`font-black text-base ${cardText}`}>
-                  Présentez ce QR à un vendeur Halgo Cash
-                </p>
-                <p className={`text-xs ${subText}`}>
-                  Retrait de <span className="text-[#F5C518] font-bold">{formatFC(retraitQR.amount)} FC</span> · valable 15 min
-                </p>
-                <div className="p-4 rounded-2xl" style={{ background: "#fff", boxShadow: "0 4px 24px rgba(0,0,0,0.2)" }}>
-                  <QRCodeSVG
-                    value={retraitQR.qrValue}
-                    size={200}
-                    bgColor="#ffffff"
-                    fgColor="#0a1f0e"
-                    level="M"
-                  />
+              retraitPaid ? (
+                /* ── Paid state ── */
+                <div className="px-5 py-8 flex flex-col items-center gap-4 text-center">
+                  <div className="w-20 h-20 rounded-full flex items-center justify-center"
+                    style={{ background: "linear-gradient(135deg, #22c55e, #16a34a)", boxShadow: "0 0 32px rgba(34,197,94,0.4)" }}>
+                    <CheckCircle className="w-10 h-10 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-black text-xl text-green-500">RETRAIT PAYÉ !</p>
+                    <p className={`text-sm mt-1 ${subText}`}>
+                      Votre retrait de <span className="font-black text-[#F5C518]">{formatFC(retraitQR.amount)} FC</span> a été confirmé
+                    </p>
+                  </div>
+                  <div className="w-full rounded-xl px-4 py-3 text-xs"
+                    style={{ background: isDark ? "rgba(34,197,94,0.08)" : "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)" }}>
+                    <p className={`font-bold ${subText}`}>Confirmé le</p>
+                    <p className="font-black text-green-500 mt-0.5">
+                      {new Date(retraitPaid.paidAt).toLocaleString("fr-FR")}
+                    </p>
+                  </div>
+                  <p className={`text-[11px] ${subText}`}>
+                    Votre solde a été mis à jour. Merci d'utiliser Halgo Cash.
+                  </p>
+                  <button
+                    onClick={closeRetrait}
+                    className="w-full py-3 rounded-xl font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98]"
+                    style={{ background: "linear-gradient(135deg, #22c55e, #16a34a)", color: "#fff" }}
+                  >
+                    FERMER
+                  </button>
                 </div>
-                <div className="w-full rounded-xl px-4 py-2 text-xs font-mono break-all"
-                  style={{ background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)", color: isDark ? "#aaa" : "#666" }}>
-                  {retraitQR.token}
+              ) : (
+                /* ── QR Code state ── */
+                <div className="px-5 py-6 flex flex-col items-center gap-4 text-center">
+                  <p className={`font-black text-base ${cardText}`}>
+                    Présentez ce QR à un vendeur Halgo Cash
+                  </p>
+                  <p className={`text-xs ${subText}`}>
+                    Retrait de <span className="text-[#F5C518] font-bold">{formatFC(retraitQR.amount)} FC</span> · en attente de paiement
+                  </p>
+                  {/* Pulsing "waiting" indicator */}
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                    <span className={`text-xs font-semibold ${subText}`}>En attente de confirmation vendeur…</span>
+                  </div>
+                  <div className="p-4 rounded-2xl" style={{ background: "#fff", boxShadow: "0 4px 24px rgba(0,0,0,0.2)" }}>
+                    <QRCodeSVG
+                      value={retraitQR.qrValue}
+                      size={200}
+                      bgColor="#ffffff"
+                      fgColor="#0a1f0e"
+                      level="M"
+                    />
+                  </div>
+                  <div className="w-full rounded-xl px-4 py-2 text-xs font-mono break-all"
+                    style={{ background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)", color: isDark ? "#aaa" : "#666" }}>
+                    {retraitQR.token}
+                  </div>
+                  <p className={`text-[11px] ${subText}`}>
+                    Le vendeur scannera ce code et confirmera le paiement en espèces.
+                  </p>
+                  <button
+                    onClick={closeRetrait}
+                    className="w-full py-3 rounded-xl font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98]"
+                    style={{ background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", color: isDark ? "#fff" : "#333" }}
+                  >
+                    ANNULER LE RETRAIT
+                  </button>
                 </div>
-                <p className={`text-[11px] ${subText}`}>
-                  Le vendeur scannera ce code et confirmera le paiement en espèces.
-                </p>
-                <button
-                  onClick={() => { setShowRetrait(false); setRetraitQR(null); setRetraitAmount(""); }}
-                  className="w-full py-3 rounded-xl font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98]"
-                  style={{ background: "linear-gradient(135deg, #F5C518, #d4a017)", color: "#0a1f0e" }}
-                >
-                  FERMER
-                </button>
-              </div>
+              )
             ) : (
               /* ── Form ── */
               <div className="px-5 pt-5 space-y-4">

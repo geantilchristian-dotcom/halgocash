@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import { eq, or, sum, and, isNotNull } from "drizzle-orm";
-import { db, usersTable, ticketsTable } from "@workspace/db";
+import { db, usersTable, ticketsTable, withdrawalsTable } from "@workspace/db";
 import { RegisterBody, LoginBody } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { getAuth } from "@clerk/express";
@@ -161,14 +161,15 @@ router.get("/auth/me", async (req, res): Promise<void> => {
   });
 });
 
-// GET /api/auth/balance — total winnings for the current Clerk user
+// GET /api/auth/balance — available balance = wins - paid withdrawals - pending withdrawals
 router.get("/auth/balance", async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   if (!userId) {
     res.json({ balance: 0 });
     return;
   }
-  const [row] = await db
+
+  const [winsRow] = await db
     .select({ total: sum(ticketsTable.prizeAmount) })
     .from(ticketsTable)
     .where(
@@ -178,8 +179,22 @@ router.get("/auth/balance", async (req, res): Promise<void> => {
         isNotNull(ticketsTable.prizeAmount),
       ),
     );
-  const balance = row?.total ? parseFloat(String(row.total)) : 0;
-  res.json({ balance });
+
+  const [paidRow] = await db
+    .select({ total: sum(withdrawalsTable.amount) })
+    .from(withdrawalsTable)
+    .where(and(eq(withdrawalsTable.clerkId, userId), eq(withdrawalsTable.status, "paid")));
+
+  const [pendingRow] = await db
+    .select({ total: sum(withdrawalsTable.amount) })
+    .from(withdrawalsTable)
+    .where(and(eq(withdrawalsTable.clerkId, userId), eq(withdrawalsTable.status, "pending")));
+
+  const wins    = winsRow?.total    ? parseFloat(String(winsRow.total))    : 0;
+  const paid    = paidRow?.total    ? parseFloat(String(paidRow.total))    : 0;
+  const pending = pendingRow?.total ? parseFloat(String(pendingRow.total)) : 0;
+
+  res.json({ balance: Math.max(0, wins - paid - pending) });
 });
 
 export default router;
