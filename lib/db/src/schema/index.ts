@@ -1,52 +1,65 @@
-import { pgTable, serial, text, decimal, integer, timestamp, varchar } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, decimal, integer, timestamp, varchar, boolean, json } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const accountsTable = pgTable("accounts", {
+export const vendorsTable = pgTable("vendors", {
   id: serial("id").primaryKey(),
-  code: varchar("code", { length: 10 }).notNull().unique(),
-  ownerName: text("owner_name"),
-  balance: decimal("balance", { precision: 12, scale: 2 }).notNull().default("0"),
-  currency: varchar("currency", { length: 3 }).notNull().default("USD"),
+  name: text("name").notNull(),
+  location: text("location").notNull(),
+  phone: varchar("phone", { length: 20 }),
+  status: text("status").notNull().default("active"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const destinationsTable = pgTable("destinations", {
+export const drawsTable = pgTable("draws", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull(),
+  drawNumber: integer("draw_number").notNull().unique(),
+  status: text("status").notNull().default("upcoming"),
+  jackpotAmount: decimal("jackpot_amount", { precision: 12, scale: 2 }).notNull(),
+  prizePool: decimal("prize_pool", { precision: 12, scale: 2 }).notNull().default("0"),
+  winningTicketCode: text("winning_ticket_code"),
+  winningNumbers: json("winning_numbers").$type<number[]>(),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  drawnAt: timestamp("drawn_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const ticketsTable = pgTable("tickets", {
+  id: serial("id").primaryKey(),
+  code: varchar("code", { length: 20 }).notNull().unique(),
+  status: text("status").notNull().default("available"),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  zone: text("zone"),
+  series: varchar("series", { length: 10 }).notNull(),
+  drawId: integer("draw_id"),
+  isWinner: boolean("is_winner").notNull().default(false),
+  prizeAmount: decimal("prize_amount", { precision: 12, scale: 2 }),
+  vendorId: integer("vendor_id"),
+  soldAt: timestamp("sold_at"),
+  validatedAt: timestamp("validated_at"),
+  claimedAt: timestamp("claimed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const transactionsTable = pgTable("transactions", {
   id: serial("id").primaryKey(),
-  accountCode: varchar("account_code", { length: 10 }),
   type: text("type").notNull(),
+  ticketId: integer("ticket_id"),
+  ticketCode: varchar("ticket_code", { length: 20 }),
+  vendorId: integer("vendor_id"),
+  drawId: integer("draw_id"),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
-  description: text("description"),
-  iconType: text("icon_type"),
-  date: timestamp("date").notNull().defaultNow(),
-});
-
-export const bookingsTable = pgTable("bookings", {
-  id: serial("id").primaryKey(),
-  accountCode: varchar("account_code", { length: 10 }),
-  destinationId: integer("destination_id").notNull(),
-  quantity: integer("quantity").notNull().default(1),
-  ticketType: text("ticket_type").notNull().default("Standard"),
-  totalAmount: decimal("total_amount", { precision: 12, scale: 2 }).notNull(),
-  status: text("status").notNull().default("confirmed"),
+  note: text("note"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertAccountSchema = createInsertSchema(accountsTable).omit({ id: true, createdAt: true });
-export const insertDestinationSchema = createInsertSchema(destinationsTable).omit({ id: true });
-export const insertTransactionSchema = createInsertSchema(transactionsTable).omit({ id: true });
-export const insertBookingSchema = createInsertSchema(bookingsTable).omit({ id: true, createdAt: true });
+export const insertVendorSchema = createInsertSchema(vendorsTable).omit({ id: true, createdAt: true });
+export const insertDrawSchema = createInsertSchema(drawsTable).omit({ id: true, createdAt: true, drawnAt: true, winningTicketCode: true, winningNumbers: true, prizePool: true });
+export const insertTicketSchema = createInsertSchema(ticketsTable).omit({ id: true, createdAt: true });
+export const insertTransactionSchema = createInsertSchema(transactionsTable).omit({ id: true, createdAt: true });
 
-export type Account = typeof accountsTable.$inferSelect;
-export type InsertAccount = z.infer<typeof insertAccountSchema>;
-export type Destination = typeof destinationsTable.$inferSelect;
+export type Vendor = typeof vendorsTable.$inferSelect;
+export type Draw = typeof drawsTable.$inferSelect;
+export type Ticket = typeof ticketsTable.$inferSelect;
 export type Transaction = typeof transactionsTable.$inferSelect;
-export type InsertBooking = z.infer<typeof insertBookingSchema>;
-export type Booking = typeof bookingsTable.$inferSelect;
+export type InsertVendor = z.infer<typeof insertVendorSchema>;
+export type InsertDraw = z.infer<typeof insertDrawSchema>;

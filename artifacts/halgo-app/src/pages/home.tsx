@@ -1,384 +1,184 @@
 import { useState } from "react";
-import { 
-  useCheckBalance, 
-  useListDestinations, 
-  useListTransactions, 
-  useCreateBooking, 
-  useGetBookingSummary,
-  useHealthCheck,
-  getListTransactionsQueryKey
-} from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
+import { useGetTicket, getGetTicketQueryKey, useGetStats } from "@workspace/api-client-react";
+import { Search, Trophy, ArrowRight, Star, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ArrowRight, Wallet, History, Ticket, Search, ShieldCheck, MapPin, Receipt, ArrowUpRight, ArrowDownRight, Activity } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
-// Halgo Homepage Component
 export default function Home() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  
-  // Call health check as requested (ignored in UI)
-  useHealthCheck();
-  
-  // State
-  const [code, setCode] = useState("");
-  const [inputCode, setInputCode] = useState("");
-  const [balanceData, setBalanceData] = useState<{ balance: number; currency: string; ownerName: string | null } | null>(null);
+  const [ticketCode, setTicketCode] = useState("");
+  const [searchCode, setSearchCode] = useState("");
 
-  // Queries & Mutations
-  const checkBalanceMutation = useCheckBalance();
-  const { data: destinations, isLoading: isLoadingDestinations } = useListDestinations();
-  const { data: transactions, isLoading: isLoadingTransactions } = useListTransactions(
-    { code: code || undefined },
-    { query: { enabled: !!code, queryKey: getListTransactionsQueryKey({ code }) } }
-  );
-  const { data: summary } = useGetBookingSummary();
-  const createBookingMutation = useCreateBooking();
-
-  // Booking Form Schema
-  const bookingSchema = z.object({
-    destinationId: z.coerce.number().min(1, "Please select a destination"),
-    quantity: z.coerce.number().min(1, "Must select at least 1 ticket").max(10, "Maximum 10 tickets"),
-    ticketType: z.string().min(1, "Please select a ticket type"),
+  const { data: stats, isLoading: statsLoading } = useGetStats();
+  const { 
+    data: ticket, 
+    isLoading: ticketLoading, 
+    isError 
+  } = useGetTicket(searchCode, {
+    query: {
+      enabled: !!searchCode,
+      queryKey: getGetTicketQueryKey(searchCode),
+      retry: false
+    }
   });
 
-  const form = useForm<z.infer<typeof bookingSchema>>({
-    resolver: zodResolver(bookingSchema),
-    defaultValues: {
-      destinationId: 0,
-      quantity: 1,
-      ticketType: "standard",
-    },
-  });
-
-  const handleCheckBalance = (e: React.FormEvent) => {
+  const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputCode.length !== 10) {
-      toast({
-        title: "Invalid Code",
-        description: "Please enter a valid 10-digit code.",
-        variant: "destructive"
-      });
-      return;
+    if (ticketCode.trim()) {
+      setSearchCode(ticketCode.trim().toUpperCase());
     }
-    
-    checkBalanceMutation.mutate({ data: { code: inputCode } }, {
-      onSuccess: (data) => {
-        setBalanceData(data);
-        setCode(inputCode);
-        toast({
-          title: "Balance Checked",
-          description: "Successfully retrieved your account balance.",
-        });
-      },
-      onError: () => {
-        toast({
-          title: "Error",
-          description: "Failed to check balance. Please check your code and try again.",
-          variant: "destructive"
-        });
-      }
-    });
-  };
-
-  const onSubmitBooking = (values: z.infer<typeof bookingSchema>) => {
-    if (!code) {
-      toast({
-        title: "Code Required",
-        description: "Please check your balance first to verify your code.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    createBookingMutation.mutate(
-      { 
-        data: { 
-          code, 
-          destinationId: values.destinationId, 
-          quantity: values.quantity, 
-          ticketType: values.ticketType 
-        } 
-      },
-      {
-        onSuccess: () => {
-          toast({
-            title: "Booking Successful!",
-            description: "Your ticket has been booked and payment confirmed.",
-          });
-          form.reset({
-            destinationId: 0,
-            quantity: 1,
-            ticketType: "standard"
-          });
-          // Refresh transactions and balance
-          queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey({ code }) });
-          checkBalanceMutation.mutate({ data: { code } }, {
-            onSuccess: (data) => setBalanceData(data)
-          });
-        },
-        onError: () => {
-          toast({
-            title: "Booking Failed",
-            description: "There was an error processing your booking or payment.",
-            variant: "destructive"
-          });
-        }
-      }
-    );
-  };
-
-  // Format currency helper
-  const formatCurrency = (amount: number, currency: string = "CDF") => {
-    return new Intl.NumberFormat('en-CD', { style: 'currency', currency }).format(amount);
   };
 
   return (
-    <div className="min-h-[100dvh] bg-muted/40 pb-20">
-      {/* Header */}
-      <header className="bg-primary text-primary-foreground pt-12 pb-6 px-6 rounded-b-3xl shadow-md sticky top-0 z-10">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5 text-primary" />
-            </div>
-            <h1 className="text-xl font-bold tracking-tight">Halgo</h1>
-          </div>
-          <Badge variant="secondary" className="bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30 border-none font-medium">
-            DRC Transport
-          </Badge>
+    <div className="max-w-4xl mx-auto space-y-12 pb-12">
+      {/* Hero Section */}
+      <section className="text-center space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700 pt-8 md:pt-16">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/20 text-accent-foreground font-semibold text-sm mb-4 border border-accent/30 shadow-sm">
+          <Star className="w-4 h-4" />
+          <span>The DRC's Official Lottery</span>
         </div>
+        <h1 className="text-5xl md:text-7xl font-black tracking-tight text-foreground max-w-3xl mx-auto leading-[1.1]">
+          Did you hit the <br className="hidden md:block"/>
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-amber-500">
+            Jackpot today?
+          </span>
+        </h1>
+        <p className="text-xl text-muted-foreground font-medium max-w-2xl mx-auto">
+          Enter your ticket code below to see if you are a winner.
+        </p>
 
-        {!balanceData ? (
-          <form onSubmit={handleCheckBalance} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="code" className="text-primary-foreground/80 font-medium">Enter your 10-digit code</Label>
-              <div className="flex gap-2">
-                <Input 
-                  id="code" 
-                  type="text" 
-                  inputMode="numeric"
-                  placeholder="e.g. 1234567890" 
-                  value={inputCode}
-                  onChange={(e) => setInputCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 10))}
-                  className="bg-white/10 border-white/20 text-white placeholder:text-white/40 h-12 text-lg focus-visible:ring-accent"
-                  data-testid="input-code"
-                />
-                <Button 
-                  type="submit" 
-                  className="h-12 px-6 bg-accent text-accent-foreground hover:bg-accent/90"
-                  disabled={inputCode.length !== 10 || checkBalanceMutation.isPending}
-                  data-testid="button-check-balance"
-                >
-                  {checkBalanceMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
-                </Button>
-              </div>
+        {/* Active Jackpot Banner */}
+        {statsLoading ? (
+          <Skeleton className="h-24 w-full max-w-md mx-auto rounded-3xl mt-8" />
+        ) : stats?.activeDraw ? (
+          <div className="mt-8 mx-auto max-w-md bg-gradient-to-br from-primary to-primary/80 rounded-3xl p-6 text-primary-foreground shadow-2xl shadow-primary/30 transform hover:scale-[1.02] transition-transform duration-300">
+            <h3 className="text-primary-foreground/80 font-bold uppercase tracking-wider text-sm mb-2">
+              Next Draw: #{stats.activeDraw.drawNumber}
+            </h3>
+            <div className="text-4xl font-black mb-1">
+              ${stats.activeDraw.jackpotAmount.toLocaleString()}
             </div>
-          </form>
-        ) : (
-          <div className="space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <p className="text-primary-foreground/80 font-medium text-sm">
-              Hello, {balanceData.ownerName || "Valued Customer"}
+            <p className="text-primary-foreground/90 font-medium">
+              Buy a ticket before {new Date(stats.activeDraw.scheduledAt).toLocaleDateString()}
             </p>
-            <div className="flex items-end gap-2">
-              <h2 className="text-4xl font-bold tracking-tight" data-testid="text-balance">
-                {formatCurrency(balanceData.balance, balanceData.currency)}
-              </h2>
-            </div>
-            <div className="flex items-center justify-between mt-2">
-              <p className="text-primary-foreground/60 text-xs flex items-center gap-1">
-                <Activity className="w-3 h-3" /> Live Balance
-              </p>
-              {summary && (
-                <p className="text-primary-foreground/60 text-xs text-right">
-                  System Stats: {summary.totalBookings} tickets booked
-                </p>
+          </div>
+        ) : null}
+      </section>
+
+      {/* Check Ticket Section */}
+      <section className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-10 duration-700 delay-150 fill-mode-both">
+        <Card className="border-2 border-primary/20 shadow-2xl shadow-primary/5 bg-card/50 backdrop-blur-xl overflow-hidden rounded-3xl">
+          <CardContent className="p-8 md:p-12">
+            <form onSubmit={handleSearch} className="space-y-6">
+              <div className="space-y-2 text-center mb-8">
+                <h2 className="text-3xl font-black">Check Your Ticket</h2>
+                <p className="text-muted-foreground">Type your 8-12 character code</p>
+              </div>
+              
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none">
+                  <Search className="h-6 w-6 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                </div>
+                <Input
+                  type="text"
+                  value={ticketCode}
+                  onChange={(e) => setTicketCode(e.target.value)}
+                  placeholder="e.g. HLG-12345"
+                  className="pl-16 pr-6 py-8 text-2xl md:text-3xl font-bold uppercase tracking-widest text-center rounded-2xl bg-muted/50 border-2 border-transparent focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/20 transition-all placeholder:text-muted-foreground/40 placeholder:font-medium placeholder:tracking-normal"
+                />
+              </div>
+
+              <Button 
+                type="submit" 
+                size="lg" 
+                className="w-full h-16 text-lg font-bold rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl shadow-primary/20 group"
+                disabled={!ticketCode.trim() || ticketLoading}
+              >
+                {ticketLoading ? (
+                  <span className="animate-pulse">Checking...</span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    Reveal Result <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </span>
+                )}
+              </Button>
+            </form>
+
+            {/* Results Area */}
+            <div className="mt-8">
+              {ticketLoading && (
+                <div className="space-y-4">
+                  <Skeleton className="h-32 w-full rounded-2xl" />
+                </div>
+              )}
+
+              {isError && (
+                <div className="bg-destructive/10 border-2 border-destructive/20 text-destructive rounded-2xl p-6 flex flex-col items-center justify-center text-center space-y-3 animate-in zoom-in-95 duration-300">
+                  <AlertCircle className="w-10 h-10" />
+                  <div>
+                    <h3 className="font-bold text-lg">Ticket Not Found</h3>
+                    <p className="text-destructive/80 font-medium text-sm">Please check the code and try again.</p>
+                  </div>
+                </div>
+              )}
+
+              {ticket && !ticketLoading && (
+                <div className={`rounded-2xl p-8 border-2 flex flex-col items-center justify-center text-center space-y-4 animate-in zoom-in-95 duration-500 shadow-2xl ${
+                  ticket.isWinner 
+                    ? "bg-accent/10 border-accent text-accent-foreground shadow-accent/20" 
+                    : "bg-muted/50 border-border/50 text-foreground"
+                }`}>
+                  {ticket.isWinner ? (
+                    <>
+                      <div className="w-20 h-20 rounded-full bg-accent text-accent-foreground flex items-center justify-center mb-2 animate-bounce">
+                        <Trophy className="w-10 h-10" />
+                      </div>
+                      <div>
+                        <Badge variant="outline" className="mb-3 bg-accent/20 text-accent-foreground border-accent/30 px-3 py-1 font-bold text-sm uppercase tracking-widest">
+                          Winner
+                        </Badge>
+                        <h3 className="font-black text-4xl mb-2 text-foreground">
+                          ${ticket.prizeAmount?.toLocaleString()}
+                        </h3>
+                        <p className="font-medium text-muted-foreground">
+                          Congratulations! Your ticket is a winner in draw #{ticket.drawNumber}.
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-2">
+                        <CheckCircle2 className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-2xl mb-2">Not a Winner</h3>
+                        <p className="font-medium text-muted-foreground">
+                          This ticket did not win in draw #{ticket.drawNumber}. Better luck next time!
+                        </p>
+                      </div>
+                    </>
+                  )}
+                  
+                  <div className="w-full h-px bg-border/50 my-2" />
+                  
+                  <div className="grid grid-cols-2 gap-4 w-full text-left text-sm">
+                    <div>
+                      <p className="text-muted-foreground font-medium mb-1">Code</p>
+                      <p className="font-mono font-bold">{ticket.code}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground font-medium mb-1">Status</p>
+                      <p className="font-bold capitalize">{ticket.status}</p>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
-          </div>
-        )}
-      </header>
-
-      <main className="px-4 py-6 space-y-6 max-w-md mx-auto">
-        
-        {/* Booking Section */}
-        <section>
-          <div className="flex items-center gap-2 mb-3 px-2">
-            <Ticket className="w-5 h-5 text-primary" />
-            <h3 className="font-semibold text-foreground">Book a Ticket</h3>
-          </div>
-          
-          <Card className="border-none shadow-md overflow-hidden bg-card/60 backdrop-blur-sm">
-            <CardContent className="p-0">
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmitBooking)} className="p-5 space-y-5">
-                  
-                  <FormField
-                    control={form.control}
-                    name="destinationId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-foreground/80">Destination</FormLabel>
-                        <Select 
-                          onValueChange={(val) => field.onChange(parseInt(val, 10))} 
-                          value={field.value ? field.value.toString() : ""}
-                          disabled={isLoadingDestinations || !code}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="h-12 bg-background" data-testid="select-destination">
-                              <SelectValue placeholder="Select where you're going" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {destinations?.map((dest) => (
-                              <SelectItem key={dest.id} value={dest.id.toString()}>
-                                <div className="flex justify-between items-center w-full min-w-[200px]">
-                                  <span>{dest.name} {dest.zone ? `(${dest.zone})` : ""}</span>
-                                  <span className="font-medium text-primary ml-4">
-                                    {formatCurrency(dest.price)}
-                                  </span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="quantity"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-foreground/80">Passengers</FormLabel>
-                          <Select 
-                            onValueChange={(val) => field.onChange(parseInt(val, 10))} 
-                            value={field.value.toString()}
-                            disabled={!code}
-                          >
-                            <FormControl>
-                              <SelectTrigger className="h-12 bg-background" data-testid="select-quantity">
-                                <SelectValue placeholder="Qty" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {[1, 2, 3, 4, 5].map((num) => (
-                                <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="ticketType"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-foreground/80">Class</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value} disabled={!code}>
-                            <FormControl>
-                              <SelectTrigger className="h-12 bg-background" data-testid="select-type">
-                                <SelectValue placeholder="Class" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="standard">Standard</SelectItem>
-                              <SelectItem value="premium">Premium</SelectItem>
-                              <SelectItem value="vip">VIP</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <Button 
-                    type="submit" 
-                    className="w-full h-14 text-base font-bold shadow-lg shadow-primary/20"
-                    disabled={!code || createBookingMutation.isPending}
-                    data-testid="button-confirm-payment"
-                  >
-                    {createBookingMutation.isPending ? (
-                      <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Processing...</>
-                    ) : (
-                      <>Confirm Payment <ArrowRight className="ml-2 h-5 w-5" /></>
-                    )}
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* Transactions Section */}
-        {code && (
-          <section className="animate-in fade-in slide-in-from-bottom-8 duration-500 delay-150 fill-mode-both">
-            <div className="flex items-center justify-between mb-3 px-2">
-              <div className="flex items-center gap-2">
-                <History className="w-5 h-5 text-primary" />
-                <h3 className="font-semibold text-foreground">Recent Activity</h3>
-              </div>
-            </div>
-
-            <Card className="border-none shadow-sm bg-card/60 backdrop-blur-sm">
-              <CardContent className="p-0">
-                {isLoadingTransactions ? (
-                  <div className="p-8 text-center text-muted-foreground flex flex-col items-center">
-                    <Loader2 className="w-6 h-6 animate-spin mb-2 text-primary" />
-                    <p>Loading activity...</p>
-                  </div>
-                ) : transactions && transactions.length > 0 ? (
-                  <div className="divide-y divide-border/50">
-                    {transactions.map((tx) => (
-                      <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tx.amount < 0 ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}>
-                            {tx.amount < 0 ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
-                          </div>
-                          <div>
-                            <p className="font-medium text-sm">{tx.description || tx.type}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {format(new Date(tx.date), "MMM d, yyyy • h:mm a")}
-                            </p>
-                          </div>
-                        </div>
-                        <div className={`font-bold ${tx.amount < 0 ? 'text-foreground' : 'text-primary'}`}>
-                          {tx.amount > 0 ? '+' : ''}{formatCurrency(tx.amount)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-8 text-center text-muted-foreground flex flex-col items-center">
-                    <Receipt className="w-10 h-10 mb-3 text-muted-foreground/30" />
-                    <p>No recent activity found.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </section>
-        )}
-      </main>
+          </CardContent>
+        </Card>
+      </section>
     </div>
   );
 }

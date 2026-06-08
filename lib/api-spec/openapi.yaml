@@ -1,22 +1,12 @@
-openapi: 3.1.0
+openapi: "3.1.0"
 info:
   title: Api
-  version: 0.1.0
-  description: Halgo ticket booking and mobile money API
+  description: Halgo Cash lottery API
+  version: "0.1.0"
+
 servers:
   - url: /api
-    description: Base API path
-tags:
-  - name: health
-    description: Health operations
-  - name: balance
-    description: Balance operations
-  - name: destinations
-    description: Destination operations
-  - name: bookings
-    description: Booking operations
-  - name: transactions
-    description: Transaction operations
+
 paths:
   /healthz:
     get:
@@ -25,206 +15,479 @@ paths:
       summary: Health check
       responses:
         "200":
-          description: Healthy
+          description: OK
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
-  /balance/check:
-    post:
-      operationId: checkBalance
-      tags: [balance]
-      summary: Check balance with a 10-digit code
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/BalanceCheckInput"
-      responses:
-        "200":
-          description: Balance result
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/BalanceResult"
-        "404":
-          description: Code not found
-
-  /destinations:
+  /draws:
     get:
-      operationId: listDestinations
-      tags: [destinations]
-      summary: List available destinations
+      operationId: listDraws
+      tags: [draws]
+      summary: List all draws
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [upcoming, active, completed]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
       responses:
         "200":
-          description: List of destinations
+          description: List of draws
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Destination"
+                  $ref: "#/components/schemas/Draw"
+    post:
+      operationId: createDraw
+      tags: [draws]
+      summary: Create a new draw (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDrawInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Draw"
+        "400":
+          description: Invalid input
 
-  /transactions:
+  /draws/latest:
     get:
-      operationId: listTransactions
-      tags: [transactions]
-      summary: List recent transactions for a code
+      operationId: getLatestDraw
+      tags: [draws]
+      summary: Get the most recent completed draw
+      responses:
+        "200":
+          description: Latest draw
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Draw"
+        "404":
+          description: No completed draw found
+
+  /draws/{id}:
+    get:
+      operationId: getDraw
+      tags: [draws]
+      summary: Get a draw by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Draw details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Draw"
+        "404":
+          description: Draw not found
+
+  /draws/{id}/run:
+    post:
+      operationId: runDraw
+      tags: [draws]
+      summary: Execute a draw — pick winner (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Draw executed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Draw"
+        "400":
+          description: Draw cannot be run
+        "404":
+          description: Draw not found
+
+  /tickets/{code}:
+    get:
+      operationId: getTicket
+      tags: [tickets]
+      summary: Get ticket status by code
       parameters:
         - name: code
-          in: query
-          required: false
+          in: path
+          required: true
           schema:
             type: string
       responses:
         "200":
-          description: List of transactions
+          description: Ticket details
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Transaction"
+                $ref: "#/components/schemas/Ticket"
+        "404":
+          description: Ticket not found
 
-  /bookings:
+  /tickets/{code}/validate:
     post:
-      operationId: createBooking
-      tags: [bookings]
-      summary: Create a new ticket booking
+      operationId: validateTicket
+      tags: [tickets]
+      summary: Validate (sell) a ticket at POS — vendor action
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/BookingInput"
-      responses:
-        "201":
-          description: Booking confirmed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Booking"
-        "400":
-          description: Invalid booking data
-
-  /bookings/summary:
-    get:
-      operationId: getBookingSummary
-      tags: [bookings]
-      summary: Get booking summary stats
+              $ref: "#/components/schemas/ValidateTicketInput"
       responses:
         "200":
-          description: Summary stats
+          description: Ticket validated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BookingSummary"
+                $ref: "#/components/schemas/Ticket"
+        "400":
+          description: Ticket already validated or invalid
+        "404":
+          description: Ticket not found
+
+  /tickets/{code}/claim:
+    post:
+      operationId: claimPrize
+      tags: [tickets]
+      summary: Claim a prize for a winning ticket — vendor action
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClaimPrizeInput"
+      responses:
+        "200":
+          description: Prize claimed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClaimResult"
+        "400":
+          description: Ticket not a winner or already claimed
+        "404":
+          description: Ticket not found
+
+  /tickets:
+    get:
+      operationId: listTickets
+      tags: [tickets]
+      summary: List tickets (admin)
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [available, sold, validated, claimed, expired]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: List of tickets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ticket"
+
+  /vendors:
+    get:
+      operationId: listVendors
+      tags: [vendors]
+      summary: List all vendors
+      responses:
+        "200":
+          description: List of vendors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vendor"
+    post:
+      operationId: createVendor
+      tags: [vendors]
+      summary: Create a vendor (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVendorInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vendor"
+
+  /stats:
+    get:
+      operationId: getStats
+      tags: [stats]
+      summary: Get global platform statistics
+      responses:
+        "200":
+          description: Platform stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stats"
+
+  /winners:
+    get:
+      operationId: listWinners
+      tags: [winners]
+      summary: Get recent prize winners (public display)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Recent winners
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Winner"
 
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
-    BalanceCheckInput:
+    Draw:
       type: object
-      required: [code]
+      required: [id, drawNumber, status, jackpotAmount, scheduledAt, totalTicketsSold, prizePool]
       properties:
-        code:
+        id:
+          type: integer
+        drawNumber:
+          type: integer
+        status:
           type: string
-          minLength: 10
-          maxLength: 10
-
-    BalanceResult:
-      type: object
-      required: [code, balance, currency]
-      properties:
-        code:
-          type: string
-        balance:
+          enum: [upcoming, active, completed]
+        jackpotAmount:
           type: number
-        currency:
+        winningTicketCode:
           type: string
-        ownerName:
-          type: ["string", "null"]
+          nullable: true
+        winningNumbers:
+          type: array
+          items:
+            type: integer
+          nullable: true
+        scheduledAt:
+          type: string
+          format: date-time
+        drawnAt:
+          type: string
+          format: date-time
+          nullable: true
+        totalTicketsSold:
+          type: integer
+        prizePool:
+          type: number
 
-    Destination:
+    CreateDrawInput:
       type: object
-      required: [id, name, price]
+      required: [jackpotAmount, scheduledAt]
+      properties:
+        jackpotAmount:
+          type: number
+          minimum: 0
+        scheduledAt:
+          type: string
+          format: date-time
+
+    Ticket:
+      type: object
+      required: [id, code, status, price, series]
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        status:
+          type: string
+          enum: [available, sold, validated, claimed, expired]
+        price:
+          type: number
+        series:
+          type: string
+        drawId:
+          type: integer
+          nullable: true
+        drawNumber:
+          type: integer
+          nullable: true
+        isWinner:
+          type: boolean
+        prizeAmount:
+          type: number
+          nullable: true
+        vendorId:
+          type: integer
+          nullable: true
+        vendorName:
+          type: string
+          nullable: true
+        soldAt:
+          type: string
+          format: date-time
+          nullable: true
+        validatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        claimedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ValidateTicketInput:
+      type: object
+      required: [vendorId]
+      properties:
+        vendorId:
+          type: integer
+
+    ClaimPrizeInput:
+      type: object
+      required: [vendorId]
+      properties:
+        vendorId:
+          type: integer
+
+    ClaimResult:
+      type: object
+      required: [ticket, prizeAmount, message]
+      properties:
+        ticket:
+          $ref: "#/components/schemas/Ticket"
+        prizeAmount:
+          type: number
+        message:
+          type: string
+
+    Vendor:
+      type: object
+      required: [id, name, location, status]
       properties:
         id:
           type: integer
         name:
           type: string
-        price:
-          type: number
-        zone:
-          type: ["string", "null"]
-
-    Transaction:
-      type: object
-      required: [id, type, amount, date]
-      properties:
-        id:
-          type: integer
-        type:
+        location:
           type: string
-        amount:
-          type: number
-        date:
+        phone:
           type: string
-        description:
-          type: ["string", "null"]
-        iconType:
-          type: ["string", "null"]
-
-    BookingInput:
-      type: object
-      required: [code, destinationId, quantity, ticketType]
-      properties:
-        code:
-          type: string
-        destinationId:
-          type: integer
-        quantity:
-          type: integer
-        ticketType:
-          type: string
-
-    Booking:
-      type: object
-      required: [id, destinationId, quantity, ticketType, totalAmount, status, createdAt]
-      properties:
-        id:
-          type: integer
-        destinationId:
-          type: integer
-        destinationName:
-          type: ["string", "null"]
-        quantity:
-          type: integer
-        ticketType:
-          type: string
-        totalAmount:
-          type: number
+          nullable: true
         status:
           type: string
-        createdAt:
-          type: string
-
-    BookingSummary:
-      type: object
-      required: [totalBookings, totalRevenue, popularDestination]
-      properties:
-        totalBookings:
+          enum: [active, inactive]
+        totalSales:
           type: integer
         totalRevenue:
           type: number
-        popularDestination:
-          type: ["string", "null"]
+
+    CreateVendorInput:
+      type: object
+      required: [name, location]
+      properties:
+        name:
+          type: string
+        location:
+          type: string
+        phone:
+          type: string
+
+    Stats:
+      type: object
+      required: [totalTicketsSold, totalRevenue, totalPrizesPaid, completedDraws, activeVendors, recentWinners]
+      properties:
+        totalTicketsSold:
+          type: integer
+        totalRevenue:
+          type: number
+        totalPrizesPaid:
+          type: number
+        activeDraw:
+          $ref: "#/components/schemas/Draw"
+          nullable: true
+        completedDraws:
+          type: integer
+        activeVendors:
+          type: integer
+        recentWinners:
+          type: integer
+
+    Winner:
+      type: object
+      required: [id, ticketCode, maskedCode, prizeAmount, drawNumber, claimedAt]
+      properties:
+        id:
+          type: integer
+        ticketCode:
+          type: string
+        maskedCode:
+          type: string
+        prizeAmount:
+          type: number
+        drawNumber:
+          type: integer
+        vendorName:
+          type: string
+          nullable: true
+        claimedAt:
+          type: string
+          format: date-time
