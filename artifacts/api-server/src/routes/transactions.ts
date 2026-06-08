@@ -1,26 +1,29 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { transactionsTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 
 router.get("/transactions", async (req, res) => {
-  const code = req.query["code"] as string | undefined;
+  req.log.info({ query: req.query }, "GET /transactions");
 
-  const query = db.select().from(transactionsTable).orderBy(desc(transactionsTable.date)).limit(20);
-  const transactions = code
-    ? await db.select().from(transactionsTable).where(eq(transactionsTable.accountCode, code)).orderBy(desc(transactionsTable.date)).limit(20)
-    : await query;
+  const transactions = await db
+    .select()
+    .from(transactionsTable)
+    .orderBy(desc(transactionsTable.createdAt))
+    .limit(20);
 
-  res.json(transactions.map(t => ({
-    id: t.id,
-    type: t.type,
-    amount: parseFloat(t.amount),
-    date: t.date.toISOString(),
-    description: t.description,
-    iconType: t.iconType,
-  })));
+  res.json(
+    transactions.map((t) => ({
+      id: t.id,
+      type: t.type,
+      amount: parseFloat(t.amount),
+      date: t.createdAt.toISOString(),
+      description: t.note ?? t.type,
+      ticketCode: t.ticketCode,
+    })),
+  );
 });
 
 export default router;

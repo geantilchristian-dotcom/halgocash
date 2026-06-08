@@ -1,32 +1,33 @@
 import { Router, type IRouter } from "express";
-import { db } from "@workspace/db";
-import { accountsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
-import { CheckBalanceBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
+const TEST_ACCOUNTS: Record<string, { ownerName: string; balance: number; currency: string }> = {
+  "1234567890": { ownerName: "Jean Mukeba", balance: 125000, currency: "XAF" },
+  "0987654321": { ownerName: "Marie Kabila", balance: 85000, currency: "XAF" },
+  "5555555555": { ownerName: "Pierre Lumumba", balance: 250000, currency: "XAF" },
+};
+
 router.post("/balance/check", async (req, res) => {
-  const parsed = CheckBalanceBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid request" });
+  req.log.info({ body: req.body }, "POST /balance/check");
+
+  const code = req.body?.code;
+  if (!code || typeof code !== "string" || code.length !== 10) {
+    res.status(400).json({ error: "Code invalide (10 chiffres requis)" });
     return;
   }
 
-  const { code } = parsed.data;
-  const account = await db.select().from(accountsTable).where(eq(accountsTable.code, code)).limit(1);
-
-  if (!account.length) {
-    res.status(404).json({ error: "Code not found" });
+  const account = TEST_ACCOUNTS[code];
+  if (!account) {
+    res.status(404).json({ error: "Code introuvable" });
     return;
   }
 
-  const a = account[0]!;
   res.json({
-    code: a.code,
-    balance: parseFloat(a.balance),
-    currency: a.currency,
-    ownerName: a.ownerName,
+    code,
+    balance: account.balance,
+    currency: account.currency,
+    ownerName: account.ownerName,
   });
 });
 
