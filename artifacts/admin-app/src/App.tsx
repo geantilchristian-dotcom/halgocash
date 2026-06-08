@@ -5,12 +5,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
-import Draws from "@/pages/draws";
 import Tickets from "@/pages/tickets";
-import Vendors from "@/pages/vendors";
-import Winners from "@/pages/winners";
 import Login from "@/pages/login";
-import Users from "@/pages/users";
 import GenerateCodes from "@/pages/generate-codes";
 import Settings from "@/pages/settings";
 import { AppLayout } from "@/components/layout/app-layout";
@@ -52,12 +48,8 @@ function ProtectedRouter() {
     <AppLayout>
       <Switch>
         <Route path="/" component={Dashboard} />
-        <Route path="/draws" component={Draws} />
-        <Route path="/tickets" component={Tickets} />
         <Route path="/generate-codes" component={GenerateCodes} />
-        <Route path="/vendors" component={Vendors} />
-        <Route path="/winners" component={Winners} />
-        <Route path="/users" component={Users} />
+        <Route path="/tickets" component={Tickets} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>

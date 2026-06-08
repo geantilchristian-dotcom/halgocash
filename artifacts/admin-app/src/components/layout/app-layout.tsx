@@ -3,11 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
   Ticket as TicketIcon,
-  Users,
-  Trophy,
-  Coins,
   LogOut,
-  UserCheck,
   Settings,
   QrCode,
   Menu,
@@ -21,14 +17,10 @@ interface AppLayoutProps {
 }
 
 const navItems = [
-  { href: "/",               label: "Dashboard",      icon: LayoutDashboard },
-  { href: "/draws",          label: "Tirages",         icon: Coins           },
-  { href: "/tickets",        label: "Tickets",         icon: TicketIcon      },
-  { href: "/generate-codes", label: "Générer codes",   icon: QrCode          },
-  { href: "/vendors",        label: "Vendeurs",        icon: Users           },
-  { href: "/winners",        label: "Gagnants",        icon: Trophy          },
-  { href: "/users",          label: "Comptes",         icon: UserCheck       },
-  { href: "/settings",       label: "Paramètres",      icon: Settings        },
+  { href: "/",               label: "Dashboard",           icon: LayoutDashboard },
+  { href: "/generate-codes", label: "Générer tickets",     icon: QrCode          },
+  { href: "/tickets",        label: "Historique tickets",  icon: TicketIcon      },
+  { href: "/settings",       label: "Paramètres",          icon: Settings        },
 ];
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {

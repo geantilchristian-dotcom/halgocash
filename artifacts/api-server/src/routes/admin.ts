@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { eq, desc, or } from "drizzle-orm";
 import { db, usersTable, ticketsTable, drawsTable } from "@workspace/db";
 import { logger } from "../lib/logger";
+import { getOnlineUsers } from "../lib/presence";
 
 const router: IRouter = Router();
 
@@ -252,6 +253,11 @@ router.put("/admin/credentials", requireAdmin, async (req: Request, res: Respons
   await db.update(usersTable).set(updates).where(eq(usersTable.id, adminUser.id));
   const [updated] = await db.select().from(usersTable).where(eq(usersTable.id, adminUser.id)).limit(1);
   res.json({ id: updated!.id, email: updated!.email, username: updated!.username, role: updated!.role });
+});
+
+// GET /api/admin/online-users — players seen in last 5 minutes
+router.get("/admin/online-users", requireAdmin, (_req: Request, res: Response): void => {
+  res.json(getOnlineUsers());
 });
 
 export default router;

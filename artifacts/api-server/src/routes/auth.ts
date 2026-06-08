@@ -4,6 +4,8 @@ import { eq, or } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { RegisterBody, LoginBody } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
+import { getAuth } from "@clerk/express";
+import { updatePresence } from "../lib/presence";
 
 declare module "express-session" {
   interface SessionData {
@@ -105,6 +107,15 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     role: user.role,
     vendorId: user.vendorId,
   });
+});
+
+// POST /api/auth/ping — player presence tracking (Clerk-authenticated)
+router.post("/auth/ping", (req, res): void => {
+  const { userId } = getAuth(req);
+  if (!userId) { res.status(401).json({ error: "Non authentifié" }); return; }
+  const name = ((req.body as Record<string, unknown>).name as string | undefined) ?? "Utilisateur";
+  updatePresence(userId, name);
+  res.json({ ok: true });
 });
 
 router.post("/auth/logout", async (req, res): Promise<void> => {
