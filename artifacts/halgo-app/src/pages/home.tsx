@@ -212,17 +212,18 @@ export default function Home() {
           <div className="absolute bottom-0 left-0 w-36 h-36 rounded-full pointer-events-none"
             style={{ background: "radial-gradient(circle, rgba(245,197,24,0.1) 0%, transparent 70%)", transform: "translate(-25%,30%)" }} />
 
-          <div className="relative z-10 px-5 pt-5 pb-4 flex flex-col items-center text-center">
-            {/* KIVU chip */}
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full mb-3 self-end"
-              style={{ background: "rgba(141,198,63,0.18)", border: "1px solid rgba(141,198,63,0.35)" }}>
-              <MapPin className="w-3 h-3 text-[#8DC63F]" />
-              <span className="text-[#8DC63F] text-[10px] font-bold tracking-wide">KIVU</span>
+          <div className="relative z-10 px-5 pt-4 pb-4 flex flex-col items-center text-center">
+            {/* Top row: SOLDE DISPONIBLE + KIVU */}
+            <div className="flex items-center justify-between w-full mb-4">
+              <p className="font-black text-white/65 uppercase tracking-[0.25em] text-base leading-none">
+                SOLDE <span className="text-white/35 font-semibold text-[11px] tracking-widest align-middle ml-1">DISPONIBLE</span>
+              </p>
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-full"
+                style={{ background: "rgba(141,198,63,0.18)", border: "1px solid rgba(141,198,63,0.35)" }}>
+                <MapPin className="w-3 h-3 text-[#8DC63F]" />
+                <span className="text-[#8DC63F] text-[10px] font-bold tracking-wide">KIVU</span>
+              </div>
             </div>
-
-            {/* SOLDE label — grand */}
-            <p className="font-black text-white/60 uppercase tracking-[0.3em] text-xl mb-1">SOLDE</p>
-            <p className="text-white/40 text-[10px] font-semibold uppercase tracking-widest mb-4">DISPONIBLE</p>
 
             {/* Balance */}
             <div className="transition-all duration-300 flex flex-col items-center" style={{ transform: balanceFlash ? "scale(1.03)" : "scale(1)" }}>
@@ -231,12 +232,19 @@ export default function Home() {
               ) : (
                 <div className="flex items-end gap-2 justify-center">
                   <span
-                    className="font-black font-mono leading-none"
-                    style={{ fontSize: balance >= 100000 ? "2.8rem" : "3.6rem", color: balanceFlash ? "#8DC63F" : "#fff", transition: "color 0.5s", letterSpacing: "-0.02em" }}
+                    className="leading-none"
+                    style={{
+                      fontFamily: "'Oswald', sans-serif",
+                      fontWeight: 700,
+                      fontSize: balance >= 100000 ? "3rem" : "3.8rem",
+                      color: balanceFlash ? "#8DC63F" : "#fff",
+                      transition: "color 0.5s",
+                      letterSpacing: "0.02em",
+                    }}
                   >
                     {formatFC(balance)}
                   </span>
-                  <span className="text-white/40 text-xl font-bold mb-1.5">FC</span>
+                  <span className="text-white/40 text-xl font-bold mb-2" style={{ fontFamily: "'Oswald', sans-serif" }}>FC</span>
                 </div>
               )}
               {balance !== null && balance > 0 && (
