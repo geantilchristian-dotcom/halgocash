@@ -182,12 +182,14 @@ export default function Home() {
     <div className={`min-h-dvh flex flex-col transition-colors ${bg}`}>
 
       {/* ── Header ── */}
-      <header className={`relative flex items-center justify-center px-4 pt-4 pb-2 ${isDark ? "bg-[#080f0a]" : "bg-[#f4f5f0]"}`}>
+      <header
+        className="relative flex items-center justify-center px-4 pt-4 pb-3"
+        style={{ background: "linear-gradient(135deg, #0a1f0e 0%, #0f3d1c 45%, #1a5c2a 80%, #0f3d1c 100%)" }}
+      >
         <img
-          src="/logo-halgo-cash.png"
+          src="/logo-halgo-cash-nobg.png"
           alt="Halgo Cash"
           className="w-52 object-contain"
-          style={{ background: "none" }}
         />
         <button
           className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center"
