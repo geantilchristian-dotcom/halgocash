@@ -1,0 +1,29 @@
+Résumé Conceptuel : Halgo Cash
+Halgo Cash est un système de loterie numérisée exploitant des tickets physiques prépayés pour garantir l'accessibilité dans des zones à connectivité variable, tout en s'appuyant sur une architecture back-end robuste (Node.js, Express, MongoDB) pour la gestion des tirages et des gains.
+
+Modèle Économique (Comment l'entreprise gagne)
+L'entreprise génère des revenus via la marge opérationnelle sur les tickets vendus.
+
+Vente de tickets : Le revenu provient de la différence entre le coût unitaire de production du ticket physique et son prix de vente final au consommateur.
+
+Gestion des gains : Une portion définie des revenus est réinvestie dans le pool de récompenses (taux de redistribution), tandis que la marge restante couvre les coûts de structure, le marketing et le bénéfice net.
+
+Logistique : Le système utilise des points de vente physiques équipés de matériel de validation, simplifiant la distribution et garantissant une collecte de fonds sécurisée.
+
+Architecture et Hébergement
+Backend & Données : L'application repose sur une API Node.js/Express connectée à MongoDB Atlas, permettant une synchronisation en temps réel des transactions et des résultats de loterie.
+
+Hébergement : Le déploiement est géré via Replit pour l'agilité du développement et le prototypage rapide, garantissant une disponibilité constante des services.
+
+Automatisation : L'usage d'agents (via des outils comme Cursor ou Bolt.new) automatise la maintenance du code et les mises à jour des fonctionnalités de tirage.
+
+Partitionnement : Les 4 Affichages (Interfaces)
+Pour maximiser l'engagement, l'application est segmentée en quatre interfaces distinctes :
+
+Interface Vendeur (Gestion) : Permet au revendeur de scanner les tickets, de valider les transactions et de gérer les "retraits" (terme privilégié pour les gains) des clients en toute sécurité.
+
+Interface Joueur (Client) : Une application mobile ou web simplifiée permettant de consulter les numéros gagnants, de suivre l'historique de ses tickets et de localiser les points de vente.
+
+Interface Administrateur (Back-office) : Un tableau de bord centralisé pour piloter les tirages, surveiller les flux financiers, ajuster les probabilités et gérer les statistiques en temps réel.
+
+Interface d'Affichage Publique (Écrans/Lieux publics) : Un affichage dynamique en temps réel projeté dans les points de vente, montrant les résultats des derniers tirages et les jackpots en cours, stimulant l'engagement immédiat.
