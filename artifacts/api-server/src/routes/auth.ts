@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
-import { eq, or } from "drizzle-orm";
-import { db, usersTable } from "@workspace/db";
+import { eq, or, sum, and, isNotNull } from "drizzle-orm";
+import { db, usersTable, ticketsTable } from "@workspace/db";
 import { RegisterBody, LoginBody } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { getAuth } from "@clerk/express";
@@ -159,6 +159,27 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     role: user.role,
     vendorId: user.vendorId,
   });
+});
+
+// GET /api/auth/balance — total winnings for the current Clerk user
+router.get("/auth/balance", async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  if (!userId) {
+    res.json({ balance: 0 });
+    return;
+  }
+  const [row] = await db
+    .select({ total: sum(ticketsTable.prizeAmount) })
+    .from(ticketsTable)
+    .where(
+      and(
+        eq(ticketsTable.registeredByClerkId, userId),
+        eq(ticketsTable.isWinner, true),
+        isNotNull(ticketsTable.prizeAmount),
+      ),
+    );
+  const balance = row?.total ? parseFloat(String(row.total)) : 0;
+  res.json({ balance });
 });
 
 export default router;

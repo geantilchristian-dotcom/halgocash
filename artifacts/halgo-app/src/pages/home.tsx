@@ -53,19 +53,32 @@ export default function Home() {
   } | null>(null);
   const [activationError, setActivationError] = useState<string | null>(null);
 
-  // Balance accumulates across wins in the current session
-  const [balance, setBalance] = useState(0);
+  // Real persistent balance fetched from the database
+  const [balance, setBalance] = useState<number | null>(null);
   const [balanceFlash, setBalanceFlash] = useState(false);
+
+  const fetchBalance = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/balance", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json() as { balance: number };
+        setBalance(data.balance);
+      }
+    } catch { /* silent */ }
+  }, []);
+
+  // Load balance on mount and when user changes
+  useEffect(() => { void fetchBalance(); }, [user?.id]);
 
   // Rolling counter for the result card
   const rollingAmount = useRollingCounter(
     activationResult?.isWinner ? (activationResult.prizeAmount ?? 0) : null,
   );
 
-  // As soon as a winning result arrives → update balance immediately
+  // After a win: re-fetch real balance from DB + flash animation
   useEffect(() => {
     if (activationResult?.isWinner && activationResult.prizeAmount) {
-      setBalance((b) => b + activationResult.prizeAmount!);
+      void fetchBalance();
       setBalanceFlash(true);
       const t = setTimeout(() => setBalanceFlash(false), 700);
       return () => clearTimeout(t);
@@ -200,7 +213,11 @@ export default function Home() {
                   className="text-4xl font-black font-mono tracking-tight transition-colors duration-500"
                   style={{ color: balanceFlash ? "#8DC63F" : "#ffffff" }}
                 >
-                  {balance > 0 ? formatFC(balance) : "0 000"}
+                  {balance === null
+                    ? "—"
+                    : balance > 0
+                      ? formatFC(balance)
+                      : "0 000"}
                 </span>
                 <span className="text-base font-bold text-white/50">CDF</span>
               </div>
