@@ -81,9 +81,9 @@ export default function Home() {
     activationResult?.isWinner ? (activationResult.prizeAmount ?? 0) : null,
   );
 
+  // Flash the balance header whenever a winning ticket is revealed
   useEffect(() => {
-    if (activationResult?.isWinner && activationResult.prizeAmount) {
-      void fetchBalance();
+    if (activationResult?.isWinner) {
       setBalanceFlash(true);
       const t = setTimeout(() => setBalanceFlash(false), 700);
       return () => clearTimeout(t);
@@ -127,14 +127,20 @@ export default function Home() {
         body: JSON.stringify({ code }),
       });
       const data = await res.json();
-      if (!res.ok) setActivationError(data.error || "Code introuvable");
-      else setActivationResult(data);
+      if (!res.ok) {
+        setActivationError(data.error || "Code introuvable");
+      } else {
+        setActivationResult(data);
+        // Always refresh balance after activation — covers winners (incl. prizeAmount=0),
+        // and ensures the balance stays in sync with the server.
+        void fetchBalance();
+      }
     } catch {
       setActivationError("Erreur de connexion");
     } finally {
       setActivating(false);
     }
-  }, [ticketCode]);
+  }, [ticketCode, fetchBalance]);
 
   const resetActivation = () => {
     setTicketCode(""); setActivationResult(null); setActivationError(null);
