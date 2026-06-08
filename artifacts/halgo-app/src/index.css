@@ -232,3 +232,35 @@
 .halgo-line-1       { animation: halgo-line-a 1.6s ease-in-out infinite; }
 .halgo-line-2       { animation: halgo-line-b 1.6s ease-in-out infinite 0.2s; }
 .halgo-line-3       { animation: halgo-line-c 1.6s ease-in-out infinite 0.4s; }
+
+/* ── Chips Animations ── */
+@keyframes chips-wiggle {
+  0%   { transform: rotate(0deg) scale(1); }
+  12%  { transform: rotate(-20deg) scale(1.14); }
+  28%  { transform: rotate(16deg) scale(1.10); }
+  44%  { transform: rotate(-11deg) scale(1.08); }
+  58%  { transform: rotate(7deg)  scale(1.04); }
+  72%  { transform: rotate(-4deg) scale(1.02); }
+  85%  { transform: rotate(2deg)  scale(1.01); }
+  100% { transform: rotate(0deg)  scale(1); }
+}
+
+@keyframes chip-fall {
+  0%   { transform: translateY(-120px) rotate(0deg) scale(1.1); opacity: 1; }
+  60%  { opacity: 1; }
+  100% { transform: translateY(110vh) rotate(var(--chip-rot, 360deg)) scale(0.6); opacity: 0; }
+}
+
+.chips-wiggle {
+  animation: chips-wiggle 0.7s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+.chip-falling {
+  position: fixed;
+  top: 0;
+  pointer-events: none;
+  animation: chip-fall var(--chip-dur, 2s) ease-in var(--chip-delay, 0s) forwards;
+  z-index: 9999;
+  user-select: none;
+  will-change: transform, opacity;
+}

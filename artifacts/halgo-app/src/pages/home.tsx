@@ -68,6 +68,11 @@ export default function Home() {
   const [balance, setBalance] = useState<number | null>(null);
   const [balanceFlash, setBalanceFlash] = useState(false);
 
+  const [chipsWiggling, setChipsWiggling] = useState(false);
+  const [fallingChips, setFallingChips] = useState<Array<{
+    id: number; x: number; delay: number; duration: number; rotation: number; size: number;
+  }>>([]);
+
   const [retraitAmount, setRetraitAmount] = useState("");
   const [retraitLoading, setRetraitLoading] = useState(false);
   const [retraitQR, setRetraitQR] = useState<{ token: string; amount: number; qrValue: string } | null>(null);
@@ -94,6 +99,29 @@ export default function Home() {
     }
     return undefined;
   }, [activationResult?.code, activationResult?.isWinner]);
+
+  useEffect(() => {
+    if (!balanceFlash) return;
+    const chips = Array.from({ length: 22 }, (_, i) => ({
+      id: i,
+      x: 2 + Math.random() * 96,
+      delay: Math.random() * 1.0,
+      duration: 1.6 + Math.random() * 1.4,
+      rotation: Math.random() * 720 - 360,
+      size: 44 + Math.floor(Math.random() * 32),
+    }));
+    setFallingChips(chips);
+    const t = setTimeout(() => setFallingChips([]), 4500);
+    return () => clearTimeout(t);
+  }, [balanceFlash]);
+
+  const handleChipsTouch = () => {
+    setChipsWiggling(false);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setChipsWiggling(true));
+    });
+    setTimeout(() => setChipsWiggling(false), 750);
+  };
 
   useEffect(() => {
     if (!activationResult) return;
@@ -181,16 +209,51 @@ export default function Home() {
   return (
     <div className={`min-h-dvh flex flex-col transition-colors ${bg}`}>
 
+      {/* ── Falling chips rain overlay ── */}
+      {fallingChips.length > 0 && (
+        <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 9999 }}>
+          {fallingChips.map((chip) => (
+            <img
+              key={chip.id}
+              src="/chips.png"
+              alt=""
+              className="chip-falling absolute"
+              style={{
+                left: `${chip.x}%`,
+                width: chip.size,
+                "--chip-dur": `${chip.duration}s`,
+                "--chip-delay": `${chip.delay}s`,
+                "--chip-rot": `${chip.rotation}deg`,
+              } as React.CSSProperties}
+            />
+          ))}
+        </div>
+      )}
+
       {/* ── Header ── */}
       <header
         className="relative flex items-center justify-center px-4 pt-4 pb-3"
         style={{ background: "linear-gradient(135deg, #0a1f0e 0%, #0f3d1c 45%, #1a5c2a 80%, #0f3d1c 100%)" }}
       >
-        <img
-          src="/logo-halgo-cash-nobg.png"
-          alt="Halgo Cash"
-          className="w-52 object-contain"
-        />
+        <div className="flex items-center gap-1">
+          <img
+            src="/logo-halgo-cash-nobg.png"
+            alt="Halgo Cash"
+            className="w-44 object-contain"
+          />
+          <img
+            src="/chips.png"
+            alt="jetons"
+            className={`object-contain cursor-pointer select-none ${chipsWiggling ? "chips-wiggle" : ""}`}
+            style={{
+              width: 90,
+              height: 60,
+              filter: "drop-shadow(0 4px 14px rgba(0,0,0,0.6))",
+            }}
+            onClick={handleChipsTouch}
+            onAnimationEnd={() => setChipsWiggling(false)}
+          />
+        </div>
         <button
           className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center"
           style={{ background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }}
@@ -246,18 +309,18 @@ export default function Home() {
             </div>
 
             {/* ── Amount row ── */}
-            <div className="mb-2">
-              <div className="transition-all duration-300" style={{ transform: balanceFlash ? "scale(1.03)" : "scale(1)" }}>
+            <div className="mb-2 flex flex-col items-center">
+              <div className="transition-all duration-300" style={{ transform: balanceFlash ? "scale(1.04)" : "scale(1)" }}>
                 {balance === null ? (
-                  <div className="h-16 w-48 rounded-lg animate-pulse" style={{ background: "rgba(255,255,255,0.08)" }} />
+                  <div className="h-20 w-56 rounded-lg animate-pulse mx-auto" style={{ background: "rgba(255,255,255,0.08)" }} />
                 ) : (
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center gap-3">
                     <span
                       className="leading-none"
                       style={{
                         fontFamily: "'Oswald', sans-serif",
                         fontWeight: 700,
-                        fontSize: balance >= 100000 ? "3.6rem" : "4.4rem",
+                        fontSize: balance >= 100000 ? "4.2rem" : "5.4rem",
                         color: balanceFlash ? "#8DC63F" : "#ffffff",
                         transition: "color 0.5s",
                         letterSpacing: "0.01em",
@@ -269,7 +332,7 @@ export default function Home() {
                       style={{
                         fontFamily: "'Oswald', sans-serif",
                         fontWeight: 700,
-                        fontSize: balance >= 100000 ? "3.6rem" : "4.4rem",
+                        fontSize: balance >= 100000 ? "4.2rem" : "5.4rem",
                         color: balanceFlash ? "#8DC63F" : "#ffffff",
                         transition: "color 0.5s",
                         lineHeight: 1,
@@ -279,17 +342,17 @@ export default function Home() {
                     </span>
                   </div>
                 )}
-                {/* USD pill */}
-                {balance !== null && balance > 0 && (
-                  <div className="inline-flex items-center px-3 py-1 rounded-full mt-2"
-                    style={{ background: "rgba(22,92,40,0.8)", border: "1px solid rgba(141,198,63,0.3)" }}>
-                    <span className="text-[#8DC63F] text-[11px] font-bold">≈ {(balance / 2800).toFixed(2)} USD</span>
-                  </div>
-                )}
-                {balance !== null && balance === 0 && (
-                  <p className="text-white/30 text-[11px] font-medium mt-1">Grattez un ticket pour gagner</p>
-                )}
               </div>
+              {/* USD pill */}
+              {balance !== null && balance > 0 && (
+                <div className="inline-flex items-center px-3 py-1 rounded-full mt-2"
+                  style={{ background: "rgba(22,92,40,0.8)", border: "1px solid rgba(141,198,63,0.3)" }}>
+                  <span className="text-[#8DC63F] text-[11px] font-bold">≈ {(balance / 2800).toFixed(2)} USD</span>
+                </div>
+              )}
+              {balance !== null && balance === 0 && (
+                <p className="text-white/30 text-[11px] font-medium mt-1">Grattez un ticket pour gagner</p>
+              )}
             </div>
 
             {/* ── Dotted divider ── */}
