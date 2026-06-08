@@ -3,9 +3,9 @@ import { Router, type IRouter } from "express";
 const router: IRouter = Router();
 
 const TEST_ACCOUNTS: Record<string, { ownerName: string; balance: number; currency: string }> = {
-  "1234567890": { ownerName: "Jean Mukeba", balance: 125000, currency: "XAF" },
-  "0987654321": { ownerName: "Marie Kabila", balance: 85000, currency: "XAF" },
-  "5555555555": { ownerName: "Pierre Lumumba", balance: 250000, currency: "XAF" },
+  "1234567890": { ownerName: "Jean Mukeba", balance: 125000, currency: "FC" },
+  "0987654321": { ownerName: "Marie Kabila", balance: 85000, currency: "FC" },
+  "5555555555": { ownerName: "Pierre Lumumba", balance: 250000, currency: "FC" },
 };
 
 router.post("/balance/check", async (req, res) => {

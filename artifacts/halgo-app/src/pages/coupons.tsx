@@ -1,64 +1,105 @@
 import { useState } from "react";
-import { CheckCircle, XCircle, Clock, Ticket, Trophy } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useUser } from "@clerk/react";
+import { CheckCircle, XCircle, Clock, Ticket, Trophy, Plus, X, Loader2 } from "lucide-react";
 import { useTheme } from "@/lib/theme-context";
 
-type TicketStatus = "gagné" | "non_gagné" | "en_attente";
+type TicketStatus = "available" | "sold" | "validated" | "claimed" | "expired";
 
 interface CouponItem {
-  id: string;
+  id: number;
   code: string;
-  date: string;
-  drawNumber: string;
   status: TicketStatus;
-  prize: number | null;
+  price: number;
+  series: string;
+  drawId: number | null;
+  drawNumber: number | null;
+  isWinner: boolean;
+  prizeAmount: number | null;
+  registeredAt: string | null;
+  soldAt: string | null;
 }
 
-/* Mock data — will be replaced by real API */
-const MOCK: CouponItem[] = [
-  { id: "1", code: "HC-004-012", date: "2026-06-07", drawNumber: "TIRAGE #047", status: "gagné",      prize: 75000  },
-  { id: "2", code: "HC-003-088", date: "2026-06-06", drawNumber: "TIRAGE #046", status: "non_gagné",  prize: null   },
-  { id: "3", code: "HC-003-044", date: "2026-06-05", drawNumber: "TIRAGE #045", status: "non_gagné",  prize: null   },
-  { id: "4", code: "HC-002-017", date: "2026-06-04", drawNumber: "TIRAGE #044", status: "gagné",      prize: 50000  },
-  { id: "5", code: "HC-002-008", date: "2026-06-03", drawNumber: "TIRAGE #043", status: "non_gagné",  prize: null   },
-  { id: "6", code: "HC-001-031", date: "2026-06-02", drawNumber: "TIRAGE #042", status: "en_attente", prize: null   },
-  { id: "7", code: "HC-001-019", date: "2026-06-01", drawNumber: "TIRAGE #041", status: "non_gagné",  prize: null   },
-  { id: "8", code: "HC-001-005", date: "2026-05-31", drawNumber: "TIRAGE #040", status: "gagné",      prize: 25000  },
-];
+type Filter = "tous" | "gagnant" | "perdant";
 
-type Filter = "tous" | "gagné" | "non_gagné";
-
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+function formatDate(iso: string | null) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function formatXAF(n: number) {
+function formatFC(n: number) {
   return new Intl.NumberFormat("fr-FR").format(n).replace(/\s/g, ".");
 }
 
+async function apiFetch(path: string, options?: RequestInit) {
+  const res = await fetch(path, {
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    ...options,
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error ?? "Erreur reseau");
+  return body;
+}
+
 export default function Coupons() {
+  const { isLoaded, isSignedIn } = useUser();
   const { isDark } = useTheme();
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<Filter>("tous");
+  const [showAdd, setShowAdd] = useState(false);
+  const [newCode, setNewCode] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
 
-  const filtered = MOCK.filter((t) => filter === "tous" || t.status === filter);
+  const { data: tickets = [], isLoading } = useQuery<CouponItem[]>({
+    queryKey: ["/api/coupons"],
+    queryFn: () => apiFetch("/api/coupons"),
+    enabled: isLoaded && isSignedIn,
+    retry: false,
+  });
 
-  const totalGagné  = MOCK.filter((t) => t.status === "gagné").length;
-  const totalPrix   = MOCK.filter((t) => t.prize).reduce((s, t) => s + (t.prize ?? 0), 0);
+  const registerMutation = useMutation({
+    mutationFn: (code: string) =>
+      apiFetch("/api/coupons/register", { method: "POST", body: JSON.stringify({ code }) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/coupons"] });
+      setNewCode("");
+      setShowAdd(false);
+      setAddError(null);
+    },
+    onError: (err: Error) => {
+      setAddError(err.message);
+    },
+  });
 
-  const page  = isDark ? "bg-[#080f0a]" : "bg-[#f4f6f4]";
-  const card  = isDark ? "bg-[#0f2418] border-white/10" : "bg-white border-gray-100";
-  const text  = isDark ? "text-white" : "text-gray-900";
-  const sub   = isDark ? "text-gray-400" : "text-gray-500";
-
-  const statusInfo = {
-    gagné:      { icon: CheckCircle, color: "#22c55e",  bg: isDark ? "#14532d" : "#f0fdf4", label: "Gagné"       },
-    non_gagné:  { icon: XCircle,     color: "#ef4444",  bg: isDark ? "#450a0a" : "#fef2f2", label: "Non gagné"   },
-    en_attente: { icon: Clock,       color: "#F5C518",  bg: isDark ? "#422006" : "#fffbeb", label: "En attente"  },
+  const handleRegister = () => {
+    setAddError(null);
+    const trimmed = newCode.trim().replace(/\D/g, "");
+    if (trimmed.length !== 10) {
+      setAddError("Le code doit contenir exactement 10 chiffres");
+      return;
+    }
+    registerMutation.mutate(trimmed);
   };
 
+  const filtered = tickets.filter((t) => {
+    if (filter === "gagnant") return t.isWinner;
+    if (filter === "perdant") return !t.isWinner;
+    return true;
+  });
+
+  const totalWinners = tickets.filter((t) => t.isWinner).length;
+  const totalPrize   = tickets.filter((t) => t.prizeAmount).reduce((s, t) => s + (t.prizeAmount ?? 0), 0);
+
+  const page = isDark ? "bg-[#080f0a]" : "bg-[#f4f6f4]";
+  const card = isDark ? "bg-[#0f2418] border-white/10" : "bg-white border-gray-100";
+  const text = isDark ? "text-white" : "text-gray-900";
+  const sub  = isDark ? "text-gray-400" : "text-gray-500";
+
   const filterBtns: { key: Filter; label: string }[] = [
-    { key: "tous",       label: "Tous"        },
-    { key: "gagné",      label: "Gagnants"    },
-    { key: "non_gagné",  label: "Non gagnants"},
+    { key: "tous",    label: "Tous"        },
+    { key: "gagnant", label: "Gagnants"    },
+    { key: "perdant", label: "Non gagnants"},
   ];
 
   return (
@@ -68,31 +109,90 @@ export default function Coupons() {
         className="px-5 pt-10 pb-14"
         style={{ background: "linear-gradient(135deg, #0f3d1c 0%, #1a5c2a 100%)" }}
       >
-        <div className="flex items-center gap-2 mb-1">
-          <Ticket className="w-5 h-5 text-[#F5C518]" />
-          <h1 className="text-white font-black text-2xl uppercase tracking-wider">MES COUPONS</h1>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-white font-black text-2xl uppercase tracking-wider">MES COUPONS</h1>
+            <p className="text-white/60 text-sm mt-0.5">Historique de vos tickets de loterie</p>
+          </div>
+          <button
+            onClick={() => { setShowAdd(true); setAddError(null); setNewCode(""); }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold transition-all active:scale-[0.97]"
+            style={{ background: "rgba(245,197,24,0.2)", color: "#F5C518", border: "1px solid rgba(245,197,24,0.3)" }}
+          >
+            <Plus className="w-4 h-4" />
+            Ajouter
+          </button>
         </div>
-        <p className="text-white/60 text-sm">Historique de tous vos tickets de loterie</p>
 
         {/* Stats */}
         <div className="flex gap-3 mt-4">
           <div className="flex-1 rounded-xl p-3" style={{ background: "rgba(255,255,255,0.08)" }}>
-            <p className="text-white/50 text-[9px] font-bold uppercase tracking-wider">Tickets joués</p>
-            <p className="text-white font-black text-xl">{MOCK.length}</p>
+            <p className="text-white/50 text-[9px] font-bold uppercase tracking-wider text-center">Tickets</p>
+            <p className="text-white font-black text-xl text-center">{tickets.length}</p>
           </div>
           <div className="flex-1 rounded-xl p-3" style={{ background: "rgba(255,255,255,0.08)" }}>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center justify-center gap-1">
               <Trophy className="w-3 h-3 text-[#F5C518]" />
               <p className="text-white/50 text-[9px] font-bold uppercase tracking-wider">Gagnants</p>
             </div>
-            <p className="text-[#F5C518] font-black text-xl">{totalGagné}</p>
+            <p className="text-[#F5C518] font-black text-xl text-center">{totalWinners}</p>
           </div>
           <div className="flex-1 rounded-xl p-3" style={{ background: "rgba(255,255,255,0.08)" }}>
-            <p className="text-white/50 text-[9px] font-bold uppercase tracking-wider">Total gagné</p>
-            <p className="text-[#8DC63F] font-black text-sm leading-tight">{formatXAF(totalPrix)}<span className="text-[9px] text-white/40 ml-0.5">XAF</span></p>
+            <p className="text-white/50 text-[9px] font-bold uppercase tracking-wider text-center">Total gagne</p>
+            <p className="text-[#8DC63F] font-black text-sm leading-tight text-center">
+              {formatFC(totalPrize)}<span className="text-[9px] text-white/40 ml-0.5">FC</span>
+            </p>
           </div>
         </div>
       </div>
+
+      {/* Add coupon modal */}
+      {showAdd && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAdd(false)} />
+          <div
+            className={`relative w-full max-w-sm rounded-t-3xl p-6 pb-10 transition-colors ${isDark ? "bg-[#0f2418]" : "bg-white"}`}
+            style={{ boxShadow: "0 -8px 40px rgba(0,0,0,0.4)" }}
+          >
+            <div className="w-10 h-1 rounded-full bg-gray-300 mx-auto mb-5" />
+            <div className="flex items-center justify-between mb-4">
+              <h2 className={`text-base font-black uppercase tracking-wider ${text}`}>AJOUTER UN COUPON</h2>
+              <button onClick={() => setShowAdd(false)}
+                className={`w-8 h-8 rounded-full flex items-center justify-center ${isDark ? "bg-white/10" : "bg-gray-100"}`}>
+                <X className={`w-4 h-4 ${sub}`} />
+              </button>
+            </div>
+            <p className={`text-sm mb-4 ${sub}`}>
+              Entrez le code a 10 chiffres de votre ticket. Chaque coupon ne peut etre enregistre qu'une seule fois.
+            </p>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="0000000000"
+              value={newCode}
+              onChange={(e) => { setNewCode(e.target.value.replace(/\D/g, "").slice(0, 10)); setAddError(null); }}
+              className={`w-full px-4 py-3 rounded-xl text-center font-mono font-bold text-xl tracking-[0.25em] outline-none border-2 transition-all ${
+                isDark
+                  ? "bg-black/30 border-white/15 text-white focus:border-[#3aab3a]"
+                  : "bg-gray-50 border-gray-200 text-gray-900 focus:border-[#3aab3a]"
+              }`}
+            />
+            {addError && (
+              <p className="text-red-400 text-xs mt-2 text-center">{addError}</p>
+            )}
+            <button
+              onClick={handleRegister}
+              disabled={registerMutation.isPending || newCode.length !== 10}
+              className="w-full mt-4 py-3.5 rounded-xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50 transition-all active:scale-[0.98]"
+              style={{ background: "linear-gradient(135deg, #0f3d1c, #1a5c2a)", color: "#fff" }}
+            >
+              {registerMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Enregistrer le coupon
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Filter tabs */}
       <div className="-mt-5 mx-4 mb-4">
@@ -104,11 +204,7 @@ export default function Coupons() {
                 onClick={() => setFilter(key)}
                 className={`flex-1 py-3 text-xs font-black uppercase tracking-wide transition-all ${
                   i > 0 ? `border-l ${isDark ? "border-white/10" : "border-gray-100"}` : ""
-                } ${
-                  filter === key
-                    ? "text-white"
-                    : isDark ? "text-gray-500" : "text-gray-400"
-                }`}
+                } ${filter === key ? "text-white" : isDark ? "text-gray-500" : "text-gray-400"}`}
                 style={filter === key ? { background: "linear-gradient(135deg, #0f3d1c, #1a5c2a)" } : {}}
               >
                 {label}
@@ -120,51 +216,61 @@ export default function Coupons() {
 
       {/* Ticket list */}
       <div className="mx-4 space-y-2 pb-6">
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className={`rounded-2xl p-10 text-center border transition-colors ${card}`}>
+            <Loader2 className={`w-8 h-8 mx-auto mb-3 animate-spin ${sub}`} />
+            <p className={`text-sm ${sub}`}>Chargement...</p>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className={`rounded-2xl p-10 text-center border transition-colors ${card}`}>
             <Ticket className={`w-10 h-10 mx-auto mb-3 ${sub}`} />
-            <p className={`font-bold text-sm ${text}`}>Aucun coupon trouvé</p>
-            <p className={`text-xs mt-1 ${sub}`}>Achetez votre premier ticket !</p>
+            <p className={`font-bold text-sm ${text}`}>Aucun coupon</p>
+            <p className={`text-xs mt-1 ${sub}`}>
+              {tickets.length === 0
+                ? "Achetez un ticket et enregistrez son code ici."
+                : "Aucun coupon dans cette categorie."}
+            </p>
           </div>
         ) : (
           filtered.map((ticket) => {
-            const st = statusInfo[ticket.status];
-            const Icon = st.icon;
+            const isWinner    = ticket.isWinner;
+            const isPending   = ticket.status === "available" || ticket.status === "sold";
+            const iconColor   = isWinner ? "#22c55e" : isPending ? "#F5C518" : "#ef4444";
+            const iconBg      = isWinner
+              ? (isDark ? "#14532d" : "#f0fdf4")
+              : isPending ? (isDark ? "#422006" : "#fffbeb") : (isDark ? "#450a0a" : "#fef2f2");
+            const StatusIcon  = isWinner ? CheckCircle : isPending ? Clock : XCircle;
+            const statusLabel = isWinner ? "Gagnant" : isPending ? "En attente" : "Non gagnant";
+            const drawLabel   = ticket.drawNumber ? `TIRAGE #${String(ticket.drawNumber).padStart(3, "0")}` : "Sans tirage";
+
             return (
               <div key={ticket.id} className={`rounded-2xl p-4 shadow-sm border transition-colors ${card}`}>
                 <div className="flex items-center gap-3">
-                  {/* Status icon */}
-                  <div
-                    className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-                    style={{ background: st.bg }}
-                  >
-                    <Icon className="w-5 h-5" style={{ color: st.color }} />
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: iconBg }}>
+                    <StatusIcon className="w-5 h-5" style={{ color: iconColor }} />
                   </div>
-
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <span className={`font-black text-sm font-mono ${text}`}>{ticket.code}</span>
-                      {ticket.prize !== null && (
+                      {ticket.prizeAmount !== null && (
                         <span
                           className="text-xs font-black px-2 py-0.5 rounded-full"
                           style={{ background: "linear-gradient(135deg, #F5C518, #d4a017)", color: "#0f3d1c" }}
                         >
-                          +{formatXAF(ticket.prize)} XAF
+                          +{formatFC(ticket.prizeAmount)} FC
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className={`text-[10px] font-bold uppercase tracking-wide ${sub}`}>{ticket.drawNumber}</span>
-                      <span className={`text-[10px] ${sub}`}>•</span>
-                      <span className={`text-[10px] ${sub}`}>{formatDate(ticket.date)}</span>
+                      <span className={`text-[10px] font-bold uppercase tracking-wide ${sub}`}>{drawLabel}</span>
+                      <span className={`text-[10px] ${sub}`}>·</span>
+                      <span className={`text-[10px] ${sub}`}>{formatDate(ticket.registeredAt)}</span>
                     </div>
-                    {/* Status badge */}
                     <span
                       className="mt-1.5 inline-block text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-                      style={{ background: st.bg, color: st.color }}
+                      style={{ background: iconBg, color: iconColor }}
                     >
-                      {st.label}
+                      {statusLabel}
                     </span>
                   </div>
                 </div>

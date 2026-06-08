@@ -21,7 +21,50 @@ async function requireAdmin(req: Request, res: Response, next: NextFunction): Pr
   next();
 }
 
-// POST /api/admin/login — accepts identifier (username OR email) + password
+// Fisher-Yates shuffle
+function shuffle<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j]!, arr[i]!];
+  }
+  return arr;
+}
+
+/**
+ * Build a prize distribution for N tickets.
+ * Structure per 1000 codes:
+ *   1  × 50 000 FC  (Super Gagnant)
+ *   2  × 25 000 FC  (Très Grand Gagnant)
+ *  10  × 10 000 FC  (Grand Gagnant)
+ *  10  ×  5 000 FC  (Gagnant)
+ * 100  ×   price FC  (Remboursé)
+ * 877 ×       0  FC  (Perdant)
+ */
+function buildPrizeDistribution(count: number, price: number): { prizeAmount: string | null; isWinner: boolean }[] {
+  const r = count / 1000;
+
+  const superCount      = Math.max(count >= 1000 ? 1 : 0, Math.round(1   * r));
+  const tresGrandCount  = Math.max(count >= 500  ? 1 : 0, Math.round(2   * r));
+  const grandCount      = Math.round(10  * r);
+  const gagnantCount    = Math.round(10  * r);
+  const petitCount      = Math.round(100 * r);
+
+  const totalWinners = superCount + tresGrandCount + grandCount + gagnantCount + petitCount;
+  const loserCount   = Math.max(0, count - totalWinners);
+
+  const prizes: { prizeAmount: string | null; isWinner: boolean }[] = [
+    ...Array<null>(superCount).fill(null).map(() => ({ prizeAmount: "50000",        isWinner: true  })),
+    ...Array<null>(tresGrandCount).fill(null).map(() => ({ prizeAmount: "25000",    isWinner: true  })),
+    ...Array<null>(grandCount).fill(null).map(() => ({ prizeAmount: "10000",        isWinner: true  })),
+    ...Array<null>(gagnantCount).fill(null).map(() => ({ prizeAmount: "5000",       isWinner: true  })),
+    ...Array<null>(petitCount).fill(null).map(() => ({ prizeAmount: String(price),  isWinner: true  })),
+    ...Array<null>(loserCount).fill(null).map(() => ({ prizeAmount: null,           isWinner: false })),
+  ];
+
+  return shuffle(prizes);
+}
+
+// POST /api/admin/login
 router.post("/admin/login", async (req: Request, res: Response): Promise<void> => {
   const { identifier, password } = req.body as { identifier: string; password: string };
   if (!identifier || !password) {
@@ -35,13 +78,8 @@ router.post("/admin/login", async (req: Request, res: Response): Promise<void> =
     .where(or(eq(usersTable.email, identifier), eq(usersTable.username, identifier)))
     .limit(1);
 
-  if (!user) {
+  if (!user || user.role !== "admin") {
     res.status(401).json({ error: "Identifiant ou mot de passe incorrect" });
-    return;
-  }
-
-  if (user.role !== "admin") {
-    res.status(403).json({ error: "Accès réservé aux administrateurs" });
     return;
   }
 
@@ -63,13 +101,7 @@ router.post("/admin/login", async (req: Request, res: Response): Promise<void> =
   req.session.userId = user.id;
   logger.info({ userId: user.id }, "Admin logged in");
 
-  res.json({
-    id: user.id,
-    email: user.email,
-    username: user.username,
-    role: user.role,
-    vendorId: user.vendorId ?? null,
-  });
+  res.json({ id: user.id, email: user.email, username: user.username, role: user.role, vendorId: user.vendorId ?? null });
 });
 
 // GET /api/admin/users
@@ -95,12 +127,10 @@ router.get("/admin/users", requireAdmin, async (_req: Request, res: Response): P
 router.patch("/admin/users/:id", requireAdmin, async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(String(req.params["id"]));
   const { isSuspended } = req.body as { isSuspended: boolean };
-
   if (typeof isSuspended !== "boolean") {
     res.status(400).json({ error: "isSuspended doit être un booléen" });
     return;
   }
-
   await db.update(usersTable).set({ isSuspended }).where(eq(usersTable.id, id));
   res.json({ success: true });
 });
@@ -115,44 +145,61 @@ router.post("/admin/codes/generate", requireAdmin, async (req: Request, res: Res
   };
 
   const qty = Number(count);
-  if (!qty || qty < 1 || qty > 500) {
-    res.status(400).json({ error: "Quantité invalide (1–500)" });
+  if (!qty || qty < 1 || qty > 5000) {
+    res.status(400).json({ error: "Quantité invalide (1–5000)" });
     return;
   }
 
-  // Generate unique 10-digit codes
-  const codes: string[] = [];
-  while (codes.length < qty * 2) {
-    const code = String(Math.floor(Math.random() * 10_000_000_000)).padStart(10, "0");
-    if (!codes.includes(code)) codes.push(code);
-  }
+  const ticketPrice = Number(price) || 500;
 
-  const insertValues = codes.map((code) => ({
+  // Generate enough unique 10-digit codes
+  const codesSet = new Set<string>();
+  while (codesSet.size < qty * 2) {
+    codesSet.add(String(Math.floor(Math.random() * 10_000_000_000)).padStart(10, "0"));
+  }
+  const candidateCodes = Array.from(codesSet);
+
+  // Build prize distribution
+  const prizes = buildPrizeDistribution(qty, ticketPrice);
+
+  const insertValues = candidateCodes.slice(0, qty * 2).map((code, i) => ({
     code,
     status: "available" as const,
-    price: String(price ?? "500"),
+    price: String(ticketPrice),
     series: series ?? "A",
     drawId: drawId ?? null,
     vendorId: null,
+    isWinner: prizes[i]?.isWinner ?? false,
+    prizeAmount: prizes[i]?.prizeAmount ?? null,
   }));
 
   const inserted = await db
     .insert(ticketsTable)
     .values(insertValues)
     .onConflictDoNothing()
-    .returning({ id: ticketsTable.id, code: ticketsTable.code });
+    .returning({ id: ticketsTable.id, code: ticketsTable.code, isWinner: ticketsTable.isWinner, prizeAmount: ticketsTable.prizeAmount });
 
-  const finalCodes = inserted.slice(0, qty);
+  const finalBatch = inserted.slice(0, qty);
 
-  logger.info({ count: finalCodes.length }, "Admin generated ticket codes");
+  logger.info({ count: finalBatch.length, series }, "Admin generated ticket codes");
 
+  const winners = finalBatch.filter((t) => t.isWinner).length;
   res.json({
-    generated: finalCodes.length,
-    codes: finalCodes.map((t) => t.code),
+    generated: finalBatch.length,
+    winners,
+    codes: finalBatch.map((t) => t.code),
+    distribution: {
+      super: finalBatch.filter((t) => t.prizeAmount === "50000").length,
+      tresGrand: finalBatch.filter((t) => t.prizeAmount === "25000").length,
+      grand: finalBatch.filter((t) => t.prizeAmount === "10000").length,
+      gagnant: finalBatch.filter((t) => t.prizeAmount === "5000").length,
+      petit: finalBatch.filter((t) => t.isWinner && !["50000","25000","10000","5000"].includes(t.prizeAmount ?? "")).length,
+      perdant: finalBatch.filter((t) => !t.isWinner).length,
+    },
   });
 });
 
-// GET /api/admin/draws (for code generation dropdown)
+// GET /api/admin/draws
 router.get("/admin/draws", requireAdmin, async (_req: Request, res: Response): Promise<void> => {
   const draws = await db
     .select({ id: drawsTable.id, drawNumber: drawsTable.drawNumber, status: drawsTable.status, scheduledAt: drawsTable.scheduledAt })
@@ -201,7 +248,6 @@ router.put("/admin/credentials", requireAdmin, async (req: Request, res: Respons
   }
 
   await db.update(usersTable).set(updates).where(eq(usersTable.id, adminUser.id));
-
   const [updated] = await db.select().from(usersTable).where(eq(usersTable.id, adminUser.id)).limit(1);
   res.json({ id: updated!.id, email: updated!.email, username: updated!.username, role: updated!.role });
 });

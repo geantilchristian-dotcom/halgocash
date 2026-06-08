@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { Bell, Eye, EyeOff, Lock, ChevronRight, History, CheckCircle, AlertCircle, Copy, Phone, User, ArrowUpRight, X, QrCode } from "lucide-react";
+import { Bell, Eye, EyeOff, Lock, ChevronRight, History, CheckCircle, AlertCircle, X, ArrowUpRight, QrCode, Zap } from "lucide-react";
 import { useUser } from "@clerk/react";
 import { QRCodeSVG } from "qrcode.react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,7 +12,7 @@ interface BalanceData {
   ownerName: string;
 }
 
-function formatXAF(amount: number): string {
+function formatFC(amount: number): string {
   return new Intl.NumberFormat("fr-FR").format(Math.round(amount)).replace(/\s/g, ".");
 }
 
@@ -24,7 +24,6 @@ export default function Home() {
   const [showBalance, setShowBalance] = useState(true);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [showRetrait, setShowRetrait] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -32,12 +31,9 @@ export default function Home() {
   const enteredCode = digits.join("");
   const isComplete = enteredCode.length === 10 && !digits.includes("");
 
-  const displayId = user ? `HG${(user.id ?? "").slice(-8).toUpperCase()}` : "HG----------";
-  const displayName = user?.fullName ?? user?.username ?? "John Doe";
-  const rawPhone = (user?.phoneNumbers?.[0]?.phoneNumber)
-    ?? (user?.unsafeMetadata?.phone as string | undefined)
-    ?? null;
-  const displayPhone = rawPhone ?? "+243 _ _ _ _ _ _ _ _";
+  const displayId   = user ? `HG${(user.id ?? "").slice(-8).toUpperCase()}` : "HG----------";
+  const displayName = user?.fullName ?? user?.username ?? "Utilisateur";
+  const rawPhone    = (user?.phoneNumbers?.[0]?.phoneNumber) ?? (user?.unsafeMetadata?.phone as string | undefined) ?? null;
 
   const checkBalance = useCallback(async (code: string) => {
     setChecking(true);
@@ -95,69 +91,42 @@ export default function Home() {
     if (pasted.length === 10) checkBalance(pasted);
   };
 
-  const handleCopyId = () => {
-    navigator.clipboard.writeText(displayId);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-
   const clearCode = () => {
     setDigits(Array(10).fill("")); setBalance(null); setError(null);
     inputRefs.current[0]?.focus();
   };
 
-  /* ── formatted code display — grouped, single line ── */
   const g1 = digits.slice(0, 4).map((d) => d || "–").join("");
   const g2 = digits.slice(4, 8).map((d) => d || "–").join("");
   const g3 = digits.slice(8, 10).map((d) => d || "–").join("");
   const codeDisplay = `${g1} · ${g2} · ${g3}`;
 
-  const card = isDark ? "bg-[#0f2418] border-white/10" : "bg-white border-gray-100";
+  const card     = isDark ? "bg-[#0f2418] border-white/10" : "bg-white border-gray-100";
   const cardText = isDark ? "text-white" : "text-gray-900";
-  const subText = isDark ? "text-gray-400" : "text-gray-500";
-  const page = isDark ? "bg-[#080f0a]" : "bg-gray-50";
+  const subText  = isDark ? "text-gray-400" : "text-gray-500";
+  const page     = isDark ? "bg-[#080f0a]" : "bg-gray-50";
 
   return (
     <div className={`min-h-dvh flex flex-col pb-20 transition-colors ${page}`}>
       <div className="px-4 pt-4 space-y-4">
 
-        {/* ── User Profile Card ── */}
+        {/* ── Advertising Banner ── */}
         <div
-          className="rounded-2xl overflow-hidden relative"
-          style={{ background: "linear-gradient(135deg, #0f3d1c 0%, #1a5c2a 40%, #1e6b31 60%, #0f3d1c 100%)" }}
+          className="rounded-2xl overflow-hidden relative flex items-center justify-between px-5 py-4"
+          style={{ background: "linear-gradient(135deg, #0f3d1c 0%, #1a5c2a 60%, #0f3d1c 100%)", minHeight: 80 }}
         >
           <div className="absolute inset-0 pointer-events-none"
-            style={{ background: "linear-gradient(120deg, transparent 30%, rgba(141,198,63,0.12) 50%, transparent 70%)" }} />
-          <div className="relative z-10 p-4 flex items-start justify-between">
-            <div className="flex items-start gap-3">
-              <div className="w-14 h-14 rounded-full bg-white/10 border-2 border-white/20 flex items-center justify-center shrink-0 overflow-hidden">
-                {user?.imageUrl
-                  ? <img src={user.imageUrl} alt="avatar" className="w-full h-full object-cover" />
-                  : <User className="w-8 h-8 text-white/80" />}
-              </div>
-              <div>
-                <p className="text-white/50 text-[9px] uppercase tracking-widest font-semibold">ID Utilisateur</p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <p className="text-[#8DC63F] font-bold font-mono text-sm tracking-wider">{displayId}</p>
-                  <button onClick={handleCopyId} className="text-[#8DC63F] hover:opacity-80 transition-opacity">
-                    {copied ? <CheckCircle className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <User className="w-3.5 h-3.5 text-[#8DC63F]" />
-                  <p className="text-white font-semibold text-sm">{displayName}</p>
-                </div>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <Phone className="w-3.5 h-3.5 text-[#8DC63F]" />
-                  <p className={`text-sm ${rawPhone ? "text-white/80" : "text-white/40 italic"}`}>{displayPhone}</p>
-                </div>
-              </div>
+            style={{ background: "linear-gradient(120deg, transparent 30%, rgba(141,198,63,0.1) 50%, transparent 70%)" }} />
+          <div className="relative z-10">
+            <p className="text-white/40 text-[9px] font-bold uppercase tracking-[0.25em]">PUBLICITÉ</p>
+            <p className="text-white font-black text-base tracking-wide mt-0.5">HALGO CASH</p>
+            <p className="text-[#8DC63F] text-xs font-semibold">Gagnez jusqu'à 50 000 FC</p>
+          </div>
+          <div className="relative z-10 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full border-2 border-[#F5C518]/40 flex items-center justify-center"
+              style={{ background: "rgba(245,197,24,0.15)" }}>
+              <Bell className="w-5 h-5 text-[#F5C518]" />
             </div>
-            <button className="relative p-1 mt-1">
-              <div className="w-10 h-10 rounded-full bg-[#F5C518] flex items-center justify-center shadow-md">
-                <Bell className="w-5 h-5 text-[#0f3d1c]" />
-              </div>
-            </button>
           </div>
         </div>
 
@@ -172,15 +141,15 @@ export default function Home() {
                 <div className="w-4 h-[3px] rounded-full bg-[#F5C518] halgo-line-3" />
               </div>
               <span className="text-[52px] font-black italic text-[#3aab3a] tracking-tight leading-none halgo-cash-text">CASH</span>
-              <span className="text-[40px] font-black text-[#F5C518] leading-none halgo-lightning ml-0.5">⚡</span>
+              <Zap className="w-9 h-9 text-[#F5C518] fill-[#F5C518] ml-0.5 halgo-lightning" />
             </div>
           </div>
           <p className={`text-[11px] font-semibold tracking-[0.2em] uppercase mt-2 transition-colors ${subText}`}>
-            RAPIDE • SÉCURISÉ • FIABLE
+            RAPIDE · SECURISE · FIABLE
           </p>
         </div>
 
-        {/* ── Balance Card (IMPROVED) ── */}
+        {/* ── Balance Card ── */}
         <div
           className="rounded-2xl overflow-hidden shadow-md"
           style={{ background: isDark
@@ -188,56 +157,49 @@ export default function Home() {
             : "linear-gradient(135deg, #0f3d1c 0%, #1a5c2a 50%, #0f3d1c 100%)"
           }}
         >
-          {/* shimmer stripe */}
-          <div className="absolute inset-0 pointer-events-none"
-            style={{ background: "linear-gradient(105deg, transparent 40%, rgba(245,197,24,0.06) 50%, transparent 60%)" }} />
-
           <div className="p-4 relative">
-            <div className="flex items-start justify-between mb-3">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ background: "linear-gradient(135deg, #F5C518, #8DC63F)" }}>
-                  <span className="text-xl">💰</span>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(141,198,63,0.25)", border: "1.5px solid rgba(141,198,63,0.4)" }}>
+                  <div className="w-3 h-3 rounded-full bg-[#8DC63F]" />
                 </div>
                 <span className="text-white/60 text-[10px] font-bold uppercase tracking-widest">SOLDE ACTUEL</span>
               </div>
-              <button onClick={() => setShowBalance(!showBalance)} className="text-white/40 hover:text-white/70 transition-colors mt-1">
+              <button onClick={() => setShowBalance(!showBalance)} className="text-white/40 hover:text-white/70 transition-colors">
                 {showBalance ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               </button>
             </div>
 
-            {checking ? (
-              <Skeleton className="h-10 w-44 rounded-xl mb-1 bg-white/10" />
-            ) : balance ? (
-              <div className="flex items-baseline gap-2 mb-1">
-                <span className="text-4xl font-black text-white font-mono tracking-tight">
-                  {showBalance ? formatXAF(balance.balance) : "• • • • •"}
-                </span>
-                <span className="text-base font-bold text-white/50">XAF</span>
-              </div>
-            ) : (
-              <div className="flex items-baseline gap-2 mb-1">
-                <span className="text-4xl font-black font-mono tracking-tight" style={{ color: "rgba(255,255,255,0.2)" }}>
-                  {showBalance ? "– –  . – – –" : "• • • • •"}
-                </span>
-                <span className="text-base font-bold text-white/20">XAF</span>
-              </div>
-            )}
-
-            {balance && (
-              <p className="text-white/50 text-xs flex items-center gap-1 mb-3">
-                <CheckCircle className="w-3 h-3 text-[#8DC63F]" />
-                {balance.ownerName}
-              </p>
-            )}
-            {error && (
-              <p className="text-red-300 text-xs flex items-center gap-1 mb-3">
-                <AlertCircle className="w-3 h-3" />{error}
-              </p>
-            )}
+            {/* Balance amount — centered */}
+            <div className="flex flex-col items-center mb-3">
+              {checking ? (
+                <Skeleton className="h-10 w-44 rounded-xl bg-white/10" />
+              ) : (
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl font-black text-white font-mono tracking-tight">
+                    {showBalance
+                      ? (balance ? formatFC(balance.balance) : "00")
+                      : "• • •"}
+                  </span>
+                  <span className="text-base font-bold text-white/50">FC</span>
+                </div>
+              )}
+              {balance && showBalance && (
+                <p className="text-white/50 text-xs flex items-center gap-1 mt-1">
+                  <CheckCircle className="w-3 h-3 text-[#8DC63F]" />
+                  {balance.ownerName}
+                </p>
+              )}
+              {error && (
+                <p className="text-red-300 text-xs flex items-center gap-1 mt-1">
+                  <AlertCircle className="w-3 h-3" />{error}
+                </p>
+              )}
+            </div>
 
             {/* Action buttons */}
-            <div className="flex gap-2 mt-2">
+            <div className="flex gap-2">
               <button
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-[0.98]"
                 style={{ background: "linear-gradient(135deg, #F5C518, #d4a017)", color: "#0f3d1c", boxShadow: "0 4px 14px rgba(245,197,24,0.35)" }}
@@ -266,7 +228,7 @@ export default function Home() {
             </div>
             <div className="flex-1 flex items-center justify-between">
               <span className={`text-[10px] font-bold uppercase tracking-wide leading-tight ${subText}`}>
-                SAISISSEZ VOTRE CODE<br />À 10 CHIFFRES ICI
+                SAISISSEZ VOTRE CODE<br />A 10 CHIFFRES ICI
               </span>
               {enteredCode.length > 0 && (
                 <button onClick={clearCode}
@@ -277,20 +239,17 @@ export default function Home() {
             </div>
           </div>
 
-          {/* ── NUMBER DISPLAY — bordeaux, single line ── */}
+          {/* Code display — bordeaux */}
           <div
             className="mb-3 py-3 px-4 rounded-xl flex items-center justify-center overflow-hidden"
             style={{ background: "#6B1414" }}
           >
-            <span
-              className="font-mono font-black text-[17px] tracking-[0.18em] text-white whitespace-nowrap"
-              style={{ letterSpacing: "0.18em" }}
-            >
+            <span className="font-mono font-black text-[17px] text-white whitespace-nowrap" style={{ letterSpacing: "0.18em" }}>
               {codeDisplay}
             </span>
           </div>
 
-          {/* ── DIGIT BOXES ── */}
+          {/* Digit boxes */}
           <div className="flex gap-1.5 justify-between" onPaste={handlePaste}>
             {digits.map((digit, i) => (
               <input
@@ -306,12 +265,8 @@ export default function Home() {
                 className={`
                   w-full aspect-square min-w-0 text-center font-mono font-bold text-sm rounded-lg border-2 transition-all outline-none
                   ${digit
-                    ? isDark
-                      ? "border-[#3aab3a] bg-[#3aab3a]/20 text-[#8DC63F]"
-                      : "border-[#0f3d1c] bg-[#eaf3ec] text-[#0f3d1c]"
-                    : isDark
-                      ? "border-white/10 bg-black/20 text-gray-500"
-                      : "border-gray-200 bg-white text-gray-400"
+                    ? isDark ? "border-[#3aab3a] bg-[#3aab3a]/20 text-[#8DC63F]" : "border-[#0f3d1c] bg-[#eaf3ec] text-[#0f3d1c]"
+                    : isDark ? "border-white/10 bg-black/20 text-gray-500" : "border-gray-200 bg-white text-gray-400"
                   }
                   ${isDark
                     ? "focus:border-[#3aab3a] focus:bg-[#3aab3a]/10 focus:shadow-[0_0_0_3px_rgba(58,171,58,0.2)]"
@@ -327,7 +282,7 @@ export default function Home() {
           {checking && (
             <div className={`mt-3 flex items-center gap-2 text-xs ${subText}`}>
               <div className="w-3.5 h-3.5 border-2 border-[#3aab3a] border-t-transparent rounded-full animate-spin" />
-              Vérification en cours…
+              Verification en cours…
             </div>
           )}
           {isComplete && !checking && !balance && !error && (
@@ -336,12 +291,12 @@ export default function Home() {
               className="mt-3 w-full text-white text-sm font-bold rounded-xl py-3 active:scale-[0.99] transition-all"
               style={{ background: "linear-gradient(135deg, #0f3d1c, #1a5c2a)" }}
             >
-              Vérifier le solde
+              Verifier le solde
             </button>
           )}
         </div>
 
-        {/* ── Historique Button ── */}
+        {/* ── Historique ── */}
         <button
           className="w-full rounded-2xl px-5 py-4 flex items-center gap-3 active:scale-[0.99] transition-all shadow-sm"
           style={{ background: "linear-gradient(135deg, #0f3d1c 0%, #1a5c2a 100%)" }}
@@ -356,7 +311,7 @@ export default function Home() {
         {/* ── Verified Account Detail ── */}
         {balance && (
           <div className={`rounded-2xl p-4 shadow-sm border transition-colors animate-in fade-in slide-in-from-bottom-4 duration-300 ${card}`}>
-            <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${subText}`}>Compte vérifié</p>
+            <p className={`text-xs font-bold uppercase tracking-wider mb-3 text-center ${subText}`}>Compte verifie</p>
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? "bg-white/10" : "bg-[#eaf3ec]"}`}>
                 <CheckCircle className={`w-5 h-5 ${isDark ? "text-[#8DC63F]" : "text-[#0f3d1c]"}`} />
@@ -366,8 +321,8 @@ export default function Home() {
                 <p className={`text-xs font-mono ${subText}`}>{balance.code}</p>
               </div>
               <div className="ml-auto text-right">
-                <p className={`font-black ${isDark ? "text-[#8DC63F]" : "text-[#0f3d1c]"}`}>{formatXAF(balance.balance)}</p>
-                <p className={`text-xs ${subText}`}>XAF</p>
+                <p className={`font-black ${isDark ? "text-[#8DC63F]" : "text-[#0f3d1c]"}`}>{formatFC(balance.balance)}</p>
+                <p className={`text-xs ${subText}`}>FC</p>
               </div>
             </div>
           </div>
@@ -379,8 +334,10 @@ export default function Home() {
       {showRetrait && (
         <div className="fixed inset-0 z-50 flex items-end justify-center">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowRetrait(false)} />
-          <div className={`relative w-full max-w-sm rounded-t-3xl p-6 pb-10 transition-colors ${isDark ? "bg-[#0f2418]" : "bg-white"}`}
-            style={{ boxShadow: "0 -8px 40px rgba(0,0,0,0.3)" }}>
+          <div
+            className={`relative w-full max-w-sm rounded-t-3xl p-6 pb-10 transition-colors ${isDark ? "bg-[#0f2418]" : "bg-white"}`}
+            style={{ boxShadow: "0 -8px 40px rgba(0,0,0,0.3)" }}
+          >
             <div className="w-10 h-1 rounded-full bg-gray-300 mx-auto mb-5" />
             <div className="flex items-center justify-between mb-4">
               <h2 className={`text-lg font-black uppercase tracking-wider ${cardText}`}>RETRAIT</h2>
@@ -390,27 +347,27 @@ export default function Home() {
               </button>
             </div>
             <p className={`text-sm mb-6 ${subText}`}>
-              Pour effectuer un retrait, entrez votre code à 10 chiffres ci-dessus puis confirmez le montant.
+              Pour effectuer un retrait, entrez votre code a 10 chiffres puis confirmez le montant.
             </p>
             {balance ? (
               <div>
                 <div className={`rounded-xl p-4 mb-4 ${isDark ? "bg-white/5" : "bg-gray-50"}`}>
-                  <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${subText}`}>Solde disponible</p>
-                  <p className={`text-2xl font-black ${isDark ? "text-[#8DC63F]" : "text-[#0f3d1c]"}`}>
-                    {formatXAF(balance.balance)} <span className={`text-sm font-bold ${subText}`}>XAF</span>
+                  <p className={`text-xs font-bold uppercase tracking-wider mb-1 text-center ${subText}`}>Solde disponible</p>
+                  <p className={`text-2xl font-black text-center ${isDark ? "text-[#8DC63F]" : "text-[#0f3d1c]"}`}>
+                    {formatFC(balance.balance)} <span className={`text-sm font-bold ${subText}`}>FC</span>
                   </p>
                 </div>
                 <button
                   className="w-full py-4 rounded-xl font-black text-[#0f3d1c] text-sm uppercase tracking-widest"
                   style={{ background: "linear-gradient(135deg, #F5C518, #d4a017)", boxShadow: "0 4px 20px rgba(245,197,24,0.4)" }}
-                  onClick={() => { setShowRetrait(false); alert("Fonctionnalité retrait bientôt disponible !"); }}
+                  onClick={() => { setShowRetrait(false); alert("Fonctionnalite retrait bientot disponible !"); }}
                 >
                   CONFIRMER LE RETRAIT
                 </button>
               </div>
             ) : (
               <div className={`text-center py-4 text-sm ${subText}`}>
-                ⚠️ Vérifiez d'abord votre code pour accéder au retrait.
+                Verifiez d'abord votre code pour acceder au retrait.
               </div>
             )}
           </div>
@@ -427,29 +384,19 @@ export default function Home() {
           >
             <div className="w-10 h-1 rounded-full bg-gray-300 mx-auto mb-5" />
             <div className="flex items-center justify-between mb-2">
-              <h2 className={`text-lg font-black uppercase tracking-wider ${cardText}`}>Mon QR Code</h2>
+              <h2 className={`text-lg font-black uppercase tracking-wider ${cardText}`}>MON QR CODE</h2>
               <button onClick={() => setShowQR(false)}
                 className={`w-8 h-8 rounded-full flex items-center justify-center ${isDark ? "bg-white/10" : "bg-gray-100"}`}>
                 <X className={`w-4 h-4 ${subText}`} />
               </button>
             </div>
-            <p className={`text-xs mb-5 ${subText}`}>
-              Présentez ce QR code à un vendeur Halgo Cash pour recevoir un paiement.
+            <p className={`text-xs mb-5 text-center ${subText}`}>
+              Presentez ce QR code a un vendeur Halgo Cash pour recevoir un paiement.
             </p>
-
-            {/* QR Code */}
             <div className="flex flex-col items-center gap-4">
-              <div
-                className="p-4 rounded-2xl"
-                style={{ background: "#fff", boxShadow: "0 4px 24px rgba(0,0,0,0.15)" }}
-              >
+              <div className="p-4 rounded-2xl" style={{ background: "#fff", boxShadow: "0 4px 24px rgba(0,0,0,0.15)" }}>
                 <QRCodeSVG
-                  value={JSON.stringify({
-                    type: "halgo-pay",
-                    id: displayId,
-                    name: displayName,
-                    phone: rawPhone ?? "",
-                  })}
+                  value={JSON.stringify({ type: "halgo-pay", id: displayId, name: displayName, phone: rawPhone ?? "" })}
                   size={200}
                   bgColor="#ffffff"
                   fgColor="#0f3d1c"
@@ -457,17 +404,10 @@ export default function Home() {
                   includeMargin={false}
                 />
               </div>
-
-              {/* ID badge */}
-              <div
-                className="px-5 py-2 rounded-xl flex items-center gap-2"
-                style={{ background: "linear-gradient(135deg, #0f3d1c, #1a5c2a)" }}
-              >
+              <div className="px-5 py-2 rounded-xl" style={{ background: "linear-gradient(135deg, #0f3d1c, #1a5c2a)" }}>
                 <span className="font-mono font-black text-[#8DC63F] text-sm tracking-wider">{displayId}</span>
               </div>
-              <p className={`text-xs text-center ${subText}`}>
-                {displayName}
-              </p>
+              <p className={`text-xs text-center ${subText}`}>{displayName}</p>
             </div>
           </div>
         </div>
