@@ -148,6 +148,66 @@ router.get("/vendor/tickets", async (req, res): Promise<void> => {
   res.json({ tickets });
 });
 
+// GET /api/vendor/rapport — list of clients this vendor has paid withdrawals to
+router.get("/vendor/rapport", async (req, res): Promise<void> => {
+  const vendorUserId = req.session.userId;
+  if (!vendorUserId) { res.status(401).json({ error: "Non authentifié" }); return; }
+
+  const [vendorUser] = await db.select().from(usersTable).where(eq(usersTable.id, vendorUserId)).limit(1);
+  if (!vendorUser?.vendorId) { res.status(403).json({ error: "Accès vendeur requis" }); return; }
+
+  const vid = vendorUser.vendorId;
+
+  const paid = await db
+    .select()
+    .from(withdrawalsTable)
+    .where(and(eq(withdrawalsTable.paidByVendorId, vid), eq(withdrawalsTable.status, "paid")))
+    .orderBy(desc(withdrawalsTable.paidAt));
+
+  // Group by clerkId
+  const map = new Map<string, { name: string; withdrawals: typeof paid; totalPaid: number; lastPaidAt: string | null }>();
+  for (const w of paid) {
+    const entry = map.get(w.clerkId) ?? { name: w.clerkName, withdrawals: [], totalPaid: 0, lastPaidAt: null };
+    entry.withdrawals.push(w);
+    entry.totalPaid += parseFloat(w.amount);
+    if (w.paidAt && (!entry.lastPaidAt || w.paidAt > new Date(entry.lastPaidAt))) {
+      entry.lastPaidAt = w.paidAt.toISOString();
+    }
+    map.set(w.clerkId, entry);
+  }
+
+  const clients = Array.from(map.entries()).map(([clerkId, e]) => ({
+    clerkId,
+    name: e.name,
+    totalWithdrawals: e.withdrawals.length,
+    totalPaid: e.totalPaid,
+    lastPaidAt: e.lastPaidAt,
+  }));
+
+  res.json(clients);
+});
+
+// GET /api/vendor/rapport/:clerkId — withdrawal history for one client (paid by this vendor)
+router.get("/vendor/rapport/:clerkId", async (req, res): Promise<void> => {
+  const vendorUserId = req.session.userId;
+  if (!vendorUserId) { res.status(401).json({ error: "Non authentifié" }); return; }
+
+  const [vendorUser] = await db.select().from(usersTable).where(eq(usersTable.id, vendorUserId)).limit(1);
+  if (!vendorUser?.vendorId) { res.status(403).json({ error: "Accès vendeur requis" }); return; }
+
+  const clerkId = String(req.params["clerkId"] ?? "");
+  if (!clerkId) { res.status(400).json({ error: "clerkId requis" }); return; }
+
+  const withdrawals = await db
+    .select()
+    .from(withdrawalsTable)
+    .where(and(eq(withdrawalsTable.clerkId, clerkId), eq(withdrawalsTable.paidByVendorId, vendorUser.vendorId)))
+    .orderBy(desc(withdrawalsTable.createdAt));
+
+  const name = withdrawals[0]?.clerkName ?? clerkId;
+  res.json({ clerkId, name, withdrawals });
+});
+
 // POST /api/vendor/receive-tickets — acknowledge all pending tickets as received
 router.post("/vendor/receive-tickets", async (req, res): Promise<void> => {
   const vendorUserId = req.session.userId;

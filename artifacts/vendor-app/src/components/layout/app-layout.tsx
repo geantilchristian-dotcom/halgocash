@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { ScanBarcode, CheckCircle, Ticket, Trophy, QrCode, LogOut, LayoutDashboard } from "lucide-react";
+import { CheckCircle, Trophy, QrCode, LogOut, LayoutDashboard, BarChart2 } from "lucide-react";
 import { useAuth } from "../../lib/auth-context";
 
 interface AppLayoutProps {
@@ -16,7 +16,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { href: "/validate",      label: "Vendre",    icon: CheckCircle     },
     { href: "/scan-retrait",  label: "Retrait",   icon: QrCode          },
     { href: "/claim",         label: "Prix",      icon: Trophy          },
-    { href: "/draws",         label: "Tirages",   icon: Ticket          },
+    { href: "/rapport",       label: "Rapport",   icon: BarChart2       },
   ];
 
   return (

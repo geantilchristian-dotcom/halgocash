@@ -7,11 +7,11 @@ import { AuthProvider, useAuth } from "@/lib/auth-context";
 import Home from "@/pages/home";
 import Validate from "@/pages/validate";
 import Claim from "@/pages/claim";
-import Draws from "@/pages/draws";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
 import NotFound from "@/pages/not-found";
 import ScanRetrait from "@/pages/scan-retrait";
+import Rapport from "@/pages/rapport";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient({
@@ -50,8 +50,8 @@ function ProtectedRouter() {
       <Route path="/" component={Home} />
       <Route path="/validate" component={Validate} />
       <Route path="/claim" component={Claim} />
-      <Route path="/draws" component={Draws} />
       <Route path="/scan-retrait" component={ScanRetrait} />
+      <Route path="/rapport" component={Rapport} />
       <Route component={NotFound} />
     </Switch>
   );
