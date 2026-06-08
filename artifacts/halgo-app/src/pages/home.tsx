@@ -232,33 +232,63 @@ export default function Home() {
 
       {/* ── Header ── */}
       <header
-        className="relative flex items-center justify-center px-4 pt-4 pb-3"
+        className="relative flex items-center justify-center px-4 pt-5 pb-4"
         style={{ background: "linear-gradient(135deg, #0a1f0e 0%, #0f3d1c 45%, #1a5c2a 80%, #0f3d1c 100%)" }}
       >
-        <div className="flex items-center gap-1">
+        {/* Logo + chips group — shifted right */}
+        <div className="flex items-center gap-0 ml-10">
           <img
             src="/logo-halgo-cash-nobg.png"
             alt="Halgo Cash"
             className="w-44 object-contain"
           />
-          <img
-            src="/chips.png"
-            alt="jetons"
-            className={`object-contain cursor-pointer select-none ${chipsWiggling ? "chips-wiggle" : ""}`}
-            style={{
-              width: 90,
-              height: 60,
-              filter: "drop-shadow(0 4px 14px rgba(0,0,0,0.6))",
-            }}
+          {/* Duplicated chips, overlapping slightly */}
+          <div
+            className="relative cursor-pointer select-none"
+            style={{ width: 130, height: 88 }}
             onClick={handleChipsTouch}
-            onAnimationEnd={() => setChipsWiggling(false)}
-          />
+          >
+            <img
+              src="/chips.png"
+              alt=""
+              className={`absolute object-contain ${chipsWiggling ? "chips-wiggle" : ""}`}
+              style={{
+                width: 118, height: 80,
+                top: 4, left: 0,
+                filter: "drop-shadow(0 5px 16px rgba(0,0,0,0.7))",
+                opacity: 0.65,
+                transform: "scaleX(-1) rotate(-6deg)",
+              }}
+              onAnimationEnd={() => setChipsWiggling(false)}
+            />
+            <img
+              src="/chips.png"
+              alt="jetons"
+              className={`absolute object-contain ${chipsWiggling ? "chips-wiggle" : ""}`}
+              style={{
+                width: 124, height: 84,
+                top: 0, left: 10,
+                filter: "drop-shadow(0 6px 18px rgba(0,0,0,0.8))",
+              }}
+            />
+          </div>
         </div>
+
+        {/* KIVU pill — top right of header */}
+        <div
+          className="absolute right-4 top-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+          style={{ background: "rgba(10,32,16,0.85)", border: "1.5px solid rgba(245,197,24,0.55)" }}
+        >
+          <MapPin className="w-3 h-3 text-[#F5C518]" />
+          <span className="text-[#F5C518] text-[11px] font-black tracking-widest">KIVU</span>
+        </div>
+
+        {/* Bell — bottom right of header */}
         <button
-          className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center"
+          className="absolute right-4 bottom-3 w-9 h-9 rounded-full flex items-center justify-center"
           style={{ background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }}
         >
-          <Bell className={`w-5 h-5 ${isDark ? "text-white/70" : "text-gray-600"}`} />
+          <Bell className={`w-4.5 h-4.5 ${isDark ? "text-white/70" : "text-gray-600"}`} />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#F5C518] border-2 border-[#f4f5f0]" />
         </button>
       </header>
@@ -284,27 +314,18 @@ export default function Home() {
           <div className="relative z-10 px-5 pt-4 pb-4">
 
             {/* ── Top row ── */}
-            <div className="flex items-start justify-between mb-5">
-              {/* Wallet + SOLDE */}
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-                  style={{ background: "rgba(245,197,24,0.15)", border: "1.5px solid rgba(245,197,24,0.4)" }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F5C518" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/>
-                    <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/>
-                    <path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-white font-black text-base uppercase tracking-widest leading-none">SOLDE</p>
-                  <p className="text-white/40 text-[10px] font-semibold uppercase tracking-[0.2em] mt-0.5">DISPONIBLE</p>
-                </div>
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                style={{ background: "rgba(245,197,24,0.15)", border: "1.5px solid rgba(245,197,24,0.4)" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F5C518" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/>
+                  <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/>
+                  <path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>
+                </svg>
               </div>
-              {/* KIVU pill */}
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
-                style={{ background: "rgba(10,32,16,0.7)", border: "1.5px solid rgba(245,197,24,0.5)" }}>
-                <MapPin className="w-3 h-3 text-[#F5C518]" />
-                <span className="text-[#F5C518] text-[11px] font-black tracking-widest">KIVU</span>
+              <div>
+                <p className="text-white font-black text-base uppercase tracking-widest leading-none">SOLDE</p>
+                <p className="text-white/40 text-[10px] font-semibold uppercase tracking-[0.2em] mt-0.5">DISPONIBLE</p>
               </div>
             </div>
 
