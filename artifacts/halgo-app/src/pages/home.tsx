@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import {
-  X, QrCode, Zap, Sparkles, RotateCcw, Send, Loader2,
-  ChevronRight, Bell, ArrowDownCircle, ArrowUpCircle,
-  Ticket, Clock, Users, HelpCircle, Headphones, Settings,
+  X, QrCode, Zap, Sparkles, Send, Loader2,
+  ChevronRight, Bell, ArrowUpCircle,
+  Ticket, Clock, HelpCircle, Headphones, Settings,
   AlertCircle, CheckCircle, MapPin, Scan,
 } from "lucide-react";
 import { useUser } from "@clerk/react";
@@ -266,21 +266,22 @@ export default function Home() {
         </div>
 
         {/* ── Quick Actions ── */}
-        <div className={`rounded-3xl p-4 grid grid-cols-4 gap-3 shadow-sm ${isDark ? "bg-[#0f2418]" : "bg-white"}`}>
+        <div
+          className="rounded-3xl p-4 grid grid-cols-2 gap-4 shadow-sm"
+          style={{ background: "linear-gradient(135deg, #0f3d1c 0%, #16a34a 100%)" }}
+        >
           {[
-            { label: "Dépôt",      icon: ArrowDownCircle, action: () => setShowQR(true) },
             { label: "Retrait",    icon: ArrowUpCircle,   action: openRetrait },
-            { label: "Mes tickets",icon: Ticket,          action: () => setShowTicketInput(true) },
             { label: "Historique", icon: Clock,           action: () => {} },
           ].map(({ label, icon: Icon, action }) => (
             <button key={label} onClick={action} className="flex flex-col items-center gap-2">
               <div
-                className="w-12 h-12 rounded-full flex items-center justify-center shadow"
-                style={{ background: "linear-gradient(135deg, #F5C518, #e6b800)", boxShadow: "0 3px 10px rgba(245,197,24,0.35)" }}
+                className="w-14 h-14 rounded-full flex items-center justify-center shadow"
+                style={{ background: "linear-gradient(135deg, #F5C518, #e6b800)", boxShadow: "0 4px 14px rgba(245,197,24,0.4)" }}
               >
-                <Icon className="w-5 h-5 text-[#0a1f0e]" strokeWidth={2.2} />
+                <Icon className="w-6 h-6 text-[#0a1f0e]" strokeWidth={2.2} />
               </div>
-              <span className={`text-[10px] font-bold text-center leading-tight ${isDark ? "text-gray-300" : "text-gray-600"}`}>{label}</span>
+              <span className="text-[11px] font-bold text-center text-white/80">{label}</span>
             </button>
           ))}
         </div>
@@ -445,10 +446,9 @@ export default function Home() {
           <p className={`text-[11px] font-bold uppercase tracking-widest mb-3 px-1 ${subText}`}>Raccourcis</p>
           <div className={`rounded-3xl shadow-sm overflow-hidden ${isDark ? "bg-[#0f2418]" : "bg-white"}`}>
             {[
-              { label: "Parrainer",   sub: "Invitez vos amis",       icon: Users,       color: "#F5C518" },
               { label: "Aide",        sub: "FAQ & tutoriels",         icon: HelpCircle,  color: "#22c55e" },
               { label: "Support",     sub: "Contactez-nous",          icon: Headphones,  color: "#3b82f6" },
-              { label: "Paramètres",  sub: "Compte & préférences",    icon: Settings,    color: "#a855f7" },
+              { label: "Paramètres",  sub: "Compte, parrainer & préférences", icon: Settings, color: "#a855f7" },
             ].map(({ label, sub, icon: Icon, color }, idx, arr) => (
               <button
                 key={label}
