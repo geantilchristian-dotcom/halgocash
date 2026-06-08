@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import {
   X, QrCode, Zap, Sparkles, Send, Loader2,
-  ChevronRight, Bell, ArrowUpCircle,
-  Ticket, Clock,
+  ChevronRight, Bell,
+  Ticket, Clock, Home as HomeIcon,
   AlertCircle, CheckCircle, MapPin, Scan,
 } from "lucide-react";
 import { useUser } from "@clerk/react";
@@ -201,7 +201,7 @@ export default function Home() {
         </button>
       </header>
 
-      <div className="px-4 pb-10 space-y-4 flex-1">
+      <div className="px-4 pb-24 space-y-4 flex-1">
 
         {/* ── Balance Card ── */}
         <div
@@ -265,26 +265,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ── Quick Actions ── */}
-        <div
-          className="rounded-3xl p-4 grid grid-cols-2 gap-4 shadow-sm"
-          style={{ background: "linear-gradient(135deg, #0f3d1c 0%, #16a34a 100%)" }}
-        >
-          {[
-            { label: "Retrait",    icon: ArrowUpCircle,   action: openRetrait },
-            { label: "Historique", icon: Clock,           action: () => {} },
-          ].map(({ label, icon: Icon, action }) => (
-            <button key={label} onClick={action} className="flex flex-col items-center gap-2">
-              <div
-                className="w-14 h-14 rounded-full flex items-center justify-center shadow"
-                style={{ background: "linear-gradient(135deg, #F5C518, #e6b800)", boxShadow: "0 4px 14px rgba(245,197,24,0.4)" }}
-              >
-                <Icon className="w-6 h-6 text-[#0a1f0e]" strokeWidth={2.2} />
-              </div>
-              <span className="text-[11px] font-bold text-center text-white/80">{label}</span>
-            </button>
-          ))}
-        </div>
 
         {/* ── Advertising Banner ── */}
         <AdvertisingBanner />
@@ -541,6 +521,49 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* ── Bottom Nav ── */}
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-30 flex"
+        style={{
+          background: "linear-gradient(90deg, #0f3d1c 0%, #16a34a 100%)",
+          boxShadow: "0 -4px 20px rgba(15,61,28,0.4)",
+          height: 64,
+        }}
+      >
+        {[
+          { label: "Accueil",     icon: HomeIcon,  active: true  },
+          { label: "Historique",  icon: Clock, active: false },
+        ].map(({ label, icon: Icon, active }) => (
+          <button
+            key={label}
+            className="flex-1 flex flex-col items-center justify-center gap-1 transition-all active:opacity-70"
+          >
+            {active && (
+              <span
+                className="absolute top-0 rounded-full"
+                style={{ width: 32, height: 3, background: "#F5C518", borderRadius: "0 0 4px 4px" }}
+              />
+            )}
+            <div
+              className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all"
+              style={active ? { background: "rgba(245,197,24,0.18)" } : {}}
+            >
+              <Icon
+                className="transition-colors"
+                style={{ width: 20, height: 20, color: active ? "#F5C518" : "rgba(255,255,255,0.55)" }}
+                strokeWidth={active ? 2.5 : 1.8}
+              />
+            </div>
+            <span
+              className="text-[9px] font-bold uppercase tracking-wide leading-none"
+              style={{ color: active ? "#F5C518" : "rgba(255,255,255,0.55)" }}
+            >
+              {label}
+            </span>
+          </button>
+        ))}
+      </nav>
 
       {/* ── QR Code Modal ── */}
       {showQR && (
