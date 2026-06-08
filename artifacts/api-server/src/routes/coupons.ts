@@ -130,28 +130,38 @@ router.post("/tickets/activate", async (req, res): Promise<void> => {
     return;
   }
 
-  // Already activated by someone else
-  if (ticket.registeredByClerkId && ticket.registeredByClerkId !== userId) {
-    res.status(409).json({ error: "Ce ticket a déjà été activé par quelqu'un d'autre" });
-    return;
-  }
-
-  // Link to current user if logged in and not yet linked
-  if (!ticket.registeredByClerkId && userId) {
-    await db
-      .update(ticketsTable)
-      .set({ registeredByClerkId: userId, registeredAt: new Date() })
-      .where(eq(ticketsTable.id, ticket.id));
-  }
-
+  // Helper: build prize label
   const amount = ticket.prizeAmount ? parseFloat(ticket.prizeAmount) : 0;
   let prizeLabel = "Perdu";
   if (ticket.isWinner) {
-    if (amount >= 50000)     prizeLabel = "Super Gagnant";
+    if (amount >= 50000)      prizeLabel = "Super Gagnant";
     else if (amount >= 25000) prizeLabel = "Très Grand Gagnant";
     else if (amount >= 10000) prizeLabel = "Grand Gagnant";
     else if (amount >= 5000)  prizeLabel = "Gagnant";
     else                      prizeLabel = "Petit Gagnant — Remboursé";
+  }
+
+  // Already activated — block completely and reveal result
+  if (ticket.registeredAt) {
+    const msg = ticket.isWinner
+      ? `Ce ticket a déjà été gratté — Résultat : ${prizeLabel} (${amount.toLocaleString("fr-FR")} FC). Il ne peut plus être utilisé.`
+      : "Ce ticket a déjà été gratté — Résultat : Perdant. Il ne peut plus être utilisé.";
+    res.status(409).json({
+      error: msg,
+      alreadyUsed: true,
+      isWinner: ticket.isWinner,
+      prizeLabel,
+      prizeAmount: ticket.isWinner ? amount : null,
+    });
+    return;
+  }
+
+  // Link to current user if logged in and not yet linked
+  if (userId) {
+    await db
+      .update(ticketsTable)
+      .set({ registeredByClerkId: userId, registeredAt: new Date() })
+      .where(eq(ticketsTable.id, ticket.id));
   }
 
   res.json({
@@ -160,7 +170,7 @@ router.post("/tickets/activate", async (req, res): Promise<void> => {
     isWinner: ticket.isWinner,
     prizeAmount: ticket.isWinner ? amount : null,
     prizeLabel,
-    alreadyActivated: !!ticket.registeredByClerkId,
+    alreadyActivated: false,
   });
 });
 

@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import bcrypt from "bcryptjs";
-import { eq, desc, or } from "drizzle-orm";
+import { eq, desc, or, sql, count, and, isNotNull, isNull } from "drizzle-orm";
 import { db, usersTable, ticketsTable, drawsTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { getOnlineUsers } from "../lib/presence";
@@ -258,6 +258,53 @@ router.put("/admin/credentials", requireAdmin, async (req: Request, res: Respons
 // GET /api/admin/online-users — players seen in last 5 minutes
 router.get("/admin/online-users", requireAdmin, (_req: Request, res: Response): void => {
   res.json(getOnlineUsers());
+});
+
+// GET /api/admin/batches — summary of all ticket batches grouped by series
+router.get("/admin/batches", requireAdmin, async (_req: Request, res: Response): Promise<void> => {
+  const rows = await db
+    .select({
+      series: ticketsTable.series,
+      generatedAt: sql<string>`MIN(${ticketsTable.createdAt})`.as("generated_at"),
+      total: count(ticketsTable.id).as("total"),
+      scratched: sql<number>`COUNT(*) FILTER (WHERE ${ticketsTable.registeredAt} IS NOT NULL)`.as("scratched"),
+      winners: sql<number>`COUNT(*) FILTER (WHERE ${ticketsTable.registeredAt} IS NOT NULL AND ${ticketsTable.isWinner} = TRUE)`.as("winners"),
+      available: sql<number>`COUNT(*) FILTER (WHERE ${ticketsTable.registeredAt} IS NULL)`.as("available"),
+    })
+    .from(ticketsTable)
+    .groupBy(ticketsTable.series)
+    .orderBy(sql`MIN(${ticketsTable.createdAt}) DESC`);
+
+  res.json(rows.map((r) => ({
+    series: r.series,
+    generatedAt: r.generatedAt,
+    total: Number(r.total),
+    scratched: Number(r.scratched),
+    winners: Number(r.winners),
+    available: Number(r.available),
+  })));
+});
+
+// GET /api/admin/batches/:series — all tickets in a specific series
+router.get("/admin/batches/:series", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const { series } = req.params;
+  const rows = await db
+    .select()
+    .from(ticketsTable)
+    .where(eq(ticketsTable.series, series))
+    .orderBy(ticketsTable.id);
+
+  res.json(rows.map((t) => ({
+    id: t.id,
+    code: t.code,
+    status: t.status,
+    price: parseFloat(t.price),
+    series: t.series,
+    isWinner: t.isWinner,
+    prizeAmount: t.prizeAmount ? parseFloat(t.prizeAmount) : null,
+    registeredAt: t.registeredAt?.toISOString() ?? null,
+    createdAt: t.createdAt.toISOString(),
+  })));
 });
 
 export default router;
