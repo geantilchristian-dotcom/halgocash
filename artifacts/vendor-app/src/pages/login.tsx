@@ -30,7 +30,7 @@ export default function Login() {
   return (
     <div
       className="min-h-screen w-full flex flex-col items-center justify-between"
-      style={{ background: "linear-gradient(150deg, #6b7c3a 0%, #4a5c28 35%, #3a4a1e 65%, #252f12 100%)" }}
+      style={{ background: "linear-gradient(160deg, #1a3d1a 0%, #0d2410 40%, #061008 100%)" }}
     >
       {/* Top — logo */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pt-14 pb-6 w-full">
