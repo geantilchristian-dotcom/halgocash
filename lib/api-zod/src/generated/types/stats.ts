@@ -9,6 +9,7 @@ import type { Draw } from './draw';
 
 export interface Stats {
   totalTicketsSold: number;
+  totalAvailable: number;
   totalRevenue: number;
   totalPrizesPaid: number;
   activeDraw?: Draw | null;

@@ -315,6 +315,7 @@ export const CreateVendorBody = zod.object({
  */
 export const GetStatsResponse = zod.object({
   "totalTicketsSold": zod.number(),
+  "totalAvailable": zod.number(),
   "totalRevenue": zod.number(),
   "totalPrizesPaid": zod.number(),
   "activeDraw": zod.object({

@@ -105,6 +105,7 @@ export interface CreateVendorInput {
 
 export interface Stats {
   totalTicketsSold: number;
+  totalAvailable: number;
   totalRevenue: number;
   totalPrizesPaid: number;
   activeDraw?: Draw | null;

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useGetStats } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Ticket, DollarSign, Trophy, Users, AlertCircle, Activity, Wifi } from "lucide-react";
+import { Ticket, TrendingUp, Trophy, Users, AlertCircle, Wifi, Star, LayoutGrid } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface OnlineUser {
@@ -43,76 +43,148 @@ export default function Dashboard() {
     </div>
   );
 
+  const totalTickets = (stats.totalTicketsSold ?? 0) + (stats.totalAvailable ?? 0);
+  const scratchRate = totalTickets > 0
+    ? Math.round(((stats.totalTicketsSold ?? 0) / totalTickets) * 100)
+    : 0;
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-3xl font-bold tracking-tight">Tableau de bord</h2>
+        <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">
+          Temps réel
+        </span>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+
+        {/* Revenus */}
+        <Card className="border-green-500/20">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Revenus totaux</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <TrendingUp className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">{formatCurrency(stats.totalRevenue)}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+              {formatCurrency(stats.totalRevenue ?? 0)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Prix des tickets grattés
+            </p>
           </CardContent>
         </Card>
+
+        {/* Tickets grattés */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Tickets vendus</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Tickets grattés</CardTitle>
             <Ticket className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalTicketsSold.toLocaleString()}</div>
+            <div className="text-2xl font-bold">
+              {(stats.totalTicketsSold ?? 0).toLocaleString("fr-FR")}
+            </div>
+            <div className="mt-2">
+              <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                <span>Taux de grattage</span>
+                <span className="font-semibold">{scratchRate}%</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500"
+                  style={{ width: `${scratchRate}%` }}
+                />
+              </div>
+            </div>
           </CardContent>
         </Card>
+
+        {/* Tickets disponibles */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Prix distribués</CardTitle>
-            <Trophy className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Tickets disponibles</CardTitle>
+            <LayoutGrid className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-accent">{formatCurrency(stats.totalPrizesPaid)}</div>
+            <div className="text-2xl font-bold">
+              {(stats.totalAvailable ?? 0).toLocaleString("fr-FR")}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Pas encore grattés
+            </p>
           </CardContent>
         </Card>
+
+        {/* Prix distribués */}
+        <Card className="border-yellow-500/20">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Prix distribués</CardTitle>
+            <Trophy className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+              {formatCurrency(stats.totalPrizesPaid ?? 0)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Gains versés aux joueurs
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Gagnants */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Gagnants</CardTitle>
+            <Star className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {(stats.recentWinners ?? 0).toLocaleString("fr-FR")}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Tickets gagnants activés
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Vendeurs actifs */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Vendeurs actifs</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.activeVendors}</div>
+            <div className="text-2xl font-bold">{stats.activeVendors ?? 0}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Points de vente actifs
+            </p>
           </CardContent>
         </Card>
+
       </div>
 
-      {/* Active Draw */}
-      {stats.activeDraw && (
-        <Card className="border-primary/50 shadow-sm overflow-hidden">
-          <div className="bg-primary/10 px-6 py-3 border-b border-primary/20 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-primary font-semibold">
-              <Activity className="h-4 w-4" /> Tirage actif #{stats.activeDraw.drawNumber}
-            </div>
-            <div className="text-sm text-primary/80">
-              {new Date(stats.activeDraw.scheduledAt).toLocaleDateString("fr-FR")}
-            </div>
-          </div>
-          <CardContent className="p-6">
-            <div className="grid md:grid-cols-3 gap-6">
+      {/* Margin summary */}
+      {(stats.totalRevenue ?? 0) > 0 && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="pt-5">
+            <div className="grid grid-cols-3 gap-4 text-center">
               <div>
-                <div className="text-sm text-muted-foreground mb-1">Jackpot</div>
-                <div className="text-3xl font-bold">{formatCurrency(stats.activeDraw.jackpotAmount)}</div>
+                <p className="text-xs text-muted-foreground mb-1">Revenus bruts</p>
+                <p className="text-lg font-bold">{formatCurrency(stats.totalRevenue ?? 0)}</p>
               </div>
               <div>
-                <div className="text-sm text-muted-foreground mb-1">Cagnotte</div>
-                <div className="text-2xl font-semibold text-muted-foreground">{formatCurrency(stats.activeDraw.prizePool)}</div>
+                <p className="text-xs text-muted-foreground mb-1">Lots versés</p>
+                <p className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
+                  − {formatCurrency(stats.totalPrizesPaid ?? 0)}
+                </p>
               </div>
               <div>
-                <div className="text-sm text-muted-foreground mb-1">Tickets vendus</div>
-                <div className="text-2xl font-semibold text-muted-foreground">{stats.activeDraw.totalTicketsSold.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mb-1">Marge nette</p>
+                <p className="text-lg font-bold text-green-600 dark:text-green-400">
+                  {formatCurrency((stats.totalRevenue ?? 0) - (stats.totalPrizesPaid ?? 0))}
+                </p>
               </div>
             </div>
           </CardContent>

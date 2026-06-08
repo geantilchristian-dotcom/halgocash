@@ -1,44 +1,67 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { drawsTable, ticketsTable, vendorsTable, transactionsTable } from "@workspace/db";
-import { eq, count, sum, desc, and } from "drizzle-orm";
+import { ticketsTable, vendorsTable } from "@workspace/db";
+import { eq, count, sum, isNotNull, and } from "drizzle-orm";
 
 const router: IRouter = Router();
 
 router.get("/stats", async (_req, res) => {
-  const [ticketsSoldRow] = await db.select({ cnt: count() }).from(ticketsTable).where(eq(ticketsTable.status, "validated"));
-  const [claimedRow] = await db.select({ cnt: count() }).from(ticketsTable).where(eq(ticketsTable.status, "claimed"));
-  const [revenueRow] = await db.select({ total: sum(transactionsTable.amount) }).from(transactionsTable).where(eq(transactionsTable.type, "sale"));
-  const [prizesRow] = await db.select({ total: sum(transactionsTable.amount) }).from(transactionsTable).where(eq(transactionsTable.type, "prize_payout"));
-  const [completedRow] = await db.select({ cnt: count() }).from(drawsTable).where(eq(drawsTable.status, "completed"));
-  const [activeVendorsRow] = await db.select({ cnt: count() }).from(vendorsTable).where(eq(vendorsTable.status, "active"));
+  // Tickets grattés = activés (registeredAt IS NOT NULL)
+  const [scratchedRow] = await db
+    .select({ cnt: count() })
+    .from(ticketsTable)
+    .where(isNotNull(ticketsTable.registeredAt));
 
-  const [activeDraw] = await db.select().from(drawsTable).where(eq(drawsTable.status, "active")).limit(1);
-  let activeDrawFormatted = null;
-  if (activeDraw) {
-    const [cnt] = await db.select({ count: count() }).from(ticketsTable).where(and(eq(ticketsTable.drawId, activeDraw.id), eq(ticketsTable.status, "validated")));
-    activeDrawFormatted = {
-      id: activeDraw.id,
-      drawNumber: activeDraw.drawNumber,
-      status: activeDraw.status,
-      jackpotAmount: parseFloat(activeDraw.jackpotAmount),
-      prizePool: parseFloat(activeDraw.prizePool),
-      winningTicketCode: activeDraw.winningTicketCode ?? null,
-      winningNumbers: activeDraw.winningNumbers ?? null,
-      scheduledAt: activeDraw.scheduledAt.toISOString(),
-      drawnAt: activeDraw.drawnAt?.toISOString() ?? null,
-      totalTicketsSold: Number(cnt?.count ?? 0),
-    };
-  }
+  // Tickets disponibles (pas encore grattés)
+  const [availableRow] = await db
+    .select({ cnt: count() })
+    .from(ticketsTable)
+    .where(eq(ticketsTable.status, "available"));
+
+  // Revenus = somme des prix des tickets grattés
+  const [revenueRow] = await db
+    .select({ total: sum(ticketsTable.price) })
+    .from(ticketsTable)
+    .where(isNotNull(ticketsTable.registeredAt));
+
+  // Prix distribués = somme des gains des tickets gagnants grattés
+  const [prizesRow] = await db
+    .select({ total: sum(ticketsTable.prizeAmount) })
+    .from(ticketsTable)
+    .where(
+      and(
+        isNotNull(ticketsTable.registeredAt),
+        eq(ticketsTable.isWinner, true),
+        isNotNull(ticketsTable.prizeAmount),
+      ),
+    );
+
+  // Gagnants = tickets gagnants grattés
+  const [winnersRow] = await db
+    .select({ cnt: count() })
+    .from(ticketsTable)
+    .where(
+      and(
+        isNotNull(ticketsTable.registeredAt),
+        eq(ticketsTable.isWinner, true),
+      ),
+    );
+
+  // Vendeurs actifs
+  const [activeVendorsRow] = await db
+    .select({ cnt: count() })
+    .from(vendorsTable)
+    .where(eq(vendorsTable.status, "active"));
 
   res.json({
-    totalTicketsSold: Number(ticketsSoldRow?.cnt ?? 0) + Number(claimedRow?.cnt ?? 0),
-    totalRevenue: parseFloat(revenueRow?.total ?? "0"),
-    totalPrizesPaid: Math.abs(parseFloat(prizesRow?.total ?? "0")),
-    activeDraw: activeDrawFormatted,
-    completedDraws: Number(completedRow?.cnt ?? 0),
+    totalTicketsSold: Number(scratchedRow?.cnt ?? 0),
+    totalAvailable: Number(availableRow?.cnt ?? 0),
+    totalRevenue: parseFloat(String(revenueRow?.total ?? "0")),
+    totalPrizesPaid: parseFloat(String(prizesRow?.total ?? "0")),
     activeVendors: Number(activeVendorsRow?.cnt ?? 0),
-    recentWinners: Number(claimedRow?.cnt ?? 0),
+    recentWinners: Number(winnersRow?.cnt ?? 0),
+    activeDraw: null,
+    completedDraws: 0,
   });
 });
 
