@@ -212,45 +212,43 @@ export default function Home() {
           <div className="absolute bottom-0 left-0 w-36 h-36 rounded-full pointer-events-none"
             style={{ background: "radial-gradient(circle, rgba(245,197,24,0.1) 0%, transparent 70%)", transform: "translate(-25%,30%)" }} />
 
-          <div className="relative z-10 px-5 pt-5 pb-4">
-            {/* Top row */}
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-white/50 text-[10px] font-bold uppercase tracking-[0.22em]">SOLDE DISPONIBLE</span>
-              <div className="flex items-center gap-1 px-2.5 py-1 rounded-full"
-                style={{ background: "rgba(141,198,63,0.18)", border: "1px solid rgba(141,198,63,0.35)" }}>
-                <MapPin className="w-3 h-3 text-[#8DC63F]" />
-                <span className="text-[#8DC63F] text-[10px] font-bold tracking-wide">KIVU</span>
-              </div>
+          <div className="relative z-10 px-5 pt-5 pb-4 flex flex-col items-center text-center">
+            {/* KIVU chip */}
+            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full mb-3 self-end"
+              style={{ background: "rgba(141,198,63,0.18)", border: "1px solid rgba(141,198,63,0.35)" }}>
+              <MapPin className="w-3 h-3 text-[#8DC63F]" />
+              <span className="text-[#8DC63F] text-[10px] font-bold tracking-wide">KIVU</span>
             </div>
 
+            {/* SOLDE label — grand */}
+            <p className="font-black text-white/60 uppercase tracking-[0.3em] text-xl mb-1">SOLDE</p>
+            <p className="text-white/40 text-[10px] font-semibold uppercase tracking-widest mb-4">DISPONIBLE</p>
+
             {/* Balance */}
-            <div className="transition-all duration-300" style={{ transform: balanceFlash ? "scale(1.03)" : "scale(1)" }}>
+            <div className="transition-all duration-300 flex flex-col items-center" style={{ transform: balanceFlash ? "scale(1.03)" : "scale(1)" }}>
               {balance === null ? (
-                <div className="flex items-baseline gap-2">
-                  <div className="h-12 w-36 rounded-lg animate-pulse" style={{ background: "rgba(255,255,255,0.1)" }} />
-                  <span className="text-white/30 text-lg font-bold">FC</span>
-                </div>
+                <div className="h-14 w-40 rounded-lg animate-pulse mb-1" style={{ background: "rgba(255,255,255,0.1)" }} />
               ) : (
-                <div className="flex items-end gap-2">
+                <div className="flex items-end gap-2 justify-center">
                   <span
                     className="font-black font-mono leading-none"
-                    style={{ fontSize: balance >= 100000 ? "2.6rem" : "3.2rem", color: balanceFlash ? "#8DC63F" : "#fff", transition: "color 0.5s", letterSpacing: "-0.02em" }}
+                    style={{ fontSize: balance >= 100000 ? "2.8rem" : "3.6rem", color: balanceFlash ? "#8DC63F" : "#fff", transition: "color 0.5s", letterSpacing: "-0.02em" }}
                   >
                     {formatFC(balance)}
                   </span>
-                  <span className="text-white/40 text-lg font-bold mb-1">FC</span>
+                  <span className="text-white/40 text-xl font-bold mb-1.5">FC</span>
                 </div>
               )}
               {balance !== null && balance > 0 && (
-                <p className="text-[#8DC63F]/70 text-[11px] font-medium mt-0.5">≈ {(balance / 2800).toFixed(2)} USD</p>
+                <p className="text-[#8DC63F]/70 text-[12px] font-medium mt-1">≈ {(balance / 2800).toFixed(2)} USD</p>
               )}
               {balance !== null && balance === 0 && (
-                <p className="text-white/30 text-[11px] font-medium mt-0.5">Grattez un ticket pour gagner</p>
+                <p className="text-white/30 text-[11px] font-medium mt-1">Grattez un ticket pour gagner</p>
               )}
             </div>
 
             {/* Divider */}
-            <div className="h-px my-4" style={{ background: "rgba(255,255,255,0.08)" }} />
+            <div className="w-full h-px my-4" style={{ background: "rgba(255,255,255,0.08)" }} />
 
             {/* Retrait button */}
             <button
