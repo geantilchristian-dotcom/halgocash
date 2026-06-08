@@ -122,7 +122,7 @@ router.get("/vendor/tickets", async (req, res): Promise<void> => {
     filter === "winners"   ? and(baseWhere, isNotNull(ticketsTable.registeredAt), eq(ticketsTable.isWinner, true)) :
     baseWhere;
 
-  const tickets = await db
+  const rows = await db
     .select({
       id: ticketsTable.id,
       code: ticketsTable.code,
@@ -137,6 +137,13 @@ router.get("/vendor/tickets", async (req, res): Promise<void> => {
     .where(whereClause)
     .orderBy(desc(ticketsTable.registeredAt), desc(ticketsTable.createdAt))
     .limit(300);
+
+  // Never reveal winner status before a customer has scratched the ticket
+  const tickets = rows.map((t) => ({
+    ...t,
+    isWinner:    t.registeredAt ? t.isWinner    : false,
+    prizeAmount: t.registeredAt ? t.prizeAmount : null,
+  }));
 
   res.json({ tickets });
 });
