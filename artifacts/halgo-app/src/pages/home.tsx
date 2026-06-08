@@ -369,18 +369,6 @@ export default function Home() {
                 <Send className="w-4 h-4" />
                 RETRAIT
               </button>
-              <button
-                onClick={() => setShowQR(true)}
-                className="px-4 flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all active:scale-[0.97]"
-                style={{
-                  background: "rgba(255,255,255,0.1)",
-                  color: "#fff",
-                  border: "1.5px solid rgba(255,255,255,0.15)",
-                }}
-              >
-                <QrCode className="w-4 h-4" />
-                MON QR
-              </button>
             </div>
           </div>
         </div>
