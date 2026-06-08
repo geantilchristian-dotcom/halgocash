@@ -179,7 +179,7 @@ router.post("/admin/codes/generate", requireAdmin, async (req: Request, res: Res
   // Build prize distribution
   const prizes = buildPrizeDistribution(qty, ticketPrice);
 
-  const insertValues = candidateCodes.slice(0, qty * 2).map((code, i) => ({
+  const insertValues = candidateCodes.slice(0, qty).map((code, i) => ({
     code,
     status: "available" as const,
     price: String(ticketPrice),
