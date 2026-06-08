@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, count, sum, isNotNull, isNull, and } from "drizzle-orm";
 import { db, usersTable, ticketsTable, vendorsTable, withdrawalsTable } from "@workspace/db";
+import { sql } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -46,6 +47,12 @@ router.get("/vendor/stats", async (req, res): Promise<void> => {
     .from(ticketsTable)
     .where(and(eq(ticketsTable.vendorId, vid), isNull(ticketsTable.registeredAt)));
 
+  // Tickets assigned but not yet acknowledged by the vendor
+  const [pendingReceptionRow] = await db
+    .select({ cnt: count() })
+    .from(ticketsTable)
+    .where(and(eq(ticketsTable.vendorId, vid), isNull(ticketsTable.receivedByVendorAt)));
+
   const [expectedRow] = await db
     .select({ total: sum(ticketsTable.price) })
     .from(ticketsTable)
@@ -76,6 +83,7 @@ router.get("/vendor/stats", async (req, res): Promise<void> => {
     soldTickets: Number(scratchedRow?.cnt ?? 0),
     availableTickets: Number(availableRow?.cnt ?? 0),
     scratchedTickets: Number(scratchedRow?.cnt ?? 0),
+    pendingReceptionTickets: Number(pendingReceptionRow?.cnt ?? 0),
     expectedRevenue: parseFloat(String(expectedRow?.total ?? "0")),
     collectedRevenue: parseFloat(String(collectedRow?.total ?? "0")),
     paidWithdrawals: Number(paidRow?.cnt ?? 0),
@@ -83,6 +91,36 @@ router.get("/vendor/stats", async (req, res): Promise<void> => {
     pendingWithdrawals: Number(pendingRow?.cnt ?? 0),
     pendingAmount: parseFloat(String(pendingRow?.total ?? "0")),
   });
+});
+
+// POST /api/vendor/receive-tickets — acknowledge all pending tickets as received
+router.post("/vendor/receive-tickets", async (req, res): Promise<void> => {
+  const vendorUserId = req.session.userId;
+  if (!vendorUserId) {
+    res.status(401).json({ error: "Non authentifié" });
+    return;
+  }
+
+  const [vendorUser] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, vendorUserId))
+    .limit(1);
+
+  if (!vendorUser?.vendorId) {
+    res.status(403).json({ error: "Accès vendeur requis" });
+    return;
+  }
+
+  const vid = vendorUser.vendorId;
+
+  const updated = await db
+    .update(ticketsTable)
+    .set({ receivedByVendorAt: sql`now()` })
+    .where(and(eq(ticketsTable.vendorId, vid), isNull(ticketsTable.receivedByVendorAt)))
+    .returning({ id: ticketsTable.id });
+
+  res.json({ received: updated.length });
 });
 
 export default router;

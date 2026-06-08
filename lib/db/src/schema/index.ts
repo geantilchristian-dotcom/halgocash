@@ -34,6 +34,7 @@ export const ticketsTable = pgTable("tickets", {
   isWinner: boolean("is_winner").notNull().default(false),
   prizeAmount: decimal("prize_amount", { precision: 12, scale: 2 }),
   vendorId: integer("vendor_id"),
+  receivedByVendorAt: timestamp("received_by_vendor_at"),
   registeredByClerkId: varchar("registered_by_clerk_id", { length: 255 }),
   registeredAt: timestamp("registered_at"),
   soldAt: timestamp("sold_at"),
