@@ -8,4 +8,8 @@ router.get("/healthz", (_req, res) => {
   res.json(data);
 });
 
+router.get("/", (_req, res) => {
+  res.json({ name: "Halgo Cash API", version: "1.0.0", status: "running" });
+});
+
 export default router;

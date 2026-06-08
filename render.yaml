@@ -23,6 +23,10 @@ services:
           property: connectionString
       - key: SESSION_SECRET
         generateValue: true
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
 
   - type: web
     name: halgo-player
@@ -31,6 +35,9 @@ services:
     rootDir: .
     buildCommand: npm_config_prefix=$HOME npm install -g pnpm && pnpm install && pnpm run typecheck:libs && BASE_PATH=/ VITE_API_URL=https://halgo-api.onrender.com pnpm --filter @workspace/halgo-app run build
     staticPublishPath: artifacts/halgo-app/dist/public
+    envVars:
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        sync: false
     routes:
       - type: rewrite
         source: /*
