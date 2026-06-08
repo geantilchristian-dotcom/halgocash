@@ -30,7 +30,7 @@ export default function Login() {
   return (
     <div
       className="min-h-screen w-full flex flex-col items-center justify-between"
-      style={{ background: "linear-gradient(150deg, #4ade80 0%, #16a34a 35%, #15803d 65%, #14532d 100%)" }}
+      style={{ background: "linear-gradient(150deg, #6b7c3a 0%, #4a5c28 35%, #3a4a1e 65%, #252f12 100%)" }}
     >
       {/* Top — logo */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pt-14 pb-6 w-full">
@@ -44,7 +44,7 @@ export default function Login() {
           </span>
           <span
             className="font-black tracking-tight"
-            style={{ fontSize: 44, lineHeight: 1, color: "#22c55e", textShadow: "0 2px 8px rgba(0,0,0,0.15)" }}
+            style={{ fontSize: 44, lineHeight: 1, color: "#facc15", textShadow: "0 2px 8px rgba(0,0,0,0.25)" }}
           >
             CASH
           </span>
