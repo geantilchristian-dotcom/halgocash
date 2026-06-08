@@ -38,29 +38,6 @@ const DEFAULT: PromoBannerConfig = {
 
 const LOOP_INTERVAL = 5000;
 
-const GFONTS: Record<string, string> = {
-  "Plus Jakarta Sans": "Plus+Jakarta+Sans:wght@400;700;800",
-  "Oswald": "Oswald:wght@400;700",
-  "Bebas Neue": "Bebas+Neue",
-  "Anton": "Anton",
-  "Montserrat": "Montserrat:wght@400;700;900",
-  "Raleway": "Raleway:wght@400;700;900",
-  "Playfair Display": "Playfair+Display:wght@400;700;900",
-  "Black Han Sans": "Black+Han+Sans",
-  "Roboto Condensed": "Roboto+Condensed:wght@400;700;900",
-};
-
-function loadFont(fontName: string) {
-  const q = GFONTS[fontName];
-  if (!q) return;
-  const id = `gfont-${fontName.replace(/\s/g, "-")}`;
-  if (document.getElementById(id)) return;
-  const link = document.createElement("link");
-  link.id = id;
-  link.rel = "stylesheet";
-  link.href = `https://fonts.googleapis.com/css2?family=${q}&display=swap`;
-  document.head.appendChild(link);
-}
 
 export function PromoBanner() {
   const [cfg, setCfg] = useState<PromoBannerConfig>(DEFAULT);
@@ -73,11 +50,6 @@ export function PromoBanner() {
       .then((d) => setCfg(d as PromoBannerConfig))
       .catch(() => {});
   }, []);
-
-  useEffect(() => {
-    loadFont(cfg.line1Font);
-    loadFont(cfg.line2Font);
-  }, [cfg.line1Font, cfg.line2Font]);
 
   useEffect(() => {
     timerRef.current = setInterval(() => setAnimKey((k) => k + 1), LOOP_INTERVAL);

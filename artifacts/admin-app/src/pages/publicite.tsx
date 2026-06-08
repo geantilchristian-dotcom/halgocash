@@ -47,28 +47,6 @@ const FONTS = [
   "Roboto Condensed", "Impact",
 ];
 
-const GFONTS: Record<string, string> = {
-  "Plus Jakarta Sans": "Plus+Jakarta+Sans:wght@400;700;800",
-  "Oswald": "Oswald:wght@400;700",
-  "Bebas Neue": "Bebas+Neue",
-  "Anton": "Anton",
-  "Montserrat": "Montserrat:wght@400;700;900",
-  "Raleway": "Raleway:wght@400;700;900",
-  "Playfair Display": "Playfair+Display:wght@400;700;900",
-  "Black Han Sans": "Black+Han+Sans",
-  "Roboto Condensed": "Roboto+Condensed:wght@400;700;900",
-};
-
-function loadFont(name: string) {
-  const q = GFONTS[name];
-  if (!q) return;
-  const id = `gfont-admin-${name.replace(/\s/g, "-")}`;
-  if (document.getElementById(id)) return;
-  const link = document.createElement("link");
-  link.id = id; link.rel = "stylesheet";
-  link.href = `https://fonts.googleapis.com/css2?family=${q}&display=swap`;
-  document.head.appendChild(link);
-}
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { credentials: "include", ...init });
@@ -173,7 +151,6 @@ export default function Publicite() {
     if (promoData) setCfg(promoData);
   }, [promoData]);
 
-  useEffect(() => { loadFont(cfg.line1Font); loadFont(cfg.line2Font); }, [cfg.line1Font, cfg.line2Font]);
 
   const activateMut = useMutation({
     mutationFn: (id: number) => apiFetch<{ ok: boolean }>(`/api/admin/banners/${id}/activate`, { method: "PATCH" }),
@@ -316,7 +293,7 @@ export default function Publicite() {
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm" />
               </Field>
               <Field label="Police">
-                <select value={cfg.line1Font} onChange={(e) => { set("line1Font", e.target.value); loadFont(e.target.value); }}
+                <select value={cfg.line1Font} onChange={(e) => { set("line1Font", e.target.value); }}
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm">
                   {FONTS.map((f) => <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>)}
                 </select>
@@ -346,7 +323,7 @@ export default function Publicite() {
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm" />
               </Field>
               <Field label="Police">
-                <select value={cfg.line2Font} onChange={(e) => { set("line2Font", e.target.value); loadFont(e.target.value); }}
+                <select value={cfg.line2Font} onChange={(e) => { set("line2Font", e.target.value); }}
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm">
                   {FONTS.map((f) => <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>)}
                 </select>
