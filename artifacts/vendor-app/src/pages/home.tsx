@@ -248,58 +248,58 @@ export default function Home() {
 
         {/* ── Revenue cards ── */}
         <div className="grid grid-cols-2 gap-3">
-          {/* Revenus attendus — JAUNE */}
+          {/* Revenus attendus — JAUNE SATURÉ */}
           <div
-            className="rounded-2xl p-4 shadow-sm"
-            style={{ background: "linear-gradient(135deg, #fef9c3 0%, #fef08a 100%)", border: "1.5px solid rgba(234,179,8,0.4)" }}
+            className="rounded-2xl p-4 shadow-md"
+            style={{ background: "linear-gradient(135deg, #F5C518 0%, #d4a017 100%)", boxShadow: "0 4px 16px rgba(245,197,24,0.4)" }}
           >
             <div className="flex items-center gap-1.5 mb-2">
-              <TrendingUp className="w-3.5 h-3.5 text-yellow-700" style={{ width: 14, height: 14 }} />
-              <p className="text-[10px] font-bold uppercase tracking-wider text-yellow-800">Revenus attendus</p>
+              <TrendingUp className="w-3.5 h-3.5 text-black/60" style={{ width: 14, height: 14 }} />
+              <p className="text-[10px] font-bold uppercase tracking-wider text-black/60">Revenus attendus</p>
             </div>
-            <p className="text-lg font-black text-yellow-900 leading-none">{formatFC(stats.expectedRevenue)}</p>
-            <p className="text-[10px] font-semibold text-yellow-700 mt-0.5">FC</p>
+            <p className="text-lg font-black text-black/90 leading-none">{formatFC(stats.expectedRevenue)}</p>
+            <p className="text-[10px] font-semibold text-black/50 mt-0.5">FC</p>
           </div>
 
-          {/* Revenus collectés — VERT */}
+          {/* Revenus collectés — VERT SATURÉ */}
           <div
-            className="rounded-2xl p-4 shadow-sm"
-            style={{ background: "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)", border: "1.5px solid rgba(34,197,94,0.35)" }}
+            className="rounded-2xl p-4 shadow-md"
+            style={{ background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)", boxShadow: "0 4px 16px rgba(22,163,74,0.4)" }}
           >
             <div className="flex items-center gap-1.5 mb-2">
-              <CheckCircle2 className="w-3.5 h-3.5 text-green-700" style={{ width: 14, height: 14 }} />
-              <p className="text-[10px] font-bold uppercase tracking-wider text-green-800">Revenus collectés</p>
+              <CheckCircle2 className="w-3.5 h-3.5 text-white/70" style={{ width: 14, height: 14 }} />
+              <p className="text-[10px] font-bold uppercase tracking-wider text-white/70">Revenus collectés</p>
             </div>
-            <p className="text-lg font-black text-green-900 leading-none">{formatFC(stats.collectedRevenue)}</p>
-            <p className="text-[10px] font-semibold text-green-700 mt-0.5">{collectPct}% collecté</p>
+            <p className="text-lg font-black text-white leading-none">{formatFC(stats.collectedRevenue)}</p>
+            <p className="text-[10px] font-semibold text-white/60 mt-0.5">{collectPct}% collecté</p>
           </div>
         </div>
 
         {/* ── Withdrawals ── */}
         <div className="grid grid-cols-2 gap-3">
-          {/* En attente — ROUGE */}
+          {/* En attente — ROUGE SATURÉ */}
           <div
-            className="rounded-2xl p-4 shadow-sm"
-            style={{ background: "linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)", border: "1.5px solid rgba(239,68,68,0.3)" }}
+            className="rounded-2xl p-4 shadow-md"
+            style={{ background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)", boxShadow: "0 4px 16px rgba(220,38,38,0.4)" }}
           >
             <div className="flex items-center gap-1.5 mb-2">
-              <Clock className="w-3.5 h-3.5 text-red-600" style={{ width: 14, height: 14 }} />
-              <p className="text-[10px] font-bold uppercase tracking-wider text-red-700">En attente</p>
+              <Clock className="w-3.5 h-3.5 text-white/70" style={{ width: 14, height: 14 }} />
+              <p className="text-[10px] font-bold uppercase tracking-wider text-white/70">En attente</p>
             </div>
-            <p className="text-xl font-black text-red-800 leading-none">{stats.pendingWithdrawals}</p>
-            <p className="text-[10px] text-red-600 font-semibold mt-0.5">{formatFC(stats.pendingAmount)} FC</p>
+            <p className="text-xl font-black text-white leading-none">{stats.pendingWithdrawals}</p>
+            <p className="text-[10px] text-white/60 font-semibold mt-0.5">{formatFC(stats.pendingAmount)} FC</p>
           </div>
-          {/* Payés — VERT CLAIR */}
+          {/* Payés — VERT CLAIR SATURÉ */}
           <div
-            className="rounded-2xl p-4 shadow-sm"
-            style={{ background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)", border: "1.5px solid rgba(134,239,172,0.5)" }}
+            className="rounded-2xl p-4 shadow-md"
+            style={{ background: "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)", boxShadow: "0 4px 16px rgba(34,197,94,0.4)" }}
           >
             <div className="flex items-center gap-1.5 mb-2">
-              <CheckCircle2 className="w-3.5 h-3.5 text-green-500" style={{ width: 14, height: 14 }} />
-              <p className="text-[10px] font-bold uppercase tracking-wider text-green-600">Payés</p>
+              <CheckCircle2 className="w-3.5 h-3.5 text-white/70" style={{ width: 14, height: 14 }} />
+              <p className="text-[10px] font-bold uppercase tracking-wider text-white/70">Payés</p>
             </div>
-            <p className="text-xl font-black text-green-600 leading-none">{stats.paidWithdrawals}</p>
-            <p className="text-[10px] text-green-500 font-semibold mt-0.5">{formatFC(stats.paidAmount)} FC</p>
+            <p className="text-xl font-black text-white leading-none">{stats.paidWithdrawals}</p>
+            <p className="text-[10px] text-white/60 font-semibold mt-0.5">{formatFC(stats.paidAmount)} FC</p>
           </div>
         </div>
 
