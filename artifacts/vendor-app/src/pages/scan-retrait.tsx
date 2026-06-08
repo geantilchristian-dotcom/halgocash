@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { AppLayout } from "../components/layout/app-layout";
-import { QrCode, Search, CheckCircle, AlertCircle, Loader2, User, Banknote, X } from "lucide-react";
+import { QrCode, Search, CheckCircle, AlertCircle, Loader2, User, Banknote, X, Camera } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { QrScanner } from "@/components/qr-scanner";
 
 function formatFC(n: number) {
   return new Intl.NumberFormat("fr-FR").format(Math.round(n)).replace(/\s/g, ".");
@@ -26,6 +27,7 @@ export default function ScanRetrait() {
   const [withdrawal, setWithdrawal] = useState<WithdrawalInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paid, setPaid] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
 
   const lookup = async () => {
     const t = token.trim();
@@ -72,6 +74,31 @@ export default function ScanRetrait() {
     setToken(""); setWithdrawal(null); setError(null); setPaid(false);
   };
 
+  const handleScanResult = (value: string) => {
+    setShowScanner(false);
+    const cleaned = value.trim();
+    setToken(cleaned);
+    setError(null);
+    setWithdrawal(null);
+    setPaid(false);
+    // Auto-trigger lookup after scan
+    setTimeout(async () => {
+      if (!cleaned) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/withdrawals/${encodeURIComponent(cleaned)}`, { credentials: "include" });
+        const data = await res.json();
+        if (!res.ok) { setError(data.error ?? "Introuvable"); return; }
+        setWithdrawal(data as WithdrawalInfo);
+      } catch {
+        setError("Erreur réseau");
+      } finally {
+        setLoading(false);
+      }
+    }, 100);
+  };
+
   if (!user?.vendorId) {
     return (
       <AppLayout>
@@ -87,12 +114,37 @@ export default function ScanRetrait() {
 
   return (
     <AppLayout>
+      {/* QR Scanner overlay */}
+      {showScanner && (
+        <QrScanner
+          onResult={handleScanResult}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
+
       <div className="space-y-5">
         <div>
           <h1 className="text-2xl font-black uppercase tracking-tight">Scanner un Retrait</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Saisissez le code affiché sur l'écran du joueur pour traiter son retrait.
+            Scannez le QR du joueur ou saisissez son code manuellement.
           </p>
+        </div>
+
+        {/* Scan button (big primary action) */}
+        <button
+          onClick={() => setShowScanner(true)}
+          className="w-full h-16 rounded-2xl font-black uppercase tracking-widest text-base flex items-center justify-center gap-3 transition-all active:scale-[0.98]"
+          style={{ background: "linear-gradient(135deg, #F5C518, #d4a017)", color: "#0a1f0e" }}
+        >
+          <Camera className="w-6 h-6" />
+          SCANNER LE QR CODE
+        </button>
+
+        {/* Separator */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">ou saisie manuelle</span>
+          <div className="flex-1 h-px bg-border" />
         </div>
 
         {/* Token input */}
