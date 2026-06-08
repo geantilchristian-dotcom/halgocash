@@ -1,18 +1,11 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Ticket, Loader2, Copy, CheckCheck, Download, Shuffle } from "lucide-react";
-
-interface Draw {
-  id: number;
-  drawNumber: number;
-  status: string;
-  scheduledAt: string;
-}
 
 interface GenerateResult {
   generated: number;
@@ -56,20 +49,14 @@ export default function GenerateCodes() {
   const [count, setCount] = useState(1000);
   const [price, setPrice] = useState(500);
   const [series, setSeries] = useState("A");
-  const [drawId, setDrawId] = useState<number | "">("");
   const [result, setResult] = useState<GenerateResult | null>(null);
   const [copied, setCopied] = useState(false);
-
-  const { data: draws = [] } = useQuery<Draw[]>({
-    queryKey: ["/api/admin/draws"],
-    queryFn: () => apiFetch("/api/admin/draws"),
-  });
 
   const generateMutation = useMutation({
     mutationFn: () =>
       apiFetch("/api/admin/codes/generate", {
         method: "POST",
-        body: JSON.stringify({ count, price, series, drawId: drawId !== "" ? drawId : undefined }),
+        body: JSON.stringify({ count, price, series }),
       }),
     onSuccess: (data: GenerateResult) => {
       setResult(data);
@@ -92,9 +79,8 @@ export default function GenerateCodes() {
 
   const downloadCSV = () => {
     if (!result) return;
-    const drawNum = draws.find((d) => d.id === drawId)?.drawNumber ?? "";
-    const header = "Code,Série,Prix (FC),Tirage\n";
-    const rows = result.codes.map((c) => `${c},${series},${price},${drawNum}`).join("\n");
+    const header = "Code,Série,Prix (FC)\n";
+    const rows = result.codes.map((c) => `${c},${series},${price}`).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -112,7 +98,7 @@ export default function GenerateCodes() {
         <Ticket className="w-6 h-6 text-indigo-400" />
         <div>
           <h1 className="text-2xl font-bold text-white">Génération de codes</h1>
-          <p className="text-zinc-400 text-sm">Codes à 10 chiffres avec distribution automatique des prix</p>
+          <p className="text-zinc-400 text-sm">Codes alphanumériques avec distribution automatique des prix</p>
         </div>
       </div>
 
@@ -162,22 +148,6 @@ export default function GenerateCodes() {
                   className="bg-zinc-800 border-zinc-700 text-white font-mono"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-zinc-300 text-sm">Tirage (optionnel)</Label>
-                <select
-                  value={drawId}
-                  onChange={(e) => setDrawId(e.target.value ? parseInt(e.target.value) : "")}
-                  className="w-full h-9 px-3 rounded-md bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-indigo-500"
-                >
-                  <option value="">Aucun tirage</option>
-                  {draws.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      Tirage #{d.drawNumber} — {d.status === "upcoming" ? "À venir" : d.status === "active" ? "Actif" : "Terminé"}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               {/* Summary */}
               <div className="p-3 bg-zinc-800/60 rounded-lg space-y-1">
                 <div className="flex justify-between text-xs">

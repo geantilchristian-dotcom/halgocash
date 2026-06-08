@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { ticketsTable, vendorsTable, drawsTable, transactionsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, desc, isNotNull } from "drizzle-orm";
 import { ValidateTicketBody, ClaimPrizeBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -31,9 +31,11 @@ async function formatTicket(t: typeof ticketsTable.$inferSelect) {
     prizeAmount: t.prizeAmount ? parseFloat(t.prizeAmount) : null,
     vendorId: t.vendorId ?? null,
     vendorName,
+    registeredAt: t.registeredAt?.toISOString() ?? null,
     soldAt: t.soldAt?.toISOString() ?? null,
     validatedAt: t.validatedAt?.toISOString() ?? null,
     claimedAt: t.claimedAt?.toISOString() ?? null,
+    createdAt: t.createdAt.toISOString(),
   };
 }
 
@@ -42,8 +44,23 @@ router.get("/tickets", async (req, res) => {
   const limit = parseInt(req.query["limit"] as string ?? "50");
 
   const rows = status
-    ? await db.select().from(ticketsTable).where(eq(ticketsTable.status, status)).limit(limit)
-    : await db.select().from(ticketsTable).limit(limit);
+    ? await db.select().from(ticketsTable).where(eq(ticketsTable.status, status)).orderBy(desc(ticketsTable.id)).limit(limit)
+    : await db.select().from(ticketsTable).orderBy(desc(ticketsTable.id)).limit(limit);
+
+  const results = await Promise.all(rows.map(formatTicket));
+  res.json(results);
+});
+
+// GET /api/tickets/scratched — all tickets activated by players, newest first
+router.get("/tickets/scratched", async (req, res) => {
+  const limit = parseInt(req.query["limit"] as string ?? "200");
+
+  const rows = await db
+    .select()
+    .from(ticketsTable)
+    .where(isNotNull(ticketsTable.registeredAt))
+    .orderBy(desc(ticketsTable.registeredAt))
+    .limit(limit);
 
   const results = await Promise.all(rows.map(formatTicket));
   res.json(results);
