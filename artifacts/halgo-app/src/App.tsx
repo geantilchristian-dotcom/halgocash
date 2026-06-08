@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ClerkProvider, SignIn, SignUp, Show, useClerk } from "@clerk/react";
+import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from "@clerk/react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
 import { shadcn } from "@clerk/themes";
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from "wouter";
@@ -110,6 +110,14 @@ function SignUpPage() {
 }
 
 function HomeRedirect() {
+  const { isLoaded } = useAuth();
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#143024]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#8DC63F]" />
+      </div>
+    );
+  }
   return (
     <>
       <Show when="signed-in">
@@ -117,11 +125,6 @@ function HomeRedirect() {
       </Show>
       <Show when="signed-out">
         <Redirect to="/sign-in" />
-      </Show>
-      <Show when="loading">
-        <div className="min-h-screen flex items-center justify-center bg-[#143024]">
-          <Loader2 className="w-8 h-8 animate-spin text-[#8DC63F]" />
-        </div>
       </Show>
     </>
   );
