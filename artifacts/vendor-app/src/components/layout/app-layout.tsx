@@ -6,6 +6,7 @@ import {
   LogOut,
   LayoutDashboard,
   BarChart2,
+  History,
 } from "lucide-react";
 import { useAuth } from "../../lib/auth-context";
 
@@ -14,10 +15,11 @@ interface AppLayoutProps {
 }
 
 const navItems = [
-  { href: "/",             label: "Accueil",  icon: LayoutDashboard },
-  { href: "/validate",     label: "Vendre",   icon: CheckCircle     },
-  { href: "/scan-retrait", label: "Retrait",  icon: QrCode          },
-  { href: "/rapport",      label: "Rapport",  icon: BarChart2       },
+  { href: "/",             label: "Accueil",    icon: LayoutDashboard },
+  { href: "/validate",     label: "Vendre",     icon: CheckCircle     },
+  { href: "/scan-retrait", label: "Retrait",    icon: QrCode          },
+  { href: "/historique",   label: "Historique", icon: History         },
+  { href: "/rapport",      label: "Rapport",    icon: BarChart2       },
 ];
 
 const HEADER_BG = "linear-gradient(135deg, #0a2010 0%, #0f3d1c 45%, #1a5c2a 80%, #0f3d1c 100%)";

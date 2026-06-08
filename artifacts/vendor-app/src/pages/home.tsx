@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppLayout } from "../components/layout/app-layout";
 import { useAuth } from "@/lib/auth-context";
-import { Ticket, TrendingUp, CheckCircle2, Clock, ArrowDownLeft, Loader2, AlertCircle, PackageCheck, X, MapPin } from "lucide-react";
+import { Ticket, TrendingUp, CheckCircle2, Clock, Loader2, AlertCircle, PackageCheck, X, MapPin } from "lucide-react";
 
 function formatFC(n: number) {
   return new Intl.NumberFormat("fr-FR").format(Math.round(n)).replace(/\s/g, ".");
@@ -25,12 +25,6 @@ interface VendorStats {
   paidAmount: number;
 }
 
-interface RecentWithdrawal {
-  id: number;
-  clerkName: string;
-  amount: number;
-  paidAt: string;
-}
 
 export default function Home() {
   const { user } = useAuth();
@@ -69,16 +63,6 @@ export default function Home() {
     enabled: !!user?.vendorId,
   });
 
-  const { data: recentWithdrawals = [] } = useQuery<RecentWithdrawal[]>({
-    queryKey: ["/api/vendor/withdrawals"],
-    queryFn: async () => {
-      const res = await fetch("/api/vendor/withdrawals", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
-    refetchInterval: 30_000,
-    enabled: !!user?.vendorId,
-  });
 
   if (!user?.vendorId) {
     return (
@@ -207,99 +191,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── Point de vente — centered single line ── */}
-        <div className="text-center py-1">
-          <div className="flex items-center justify-center gap-2">
-            <MapPin className="w-3.5 h-3.5 text-green-600 shrink-0" />
-            <p className="text-[11px] font-bold uppercase tracking-widest text-green-700">
-              Point de vente
-            </p>
-            <span className="text-gray-300">·</span>
-            <p className="text-[11px] font-black uppercase tracking-widest text-gray-700">
-              {stats.vendorName}{stats.location ? ` ${stats.location}` : ""}
-            </p>
-          </div>
-        </div>
-
-        {/* ── Revenue cards ── */}
-        <div className="grid grid-cols-2 gap-3">
-          {/* Revenus attendus */}
-          <div
-            className="rounded-2xl p-4 shadow-sm"
-            style={{ background: "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)", border: "1.5px solid rgba(34,197,94,0.3)" }}
-          >
-            <div className="flex items-center gap-1.5 mb-2">
-              <TrendingUp className="w-3.5 h-3.5 text-green-600" style={{ width: 14, height: 14 }} />
-              <p className="text-[10px] font-bold uppercase tracking-wider text-green-700">Revenus attendus</p>
-            </div>
-            <p className="text-lg font-black text-green-800 leading-none">{formatFC(stats.expectedRevenue)}</p>
-            <p className="text-[10px] font-semibold text-green-600 mt-0.5">FC</p>
-          </div>
-
-          {/* Revenus collectés */}
-          <div
-            className="rounded-2xl p-4 shadow-sm"
-            style={{ background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)", border: "1.5px solid rgba(59,130,246,0.3)" }}
-          >
-            <div className="flex items-center gap-1.5 mb-2">
-              <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" style={{ width: 14, height: 14 }} />
-              <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Revenus collectés</p>
-            </div>
-            <p className="text-lg font-black text-blue-800 leading-none">{formatFC(stats.collectedRevenue)}</p>
-            <p className="text-[10px] font-semibold text-blue-500 mt-0.5">{collectPct}% collecté</p>
-          </div>
-        </div>
-
-        {/* ── Withdrawals ── */}
-        <div className="grid grid-cols-2 gap-3">
-          <div
-            className="rounded-2xl p-4 shadow-sm"
-            style={{ background: "linear-gradient(135deg, #fefce8 0%, #fef9c3 100%)", border: "1.5px solid rgba(234,179,8,0.3)" }}
-          >
-            <div className="flex items-center gap-1.5 mb-2">
-              <Clock className="w-3.5 h-3.5 text-yellow-600" style={{ width: 14, height: 14 }} />
-              <p className="text-[10px] font-bold uppercase tracking-wider text-yellow-700">En attente</p>
-            </div>
-            <p className="text-xl font-black text-yellow-700 leading-none">{stats.pendingWithdrawals}</p>
-            <p className="text-[10px] text-yellow-600 font-semibold mt-0.5">{formatFC(stats.pendingAmount)} FC</p>
-          </div>
-          <div
-            className="rounded-2xl p-4 shadow-sm"
-            style={{ background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)", border: "1.5px solid rgba(34,197,94,0.25)" }}
-          >
-            <div className="flex items-center gap-1.5 mb-2">
-              <CheckCircle2 className="w-3.5 h-3.5 text-green-600" style={{ width: 14, height: 14 }} />
-              <p className="text-[10px] font-bold uppercase tracking-wider text-green-700">Payés</p>
-            </div>
-            <p className="text-xl font-black text-green-700 leading-none">{stats.paidWithdrawals}</p>
-            <p className="text-[10px] text-green-600 font-semibold mt-0.5">{formatFC(stats.paidAmount)} FC</p>
-          </div>
-        </div>
-
-        {/* ── Recent withdrawals ── */}
-        {recentWithdrawals.length > 0 && (
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Derniers retraits payés</p>
-            <div className="space-y-2">
-              {recentWithdrawals.slice(0, 5).map((w) => (
-                <div key={w.id} className="flex items-center gap-3 p-3 rounded-xl bg-white border border-gray-100 shadow-sm">
-                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                    <ArrowDownLeft className="w-4 h-4 text-green-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold truncate">{w.clerkName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(w.paidAt).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  </div>
-                  <p className="font-black text-sm text-green-600 shrink-0">{formatFC(w.amount)} FC</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── Tickets assignés — green card at bottom ── */}
+        {/* ── Tickets assignés — green card at TOP ── */}
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2 text-center">Tickets assignés</p>
           <div
@@ -309,7 +201,6 @@ export default function Home() {
               border: "1.5px solid rgba(141,198,63,0.3)",
             }}
           >
-            {/* Progress bar */}
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold text-white">{stats.soldTickets} vendus</span>
               <span className="text-sm text-white/50">{stats.totalTickets} total</span>
@@ -338,6 +229,77 @@ export default function Home() {
               <Ticket className="w-3.5 h-3.5 text-white/30" style={{ width: 13, height: 13 }} />
               <p className="text-[9px] text-white/30 font-semibold uppercase tracking-widest">{soldPct}% écoulés</p>
             </div>
+          </div>
+        </div>
+
+        {/* ── Point de vente — centered single line ── */}
+        <div className="text-center py-1">
+          <div className="flex items-center justify-center gap-2">
+            <MapPin className="w-3.5 h-3.5 text-green-600 shrink-0" />
+            <p className="text-[11px] font-bold uppercase tracking-widest text-green-700">
+              Point de vente
+            </p>
+            <span className="text-gray-300">·</span>
+            <p className="text-[11px] font-black uppercase tracking-widest text-gray-700">
+              {stats.vendorName}{stats.location ? ` ${stats.location}` : ""}
+            </p>
+          </div>
+        </div>
+
+        {/* ── Revenue cards ── */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Revenus attendus — JAUNE */}
+          <div
+            className="rounded-2xl p-4 shadow-sm"
+            style={{ background: "linear-gradient(135deg, #fef9c3 0%, #fef08a 100%)", border: "1.5px solid rgba(234,179,8,0.4)" }}
+          >
+            <div className="flex items-center gap-1.5 mb-2">
+              <TrendingUp className="w-3.5 h-3.5 text-yellow-700" style={{ width: 14, height: 14 }} />
+              <p className="text-[10px] font-bold uppercase tracking-wider text-yellow-800">Revenus attendus</p>
+            </div>
+            <p className="text-lg font-black text-yellow-900 leading-none">{formatFC(stats.expectedRevenue)}</p>
+            <p className="text-[10px] font-semibold text-yellow-700 mt-0.5">FC</p>
+          </div>
+
+          {/* Revenus collectés — VERT */}
+          <div
+            className="rounded-2xl p-4 shadow-sm"
+            style={{ background: "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)", border: "1.5px solid rgba(34,197,94,0.35)" }}
+          >
+            <div className="flex items-center gap-1.5 mb-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-700" style={{ width: 14, height: 14 }} />
+              <p className="text-[10px] font-bold uppercase tracking-wider text-green-800">Revenus collectés</p>
+            </div>
+            <p className="text-lg font-black text-green-900 leading-none">{formatFC(stats.collectedRevenue)}</p>
+            <p className="text-[10px] font-semibold text-green-700 mt-0.5">{collectPct}% collecté</p>
+          </div>
+        </div>
+
+        {/* ── Withdrawals ── */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* En attente — ROUGE */}
+          <div
+            className="rounded-2xl p-4 shadow-sm"
+            style={{ background: "linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)", border: "1.5px solid rgba(239,68,68,0.3)" }}
+          >
+            <div className="flex items-center gap-1.5 mb-2">
+              <Clock className="w-3.5 h-3.5 text-red-600" style={{ width: 14, height: 14 }} />
+              <p className="text-[10px] font-bold uppercase tracking-wider text-red-700">En attente</p>
+            </div>
+            <p className="text-xl font-black text-red-800 leading-none">{stats.pendingWithdrawals}</p>
+            <p className="text-[10px] text-red-600 font-semibold mt-0.5">{formatFC(stats.pendingAmount)} FC</p>
+          </div>
+          {/* Payés — VERT CLAIR */}
+          <div
+            className="rounded-2xl p-4 shadow-sm"
+            style={{ background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)", border: "1.5px solid rgba(134,239,172,0.5)" }}
+          >
+            <div className="flex items-center gap-1.5 mb-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-500" style={{ width: 14, height: 14 }} />
+              <p className="text-[10px] font-bold uppercase tracking-wider text-green-600">Payés</p>
+            </div>
+            <p className="text-xl font-black text-green-600 leading-none">{stats.paidWithdrawals}</p>
+            <p className="text-[10px] text-green-500 font-semibold mt-0.5">{formatFC(stats.paidAmount)} FC</p>
           </div>
         </div>
 
