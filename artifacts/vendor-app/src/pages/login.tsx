@@ -30,7 +30,7 @@ export default function Login() {
   return (
     <div
       className="min-h-screen w-full flex flex-col items-center justify-between"
-      style={{ background: "#F97316" }}
+      style={{ background: "#16a34a" }}
     >
       {/* Top — logo */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pt-14 pb-6 w-full">
@@ -53,8 +53,8 @@ export default function Login() {
         {/* White card */}
         <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl px-6 pt-7 pb-6">
           {/* Title */}
-          <h2 className="text-xl font-black text-gray-900 mb-1">Connexion vendeur</h2>
-          <p className="text-sm text-gray-400 mb-6">Entrez vos identifiants pour accéder à votre espace</p>
+          <h2 className="text-xl font-black text-gray-900 mb-1 text-center">Connexion vendeur</h2>
+          <p className="text-sm text-gray-400 mb-6 text-center">Entrez vos identifiants pour accéder à votre espace</p>
 
           {/* Error */}
           {error && (
@@ -65,8 +65,8 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-3">
             {/* Username */}
-            <div className="flex items-center gap-3 rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-3.5 focus-within:border-orange-400 focus-within:bg-orange-50/40 transition-colors">
-              <User className="w-4 h-4 text-orange-400 shrink-0" />
+            <div className="flex items-center gap-3 rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-3.5 focus-within:border-green-500 focus-within:bg-green-50/40 transition-colors">
+              <User className="w-4 h-4 text-green-600 shrink-0" />
               <input
                 type="text"
                 placeholder="Nom d'utilisateur"
@@ -79,8 +79,8 @@ export default function Login() {
             </div>
 
             {/* Password */}
-            <div className="flex items-center gap-3 rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-3.5 focus-within:border-orange-400 focus-within:bg-orange-50/40 transition-colors">
-              <Lock className="w-4 h-4 text-orange-400 shrink-0" />
+            <div className="flex items-center gap-3 rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-3.5 focus-within:border-green-500 focus-within:bg-green-50/40 transition-colors">
+              <Lock className="w-4 h-4 text-green-600 shrink-0" />
               <input
                 type={showPassword ? "text" : "password"}
                 placeholder="Mot de passe"
@@ -93,7 +93,7 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="text-gray-400 hover:text-orange-500 transition-colors"
+                className="text-gray-400 hover:text-green-600 transition-colors"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -105,8 +105,8 @@ export default function Login() {
               disabled={loading}
               className="w-full flex items-center justify-center gap-2 rounded-2xl py-4 font-black text-sm uppercase tracking-wider text-white transition-all active:scale-[0.98] disabled:opacity-70 mt-2"
               style={{
-                background: "linear-gradient(90deg, #F97316 0%, #ea6c0e 100%)",
-                boxShadow: "0 4px 16px rgba(249,115,22,0.4)",
+                background: "linear-gradient(90deg, #16a34a 0%, #15803d 100%)",
+                boxShadow: "0 4px 16px rgba(22,163,74,0.4)",
               }}
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
@@ -116,8 +116,8 @@ export default function Login() {
 
           {/* Security notice */}
           <div className="flex items-center gap-3 rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3 mt-5">
-            <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
-              <Shield className="w-4 h-4 text-orange-500" />
+            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+              <Shield className="w-4 h-4 text-green-600" />
             </div>
             <div>
               <p className="text-xs font-bold text-gray-700">Accès réservé aux vendeurs Halgo Cash</p>
