@@ -11,6 +11,7 @@ import GenerateCodes from "@/pages/generate-codes";
 import Settings from "@/pages/settings";
 import Workers from "@/pages/workers";
 import WithdrawalsAdmin from "@/pages/withdrawals-admin";
+import Rapport from "@/pages/rapport";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Loader2 } from "lucide-react";
 
@@ -54,6 +55,7 @@ function ProtectedRouter() {
         <Route path="/tickets" component={Tickets} />
         <Route path="/workers" component={Workers} />
         <Route path="/withdrawals" component={WithdrawalsAdmin} />
+        <Route path="/rapport" component={Rapport} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>

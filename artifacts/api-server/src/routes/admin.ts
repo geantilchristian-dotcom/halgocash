@@ -469,6 +469,93 @@ router.delete("/admin/reset", requireAdmin, async (_req: Request, res: Response)
   });
 });
 
+// GET /api/admin/rapport — list all player accounts that have scanned tickets
+router.get("/admin/rapport", requireAdmin, async (_req: Request, res: Response): Promise<void> => {
+  // Distinct clerkIds from scanned tickets, with name from withdrawals if available
+  const rows = await db
+    .selectDistinct({ clerkId: ticketsTable.registeredByClerkId })
+    .from(ticketsTable)
+    .where(isNotNull(ticketsTable.registeredByClerkId));
+
+  const accounts = await Promise.all(
+    rows
+      .filter((r) => r.clerkId)
+      .map(async ({ clerkId }) => {
+        const id = clerkId!;
+
+        // Ticket stats for this clerkId
+        const [ticketStats] = await db
+          .select({
+            total: sql<number>`COUNT(*)`.as("total"),
+            winners: sql<number>`COUNT(*) FILTER (WHERE ${ticketsTable.isWinner} = TRUE AND ${ticketsTable.registeredAt} IS NOT NULL)`.as("winners"),
+            lastActivity: sql<string>`MAX(${ticketsTable.registeredAt})`.as("lastActivity"),
+          })
+          .from(ticketsTable)
+          .where(and(eq(ticketsTable.registeredByClerkId, id), isNotNull(ticketsTable.registeredAt)));
+
+        // Withdrawal stats
+        const [wStats] = await db
+          .select({
+            total: sql<number>`COUNT(*)`.as("total"),
+            name: sql<string>`MAX(${withdrawalsTable.clerkName})`.as("name"),
+            paidAmount: sql<string>`COALESCE(SUM(${withdrawalsTable.amount}) FILTER (WHERE ${withdrawalsTable.status} = 'paid'), 0)`.as("paidAmount"),
+            pendingAmount: sql<string>`COALESCE(SUM(${withdrawalsTable.amount}) FILTER (WHERE ${withdrawalsTable.status} = 'pending'), 0)`.as("pendingAmount"),
+          })
+          .from(withdrawalsTable)
+          .where(eq(withdrawalsTable.clerkId, id));
+
+        return {
+          clerkId: id,
+          name: wStats?.name ?? id,
+          totalTickets: Number(ticketStats?.total ?? 0),
+          winnerTickets: Number(ticketStats?.winners ?? 0),
+          totalWithdrawals: Number(wStats?.total ?? 0),
+          paidAmount: parseFloat(wStats?.paidAmount ?? "0"),
+          pendingAmount: parseFloat(wStats?.pendingAmount ?? "0"),
+          lastActivity: ticketStats?.lastActivity ?? null,
+        };
+      }),
+  );
+
+  // Sort by last activity desc
+  accounts.sort((a, b) => {
+    if (!a.lastActivity) return 1;
+    if (!b.lastActivity) return -1;
+    return new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime();
+  });
+
+  res.json(accounts);
+});
+
+// GET /api/admin/rapport/:clerkId — withdrawal history for one player
+router.get("/admin/rapport/:clerkId", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const clerkId = String(req.params["clerkId"] ?? "");
+  if (!clerkId) { res.status(400).json({ error: "clerkId requis" }); return; }
+
+  const withdrawals = await db
+    .select()
+    .from(withdrawalsTable)
+    .where(eq(withdrawalsTable.clerkId, clerkId))
+    .orderBy(desc(withdrawalsTable.createdAt));
+
+  const tickets = await db
+    .select({
+      id: ticketsTable.id,
+      code: ticketsTable.code,
+      series: ticketsTable.series,
+      isWinner: ticketsTable.isWinner,
+      prizeAmount: ticketsTable.prizeAmount,
+      registeredAt: ticketsTable.registeredAt,
+    })
+    .from(ticketsTable)
+    .where(and(eq(ticketsTable.registeredByClerkId, clerkId), isNotNull(ticketsTable.registeredAt)))
+    .orderBy(desc(ticketsTable.registeredAt));
+
+  const name = withdrawals[0]?.clerkName ?? clerkId;
+
+  res.json({ clerkId, name, withdrawals, tickets });
+});
+
 // GET /api/admin/withdrawals — all withdrawals
 router.get("/admin/withdrawals", requireAdmin, async (_req: Request, res: Response): Promise<void> => {
   const rows = await db

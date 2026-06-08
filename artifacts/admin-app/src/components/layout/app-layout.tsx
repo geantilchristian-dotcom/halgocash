@@ -10,6 +10,7 @@ import {
   X,
   Users,
   ArrowDownLeft,
+  BarChart2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -24,6 +25,7 @@ const navItems = [
   { href: "/tickets",        label: "Historique tickets",  icon: TicketIcon      },
   { href: "/workers",        label: "Annuaire vendeurs",   icon: Users           },
   { href: "/withdrawals",    label: "Retraits joueurs",    icon: ArrowDownLeft   },
+  { href: "/rapport",        label: "Rapport",             icon: BarChart2       },
   { href: "/settings",       label: "Paramètres",          icon: Settings        },
 ];
 
