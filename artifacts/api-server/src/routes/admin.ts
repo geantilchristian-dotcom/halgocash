@@ -152,11 +152,12 @@ router.patch("/admin/users/:id", requireAdmin, async (req: Request, res: Respons
 
 // POST /api/admin/codes/generate
 router.post("/admin/codes/generate", requireAdmin, async (req: Request, res: Response): Promise<void> => {
-  const { count, price, series, drawId } = req.body as {
+  const { count, price, series, drawId, vendorId } = req.body as {
     count: number;
     price: number;
     series: string;
     drawId?: number;
+    vendorId?: number;
   };
 
   const qty = Number(count);
@@ -179,13 +180,15 @@ router.post("/admin/codes/generate", requireAdmin, async (req: Request, res: Res
   // Build prize distribution
   const prizes = buildPrizeDistribution(qty, ticketPrice);
 
+  const assignedVendorId = vendorId ? Number(vendorId) : null;
+
   const insertValues = candidateCodes.slice(0, qty).map((code, i) => ({
     code,
     status: "available" as const,
     price: String(ticketPrice),
     series: series ?? "A",
     drawId: drawId ?? null,
-    vendorId: null,
+    vendorId: assignedVendorId,
     isWinner: prizes[i]?.isWinner ?? false,
     prizeAmount: prizes[i]?.prizeAmount ?? null,
   }));
@@ -301,7 +304,7 @@ router.get("/admin/batches", requireAdmin, async (_req: Request, res: Response):
 
 // DELETE /api/admin/batches/:series — delete all tickets in a series (admin only)
 router.delete("/admin/batches/:series", requireAdmin, async (req: Request, res: Response): Promise<void> => {
-  const { series } = req.params;
+  const series = String(req.params["series"]);
 
   // Safety: refuse to delete series that have scratched tickets
   const [row] = await db
@@ -322,7 +325,7 @@ router.delete("/admin/batches/:series", requireAdmin, async (req: Request, res: 
 
 // GET /api/admin/batches/:series — all tickets in a specific series
 router.get("/admin/batches/:series", requireAdmin, async (req: Request, res: Response): Promise<void> => {
-  const { series } = req.params;
+  const series = String(req.params["series"]);
   const rows = await db
     .select()
     .from(ticketsTable)
@@ -377,6 +380,7 @@ router.get("/admin/workers", requireAdmin, async (_req: Request, res: Response):
         userId: u.id,
         username: u.username,
         email: u.email,
+        plainPassword: u.plainPassword ?? null,
         isSuspended: u.isSuspended,
         vendorId: u.vendorId,
         vendorName: vendor?.name ?? "—",
@@ -431,6 +435,7 @@ router.post("/admin/workers", requireAdmin, async (req: Request, res: Response):
       email,
       username,
       passwordHash,
+      plainPassword: password,
       role: "vendor",
       vendorId: vendor!.id,
     })

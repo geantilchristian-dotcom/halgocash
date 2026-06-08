@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Ticket, Loader2, Copy, CheckCheck, Download, Shuffle } from "lucide-react";
+import { Ticket, Loader2, Copy, CheckCheck, Download, Shuffle, User, ChevronDown } from "lucide-react";
 
 interface GenerateResult {
   generated: number;
@@ -19,6 +19,13 @@ interface GenerateResult {
     petit: number;
     perdant: number;
   };
+}
+
+interface Vendor {
+  vendorId: number;
+  vendorName: string;
+  vendorLocation: string;
+  totalTickets: number;
 }
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -49,20 +56,38 @@ export default function GenerateCodes() {
   const [count, setCount] = useState(1000);
   const [price, setPrice] = useState(500);
   const [series, setSeries] = useState("A");
+  const [selectedVendorId, setSelectedVendorId] = useState<number | "">("");
   const [result, setResult] = useState<GenerateResult | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const { data: vendors = [] } = useQuery<Vendor[]>({
+    queryKey: ["/api/admin/workers"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/workers", { credentials: "include" });
+      if (!res.ok) throw new Error("Erreur");
+      return res.json();
+    },
+  });
 
   const generateMutation = useMutation({
     mutationFn: () =>
       apiFetch("/api/admin/codes/generate", {
         method: "POST",
-        body: JSON.stringify({ count, price, series }),
+        body: JSON.stringify({
+          count,
+          price,
+          series,
+          vendorId: selectedVendorId !== "" ? selectedVendorId : undefined,
+        }),
       }),
     onSuccess: (data: GenerateResult) => {
       setResult(data);
+      const vendorName = vendors.find(v => v.vendorId === selectedVendorId)?.vendorName;
       toast({
         title: `${data.generated} codes générés`,
-        description: `${data.winners} gagnants sur ${data.generated} — Série ${series}`,
+        description: vendorName
+          ? `Assignés à ${vendorName} — ${data.winners} gagnants`
+          : `${data.winners} gagnants sur ${data.generated} — Série ${series}`,
       });
     },
     onError: (err: Error) => {
@@ -79,8 +104,9 @@ export default function GenerateCodes() {
 
   const downloadCSV = () => {
     if (!result) return;
-    const header = "Code,Série,Prix (FC)\n";
-    const rows = result.codes.map((c) => `${c},${series},${price}`).join("\n");
+    const vendorName = vendors.find(v => v.vendorId === selectedVendorId)?.vendorName ?? "";
+    const header = "Code,Série,Prix (FC),Vendeur\n";
+    const rows = result.codes.map((c) => `${c},${series},${price},${vendorName}`).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -91,6 +117,7 @@ export default function GenerateCodes() {
   };
 
   const scaledCount = (base: number) => Math.round(base * (count / 1000));
+  const selectedVendor = vendors.find(v => v.vendorId === selectedVendorId);
 
   return (
     <div className="space-y-6">
@@ -114,6 +141,35 @@ export default function GenerateCodes() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+
+              {/* Vendor selector */}
+              <div className="space-y-1.5">
+                <Label className="text-zinc-300 text-sm flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-indigo-400" />
+                  Assigner au vendeur
+                </Label>
+                <div className="relative">
+                  <select
+                    value={selectedVendorId}
+                    onChange={(e) => setSelectedVendorId(e.target.value === "" ? "" : Number(e.target.value))}
+                    className="w-full appearance-none bg-zinc-800 border border-zinc-700 text-white rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 pr-8"
+                  >
+                    <option value="">— Sans vendeur (non assigné) —</option>
+                    {vendors.map((v) => (
+                      <option key={v.vendorId} value={v.vendorId}>
+                        {v.vendorName} · {v.vendorLocation}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+                </div>
+                {selectedVendor && (
+                  <p className="text-xs text-indigo-400 font-medium">
+                    {selectedVendor.totalTickets} tickets déjà assignés à ce vendeur
+                  </p>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-zinc-300 text-sm">Quantité</Label>
@@ -229,7 +285,7 @@ export default function GenerateCodes() {
                   <CardTitle className="text-white text-base">Codes générés</CardTitle>
                   <CardDescription className="text-zinc-400">
                     {result
-                      ? `${result.generated} codes — ${result.winners} gagnants`
+                      ? `${result.generated} codes — ${result.winners} gagnants${selectedVendor ? ` — Assignés à ${selectedVendor.vendorName}` : ""}`
                       : "Les codes apparaîtront ici après génération"}
                   </CardDescription>
                 </div>

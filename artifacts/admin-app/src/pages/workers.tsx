@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Plus, Eye, EyeOff, Copy, Check, AlertCircle, MapPin, Phone, Ticket, TrendingUp, X, Loader2 } from "lucide-react";
+import { Users, Plus, Eye, EyeOff, Copy, Check, AlertCircle, MapPin, Phone, Ticket, TrendingUp, X, Loader2, KeyRound } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,6 +13,7 @@ interface Worker {
   userId: number;
   username: string;
   email: string;
+  plainPassword: string | null;
   isSuspended: boolean;
   vendorId: number;
   vendorName: string;
@@ -41,11 +42,86 @@ function CopyButton({ value }: { value: string }) {
   );
 }
 
+function CredentialsModal({ worker, onClose }: { worker: Worker; onClose: () => void }) {
+  const [showPwd, setShowPwd] = useState(false);
+  const pwd = worker.plainPassword ?? "—";
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+      <div className="bg-background rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2">
+            <KeyRound className="w-5 h-5 text-primary" />
+            <h3 className="text-base font-bold">Identifiants vendeur</h3>
+          </div>
+          <button onClick={onClose}><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="space-y-3">
+          {/* Vendor name */}
+          <div className="rounded-xl bg-muted/50 px-4 py-3">
+            <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-1">Vendeur</p>
+            <p className="font-bold">{worker.vendorName}</p>
+            <p className="text-xs text-muted-foreground">{worker.vendorLocation}</p>
+          </div>
+
+          {/* Username */}
+          <div className="rounded-xl bg-muted/50 px-4 py-3">
+            <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-1">Nom d'utilisateur</p>
+            <div className="flex items-center">
+              <span className="font-mono font-bold">{worker.username}</span>
+              <CopyButton value={worker.username} />
+            </div>
+          </div>
+
+          {/* Email */}
+          <div className="rounded-xl bg-muted/50 px-4 py-3">
+            <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-1">Email</p>
+            <div className="flex items-center">
+              <span className="font-mono text-sm">{worker.email}</span>
+              <CopyButton value={worker.email} />
+            </div>
+          </div>
+
+          {/* Password */}
+          <div className="rounded-xl bg-muted/50 px-4 py-3">
+            <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-1">Mot de passe</p>
+            <div className="flex items-center gap-2">
+              <span className="font-mono font-bold tracking-wider text-base">
+                {showPwd ? pwd : "•".repeat(Math.max(8, pwd.length))}
+              </span>
+              {worker.plainPassword && (
+                <>
+                  <button onClick={() => setShowPwd(!showPwd)} className="text-muted-foreground hover:text-foreground">
+                    {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                  <CopyButton value={pwd} />
+                </>
+              )}
+              {!worker.plainPassword && (
+                <span className="text-xs text-muted-foreground italic">(créé avant cette version)</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={onClose}
+          className="mt-5 w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm"
+        >
+          Fermer
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Workers() {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [newWorker, setNewWorker] = useState<CreatedWorker | null>(null);
   const [showPwd, setShowPwd] = useState(false);
+  const [credWorker, setCredWorker] = useState<Worker | null>(null);
   const [form, setForm] = useState({ vendorName: "", location: "", phone: "", username: "", email: "", password: "" });
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -92,6 +168,9 @@ export default function Workers() {
 
   return (
     <div className="space-y-6">
+      {/* Credentials modal */}
+      {credWorker && <CredentialsModal worker={credWorker} onClose={() => setCredWorker(null)} />}
+
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Annuaire Vendeurs</h2>
         <button
@@ -134,7 +213,7 @@ export default function Workers() {
                 </div>
               </div>
               <div className="bg-background rounded-lg p-3 col-span-2">
-                <p className="text-xs text-muted-foreground mb-1 font-bold uppercase tracking-wider">Mot de passe (affiché une seule fois)</p>
+                <p className="text-xs text-muted-foreground mb-1 font-bold uppercase tracking-wider">Mot de passe</p>
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-lg tracking-wider">
                     {showPwd ? newWorker.password : "•".repeat(newWorker.password.length)}
@@ -248,7 +327,7 @@ export default function Workers() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-3">
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="bg-muted/40 rounded-lg py-2">
                     <p className="text-xs text-muted-foreground">Tickets</p>
@@ -268,7 +347,13 @@ export default function Workers() {
                     <span className="font-semibold text-foreground">{w.username}</span>
                     <CopyButton value={w.username} />
                   </div>
-                  <span>Depuis {new Date(w.createdAt).toLocaleDateString("fr-FR")}</span>
+                  <button
+                    onClick={() => setCredWorker(w)}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 text-primary font-bold text-xs hover:bg-primary/20 transition-colors"
+                  >
+                    <KeyRound className="w-3 h-3" />
+                    Identifiants
+                  </button>
                 </div>
               </CardContent>
             </Card>
