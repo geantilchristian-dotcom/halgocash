@@ -201,3 +201,34 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+/* ── Halgo Cash Animations ── */
+@keyframes halgo-lightning {
+  0%, 100% { transform: scale(1) rotate(-3deg); filter: drop-shadow(0 0 0px #F5C518); }
+  30%       { transform: scale(1.18) rotate(5deg); filter: drop-shadow(0 0 10px #F5C518) drop-shadow(0 0 20px rgba(245,197,24,0.5)); }
+  60%       { transform: scale(0.95) rotate(-6deg); filter: drop-shadow(0 0 4px #F5C518); }
+}
+
+@keyframes halgo-cash-glow {
+  0%, 100% { text-shadow: 0 0 0px #3aab3a; }
+  50%       { text-shadow: 0 0 12px rgba(58,171,58,0.7), 0 0 28px rgba(58,171,58,0.35), 0 0 48px rgba(58,171,58,0.15); }
+}
+
+@keyframes halgo-line-a {
+  0%, 100% { transform: translateX(0);   opacity: 0.7; }
+  50%       { transform: translateX(5px); opacity: 1;   }
+}
+@keyframes halgo-line-b {
+  0%, 100% { transform: translateX(0);    opacity: 0.5; }
+  50%       { transform: translateX(-4px); opacity: 0.9; }
+}
+@keyframes halgo-line-c {
+  0%, 100% { transform: translateX(0);   opacity: 0.6; }
+  50%       { transform: translateX(4px); opacity: 1;   }
+}
+
+.halgo-lightning    { animation: halgo-lightning 2.8s ease-in-out infinite; display: inline-block; }
+.halgo-cash-text    { animation: halgo-cash-glow  3.2s ease-in-out infinite; }
+.halgo-line-1       { animation: halgo-line-a 1.6s ease-in-out infinite; }
+.halgo-line-2       { animation: halgo-line-b 1.6s ease-in-out infinite 0.2s; }
+.halgo-line-3       { animation: halgo-line-c 1.6s ease-in-out infinite 0.4s; }
