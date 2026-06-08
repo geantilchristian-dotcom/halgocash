@@ -152,11 +152,13 @@ router.post("/admin/codes/generate", requireAdmin, async (req: Request, res: Res
 
   const ticketPrice = Number(price) || 500;
 
-  // Generate enough unique 10-digit codes
+  // Alphanumeric charset — no confusing chars (O/0/I/1/L)
+  const CHARSET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const genCode = () =>
+    Array.from({ length: 10 }, () => CHARSET[Math.floor(Math.random() * CHARSET.length)]).join("");
+
   const codesSet = new Set<string>();
-  while (codesSet.size < qty * 2) {
-    codesSet.add(String(Math.floor(Math.random() * 10_000_000_000)).padStart(10, "0"));
-  }
+  while (codesSet.size < qty * 2) codesSet.add(genCode());
   const candidateCodes = Array.from(codesSet);
 
   // Build prize distribution

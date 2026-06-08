@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { Bell, Eye, EyeOff, Lock, ChevronRight, History, CheckCircle, AlertCircle, X, ArrowUpRight, QrCode, Zap } from "lucide-react";
+import { Bell, Eye, EyeOff, Lock, ChevronRight, History, CheckCircle, AlertCircle, X, ArrowUpRight, QrCode, Zap, Sparkles, RotateCcw } from "lucide-react";
 import { useUser } from "@clerk/react";
 import { QRCodeSVG } from "qrcode.react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,6 +27,41 @@ export default function Home() {
   const [showRetrait, setShowRetrait] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Ticket activation
+  const [ticketCode, setTicketCode] = useState("");
+  const [activating, setActivating] = useState(false);
+  const [activationResult, setActivationResult] = useState<{
+    code: string; isWinner: boolean; prizeAmount: number | null; prizeLabel: string;
+  } | null>(null);
+  const [activationError, setActivationError] = useState<string | null>(null);
+
+  const activateTicket = useCallback(async () => {
+    const code = ticketCode.trim().toUpperCase();
+    if (!code) return;
+    setActivating(true);
+    setActivationError(null);
+    setActivationResult(null);
+    try {
+      const res = await fetch("/api/tickets/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json();
+      if (!res.ok) setActivationError(data.error || "Code introuvable");
+      else setActivationResult(data);
+    } catch {
+      setActivationError("Erreur de connexion");
+    } finally {
+      setActivating(false);
+    }
+  }, [ticketCode]);
+
+  const resetActivation = () => {
+    setTicketCode(""); setActivationResult(null); setActivationError(null);
+  };
 
   const enteredCode = digits.join("");
   const isComplete = enteredCode.length === 10 && !digits.includes("");
@@ -217,6 +252,113 @@ export default function Home() {
                 MON QR
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* ── Activer un Ticket ── */}
+        <div className="rounded-2xl overflow-hidden shadow-md">
+          <div
+            className="p-4"
+            style={{ background: isDark
+              ? "linear-gradient(135deg, #1a0a00 0%, #2d1500 50%, #1a0a00 100%)"
+              : "linear-gradient(135deg, #7c3a00 0%, #a34e00 50%, #7c3a00 100%)"
+            }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(245,197,24,0.25)", border: "1.5px solid rgba(245,197,24,0.5)" }}>
+                  <Sparkles className="w-4 h-4 text-[#F5C518]" />
+                </div>
+                <span className="text-white/70 text-[10px] font-bold uppercase tracking-widest">ACTIVER UN TICKET</span>
+              </div>
+              {activationResult && (
+                <button onClick={resetActivation} className="text-white/40 hover:text-white/70 transition-colors">
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Result display */}
+            {activationResult ? (
+              <div
+                className="rounded-xl p-4 flex flex-col items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300"
+                style={{
+                  background: activationResult.isWinner
+                    ? "linear-gradient(135deg, rgba(34,197,94,0.25), rgba(20,83,45,0.4))"
+                    : "rgba(0,0,0,0.35)",
+                  border: `1.5px solid ${activationResult.isWinner ? "rgba(34,197,94,0.4)" : "rgba(255,255,255,0.1)"}`,
+                }}
+              >
+                <span className="text-[10px] font-bold uppercase tracking-widest text-white/50">
+                  {activationResult.code}
+                </span>
+                {activationResult.isWinner ? (
+                  <>
+                    <CheckCircle className="w-10 h-10 text-[#22c55e]" />
+                    <p className="text-white font-black text-lg uppercase tracking-wide text-center">
+                      {activationResult.prizeLabel}
+                    </p>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-black text-[#F5C518] font-mono">
+                        +{formatFC(activationResult.prizeAmount ?? 0)}
+                      </span>
+                      <span className="text-white/60 font-bold text-sm">FC</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <X className="w-10 h-10 text-white/40" />
+                    <p className="text-white/60 font-black text-base uppercase tracking-wide">Perdu</p>
+                    <p className="text-white/30 text-xs text-center">Tentez votre chance avec un autre ticket</p>
+                  </>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* Code input */}
+                <input
+                  type="text"
+                  inputMode="text"
+                  maxLength={10}
+                  placeholder="KHF79HF5V2"
+                  value={ticketCode}
+                  onChange={(e) => {
+                    setActivationError(null);
+                    setTicketCode(e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 10));
+                  }}
+                  onKeyDown={(e) => { if (e.key === "Enter") activateTicket(); }}
+                  className="w-full px-4 py-3 rounded-xl text-center font-mono font-black text-xl tracking-[0.3em] outline-none border-2 transition-all mb-3"
+                  style={{
+                    background: "rgba(0,0,0,0.35)",
+                    borderColor: activationError ? "#ef4444" : "rgba(245,197,24,0.3)",
+                    color: "#F5C518",
+                    caretColor: "#F5C518",
+                  }}
+                />
+
+                {activationError && (
+                  <p className="text-red-400 text-xs text-center mb-2 flex items-center justify-center gap-1">
+                    <AlertCircle className="w-3 h-3" />{activationError}
+                  </p>
+                )}
+
+                <button
+                  onClick={activateTicket}
+                  disabled={activating || ticketCode.length === 0}
+                  className="w-full py-3 rounded-xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40"
+                  style={{ background: "linear-gradient(135deg, #F5C518, #d4a017)", color: "#1a0a00", boxShadow: "0 4px 18px rgba(245,197,24,0.4)" }}
+                >
+                  {activating ? (
+                    <div className="w-4 h-4 border-2 border-[#1a0a00]/60 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                  {activating ? "Vérification..." : "ACTIVER"}
+                </button>
+              </>
+            )}
           </div>
         </div>
 

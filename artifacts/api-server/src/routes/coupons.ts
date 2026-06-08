@@ -107,4 +107,61 @@ router.post("/coupons/register", async (req, res): Promise<void> => {
   res.status(201).json(formatTicket({ ...ticket, registeredByClerkId: userId, registeredAt: new Date() }, drawNumber));
 });
 
+// POST /api/tickets/activate — reveal a ticket result and link to user
+router.post("/tickets/activate", async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  const { code } = req.body as { code?: string };
+
+  if (!code || typeof code !== "string" || code.trim().length === 0) {
+    res.status(400).json({ error: "Code requis" });
+    return;
+  }
+
+  const trimmed = code.trim().toUpperCase();
+
+  const [ticket] = await db
+    .select()
+    .from(ticketsTable)
+    .where(eq(ticketsTable.code, trimmed))
+    .limit(1);
+
+  if (!ticket) {
+    res.status(404).json({ error: "Code introuvable — vérifiez les caractères" });
+    return;
+  }
+
+  // Already activated by someone else
+  if (ticket.registeredByClerkId && ticket.registeredByClerkId !== userId) {
+    res.status(409).json({ error: "Ce ticket a déjà été activé par quelqu'un d'autre" });
+    return;
+  }
+
+  // Link to current user if logged in and not yet linked
+  if (!ticket.registeredByClerkId && userId) {
+    await db
+      .update(ticketsTable)
+      .set({ registeredByClerkId: userId, registeredAt: new Date() })
+      .where(eq(ticketsTable.id, ticket.id));
+  }
+
+  const amount = ticket.prizeAmount ? parseFloat(ticket.prizeAmount) : 0;
+  let prizeLabel = "Perdu";
+  if (ticket.isWinner) {
+    if (amount >= 50000)     prizeLabel = "Super Gagnant";
+    else if (amount >= 25000) prizeLabel = "Très Grand Gagnant";
+    else if (amount >= 10000) prizeLabel = "Grand Gagnant";
+    else if (amount >= 5000)  prizeLabel = "Gagnant";
+    else                      prizeLabel = "Petit Gagnant — Remboursé";
+  }
+
+  res.json({
+    code: ticket.code,
+    series: ticket.series,
+    isWinner: ticket.isWinner,
+    prizeAmount: ticket.isWinner ? amount : null,
+    prizeLabel,
+    alreadyActivated: !!ticket.registeredByClerkId,
+  });
+});
+
 export default router;
