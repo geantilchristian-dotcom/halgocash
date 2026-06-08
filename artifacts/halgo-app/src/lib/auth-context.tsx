@@ -1,6 +1,6 @@
 import { createContext, useContext, ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGetMe, useLogin, useRegister, useLogout } from "@workspace/api-client-react";
+import { useGetMe, useLogin, useRegister, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import type { AuthUser, LoginInput, RegisterInput } from "@workspace/api-client-react";
 
 interface AuthContextValue {
@@ -15,7 +15,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const { data: user, isLoading } = useGetMe({ query: { retry: false } });
+  const { data: user, isLoading } = useGetMe({ query: { retry: false, queryKey: getGetMeQueryKey() } });
   const loginMutation = useLogin();
   const registerMutation = useRegister();
   const logoutMutation = useLogout();

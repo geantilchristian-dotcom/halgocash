@@ -1,12 +1,9 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth-context";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Trophy, Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Link } from "wouter";
 
 export default function Login() {
@@ -14,6 +11,7 @@ export default function Login() {
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -25,7 +23,7 @@ export default function Login() {
       await login({ email, password });
       setLocation("/");
     } catch (err: unknown) {
-      const message = (err as { data?: { error?: string } })?.data?.error ?? "Erreur de connexion";
+      const message = (err as { data?: { error?: string } })?.data?.error ?? "Identifiant ou mot de passe incorrect";
       setError(message);
     } finally {
       setLoading(false);
@@ -33,64 +31,82 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-stone-50 to-amber-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center">
-            <Trophy className="w-6 h-6 text-white" />
-          </div>
-          <span className="text-2xl font-bold text-stone-800">Halgo Cash</span>
+    <div className="min-h-dvh bg-[#f4f6f4] flex flex-col">
+      {/* Dark green header */}
+      <div className="bg-[#143024] px-6 pt-14 pb-20 flex flex-col items-center">
+        {/* Logo */}
+        <div className="flex items-baseline gap-0 mb-2 leading-none">
+          <span className="text-[42px] font-black text-white tracking-tight">HALGO</span>
+          <span className="text-[42px] font-black text-[#8DC63F] tracking-tight ml-2">CASH</span>
+          <span className="text-[36px] font-black text-[#8DC63F] ml-1">›</span>
         </div>
+        <p className="text-white/50 text-[10px] font-semibold tracking-[0.2em] uppercase">
+          RAPIDE · SÉCURISÉ · FIABLE
+        </p>
+      </div>
 
-        <Card className="shadow-xl border-0">
-          <CardHeader className="text-center pb-2">
-            <CardTitle className="text-2xl">Connexion</CardTitle>
-            <CardDescription>Accédez à votre compte joueur</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="votre@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Mot de passe</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <Button type="submit" className="w-full bg-green-700 hover:bg-green-800" disabled={loading}>
-                {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                Se connecter
-              </Button>
-            </form>
-          </CardContent>
-          <CardFooter className="justify-center">
-            <p className="text-sm text-stone-500">
-              Pas encore de compte ?{" "}
-              <Link href="/register" className="text-green-700 font-medium hover:underline">
-                Créer un compte
-              </Link>
-            </p>
-          </CardFooter>
-        </Card>
+      {/* Form card floating up */}
+      <div className="bg-[#f4f6f4] -mt-8 rounded-t-3xl flex-1 px-5 pt-6 pb-8">
+        <h2 className="text-2xl font-black text-gray-900 mb-1">Connexion</h2>
+        <p className="text-sm text-gray-400 mb-6">Accédez à votre compte joueur</p>
+
+        {error && (
+          <Alert variant="destructive" className="mb-4 rounded-xl">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Email</label>
+            <Input
+              type="email"
+              placeholder="votre@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="rounded-xl h-12 border-gray-200 bg-white focus-visible:ring-[#8DC63F] focus-visible:border-[#143024]"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Mot de passe</label>
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="rounded-xl h-12 border-gray-200 bg-white focus-visible:ring-[#8DC63F] focus-visible:border-[#143024] pr-12"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full h-12 bg-[#143024] hover:bg-[#1e4a30] text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 mt-2 disabled:opacity-60"
+          >
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            Se connecter
+          </button>
+        </form>
+
+        <p className="text-sm text-gray-400 text-center mt-6">
+          Pas encore de compte ?{" "}
+          <Link href="/register" className="text-[#143024] font-bold hover:underline">
+            Créer un compte
+          </Link>
+        </p>
       </div>
     </div>
   );

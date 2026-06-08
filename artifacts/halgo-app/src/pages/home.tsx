@@ -1,184 +1,300 @@
-import { useState } from "react";
-import { useGetTicket, getGetTicketQueryKey, useGetStats } from "@workspace/api-client-react";
-import { Search, Trophy, ArrowRight, Star, AlertCircle, CheckCircle2 } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState, useRef, useCallback } from "react";
+import { Bell, Wallet, Eye, EyeOff, Lock, ChevronRight, History, CheckCircle, AlertCircle, Copy, Edit2 } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
+
+interface BalanceData {
+  code: string;
+  balance: number;
+  currency: string;
+  ownerName: string;
+}
+
+function formatXAF(amount: number): string {
+  return new Intl.NumberFormat("fr-FR").format(Math.round(amount)).replace(/\s/g, ".");
+}
 
 export default function Home() {
-  const [ticketCode, setTicketCode] = useState("");
-  const [searchCode, setSearchCode] = useState("");
+  const { user } = useAuth();
+  const [digits, setDigits] = useState<string[]>(Array(10).fill(""));
+  const [balance, setBalance] = useState<BalanceData | null>(null);
+  const [showBalance, setShowBalance] = useState(true);
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const { data: stats, isLoading: statsLoading } = useGetStats();
-  const { 
-    data: ticket, 
-    isLoading: ticketLoading, 
-    isError 
-  } = useGetTicket(searchCode, {
-    query: {
-      enabled: !!searchCode,
-      queryKey: getGetTicketQueryKey(searchCode),
-      retry: false
+  const enteredCode = digits.join("");
+  const isComplete = enteredCode.length === 10 && !digits.includes("");
+
+  const displayId = user ? `HG${String(user.id).padStart(10, "0")}` : "HG----------";
+
+  const checkBalance = useCallback(async (code: string) => {
+    setChecking(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/balance/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ code }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setError(err.error || "Code introuvable");
+        setBalance(null);
+      } else {
+        const data: BalanceData = await res.json();
+        setBalance(data);
+        setError(null);
+      }
+    } catch {
+      setError("Erreur de connexion");
+    } finally {
+      setChecking(false);
     }
-  });
+  }, []);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (ticketCode.trim()) {
-      setSearchCode(ticketCode.trim().toUpperCase());
+  const handleDigitInput = (index: number, value: string) => {
+    const digit = value.replace(/\D/g, "").slice(-1);
+    const newDigits = [...digits];
+    newDigits[index] = digit;
+    setDigits(newDigits);
+
+    if (digit && index < 9) {
+      inputRefs.current[index + 1]?.focus();
+    }
+
+    const fullCode = newDigits.join("");
+    if (fullCode.length === 10 && !newDigits.includes("")) {
+      checkBalance(fullCode);
     }
   };
 
+  const handleDigitKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace") {
+      const newDigits = [...digits];
+      if (digits[index]) {
+        newDigits[index] = "";
+        setDigits(newDigits);
+      } else if (index > 0) {
+        newDigits[index - 1] = "";
+        setDigits(newDigits);
+        inputRefs.current[index - 1]?.focus();
+      }
+      setBalance(null);
+      setError(null);
+    } else if (e.key === "ArrowLeft" && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    } else if (e.key === "ArrowRight" && index < 9) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 10);
+    const newDigits = Array(10).fill("");
+    for (let i = 0; i < pasted.length; i++) newDigits[i] = pasted[i]!;
+    setDigits(newDigits);
+    const focusIdx = Math.min(pasted.length, 9);
+    inputRefs.current[focusIdx]?.focus();
+    if (pasted.length === 10) checkBalance(pasted);
+  };
+
+  const handleCopyId = () => {
+    navigator.clipboard.writeText(displayId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const clearCode = () => {
+    setDigits(Array(10).fill(""));
+    setBalance(null);
+    setError(null);
+    inputRefs.current[0]?.focus();
+  };
+
   return (
-    <div className="max-w-4xl mx-auto space-y-12 pb-12">
-      {/* Hero Section */}
-      <section className="text-center space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700 pt-8 md:pt-16">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/20 text-accent-foreground font-semibold text-sm mb-4 border border-accent/30 shadow-sm">
-          <Star className="w-4 h-4" />
-          <span>The DRC's Official Lottery</span>
-        </div>
-        <h1 className="text-5xl md:text-7xl font-black tracking-tight text-foreground max-w-3xl mx-auto leading-[1.1]">
-          Did you hit the <br className="hidden md:block"/>
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-amber-500">
-            Jackpot today?
-          </span>
-        </h1>
-        <p className="text-xl text-muted-foreground font-medium max-w-2xl mx-auto">
-          Enter your ticket code below to see if you are a winner.
-        </p>
+    <div className="min-h-dvh bg-[#f4f6f4]">
+      {/* ── Dark Green Header ── */}
+      <div className="bg-[#143024] px-5 pt-8 pb-16 relative overflow-hidden">
+        {/* subtle radial glow */}
+        <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-[#8DC63F]/10 blur-3xl pointer-events-none" />
 
-        {/* Active Jackpot Banner */}
-        {statsLoading ? (
-          <Skeleton className="h-24 w-full max-w-md mx-auto rounded-3xl mt-8" />
-        ) : stats?.activeDraw ? (
-          <div className="mt-8 mx-auto max-w-md bg-gradient-to-br from-primary to-primary/80 rounded-3xl p-6 text-primary-foreground shadow-2xl shadow-primary/30 transform hover:scale-[1.02] transition-transform duration-300">
-            <h3 className="text-primary-foreground/80 font-bold uppercase tracking-wider text-sm mb-2">
-              Next Draw: #{stats.activeDraw.drawNumber}
-            </h3>
-            <div className="text-4xl font-black mb-1">
-              ${stats.activeDraw.jackpotAmount.toLocaleString()}
+        {/* top row: user info + bell */}
+        <div className="flex items-start justify-between mb-6 relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-[#1e4a30] border-2 border-[#8DC63F]/30 flex items-center justify-center shrink-0">
+              <svg className="w-7 h-7 fill-white/80" viewBox="0 0 24 24">
+                <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12Zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8Z"/>
+              </svg>
             </div>
-            <p className="text-primary-foreground/90 font-medium">
-              Buy a ticket before {new Date(stats.activeDraw.scheduledAt).toLocaleDateString()}
-            </p>
+            <div>
+              <p className="text-white/50 text-[9px] uppercase tracking-widest font-semibold">ID Utilisateur</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <p className="text-white font-bold font-mono text-sm tracking-wider">{displayId}</p>
+                <button onClick={handleCopyId} className="text-[#8DC63F] hover:text-[#a8d44e] transition-colors">
+                  {copied ? <CheckCircle className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              <div className="flex items-center gap-1 mt-0.5">
+                <p className="text-white font-semibold text-sm">{user?.username ?? "—"}</p>
+                <CheckCircle className="w-3.5 h-3.5 text-[#8DC63F]" />
+              </div>
+              <p className="text-white/50 text-xs mt-0.5">{user?.email ?? ""}</p>
+            </div>
           </div>
-        ) : null}
-      </section>
+          <button className="relative p-2">
+            <Bell className="w-6 h-6 text-white/80" />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#8DC63F]" />
+          </button>
+        </div>
 
-      {/* Check Ticket Section */}
-      <section className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-10 duration-700 delay-150 fill-mode-both">
-        <Card className="border-2 border-primary/20 shadow-2xl shadow-primary/5 bg-card/50 backdrop-blur-xl overflow-hidden rounded-3xl">
-          <CardContent className="p-8 md:p-12">
-            <form onSubmit={handleSearch} className="space-y-6">
-              <div className="space-y-2 text-center mb-8">
-                <h2 className="text-3xl font-black">Check Your Ticket</h2>
-                <p className="text-muted-foreground">Type your 8-12 character code</p>
-              </div>
-              
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none">
-                  <Search className="h-6 w-6 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                </div>
-                <Input
-                  type="text"
-                  value={ticketCode}
-                  onChange={(e) => setTicketCode(e.target.value)}
-                  placeholder="e.g. HLG-12345"
-                  className="pl-16 pr-6 py-8 text-2xl md:text-3xl font-bold uppercase tracking-widest text-center rounded-2xl bg-muted/50 border-2 border-transparent focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/20 transition-all placeholder:text-muted-foreground/40 placeholder:font-medium placeholder:tracking-normal"
-                />
-              </div>
+        {/* HALGO CASH hero */}
+        <div className="relative z-10">
+          <div className="flex items-baseline gap-0 leading-none">
+            <span className="text-[52px] font-black text-white tracking-tight font-sans">HALGO</span>
+            <span className="text-[52px] font-black text-[#8DC63F] tracking-tight font-sans ml-2">CASH</span>
+            <span className="text-[44px] font-black text-[#8DC63F] ml-1">›</span>
+          </div>
+          <p className="text-white/60 text-[11px] font-semibold tracking-[0.2em] uppercase mt-1">
+            RAPIDE · SÉCURISÉ · FIABLE
+          </p>
+        </div>
+      </div>
 
-              <Button 
-                type="submit" 
-                size="lg" 
-                className="w-full h-16 text-lg font-bold rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl shadow-primary/20 group"
-                disabled={!ticketCode.trim() || ticketLoading}
-              >
-                {ticketLoading ? (
-                  <span className="animate-pulse">Checking...</span>
-                ) : (
-                  <span className="flex items-center justify-center gap-2">
-                    Reveal Result <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </span>
-                )}
-              </Button>
-            </form>
+      {/* ── White Content Area ── */}
+      <div className="bg-[#f4f6f4] -mt-6 rounded-t-3xl px-4 pt-5 pb-4 space-y-3">
 
-            {/* Results Area */}
-            <div className="mt-8">
-              {ticketLoading && (
-                <div className="space-y-4">
-                  <Skeleton className="h-32 w-full rounded-2xl" />
-                </div>
-              )}
-
-              {isError && (
-                <div className="bg-destructive/10 border-2 border-destructive/20 text-destructive rounded-2xl p-6 flex flex-col items-center justify-center text-center space-y-3 animate-in zoom-in-95 duration-300">
-                  <AlertCircle className="w-10 h-10" />
-                  <div>
-                    <h3 className="font-bold text-lg">Ticket Not Found</h3>
-                    <p className="text-destructive/80 font-medium text-sm">Please check the code and try again.</p>
-                  </div>
-                </div>
-              )}
-
-              {ticket && !ticketLoading && (
-                <div className={`rounded-2xl p-8 border-2 flex flex-col items-center justify-center text-center space-y-4 animate-in zoom-in-95 duration-500 shadow-2xl ${
-                  ticket.isWinner 
-                    ? "bg-accent/10 border-accent text-accent-foreground shadow-accent/20" 
-                    : "bg-muted/50 border-border/50 text-foreground"
-                }`}>
-                  {ticket.isWinner ? (
-                    <>
-                      <div className="w-20 h-20 rounded-full bg-accent text-accent-foreground flex items-center justify-center mb-2 animate-bounce">
-                        <Trophy className="w-10 h-10" />
-                      </div>
-                      <div>
-                        <Badge variant="outline" className="mb-3 bg-accent/20 text-accent-foreground border-accent/30 px-3 py-1 font-bold text-sm uppercase tracking-widest">
-                          Winner
-                        </Badge>
-                        <h3 className="font-black text-4xl mb-2 text-foreground">
-                          ${ticket.prizeAmount?.toLocaleString()}
-                        </h3>
-                        <p className="font-medium text-muted-foreground">
-                          Congratulations! Your ticket is a winner in draw #{ticket.drawNumber}.
-                        </p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-2">
-                        <CheckCircle2 className="w-8 h-8 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-2xl mb-2">Not a Winner</h3>
-                        <p className="font-medium text-muted-foreground">
-                          This ticket did not win in draw #{ticket.drawNumber}. Better luck next time!
-                        </p>
-                      </div>
-                    </>
-                  )}
-                  
-                  <div className="w-full h-px bg-border/50 my-2" />
-                  
-                  <div className="grid grid-cols-2 gap-4 w-full text-left text-sm">
-                    <div>
-                      <p className="text-muted-foreground font-medium mb-1">Code</p>
-                      <p className="font-mono font-bold">{ticket.code}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground font-medium mb-1">Status</p>
-                      <p className="font-bold capitalize">{ticket.status}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
+        {/* Balance Card */}
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-full bg-[#eaf3ec] flex items-center justify-center">
+              <Wallet className="w-4 h-4 text-[#143024]" />
             </div>
-          </CardContent>
-        </Card>
-      </section>
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider flex-1">SOLDE ACTUEL</span>
+            <button onClick={() => setShowBalance(!showBalance)} className="text-gray-400 hover:text-gray-600 transition-colors">
+              {showBalance ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+            </button>
+          </div>
+
+          {checking ? (
+            <Skeleton className="h-9 w-40 rounded-lg" />
+          ) : balance ? (
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-black text-gray-900 font-mono tracking-tight">
+                {showBalance ? formatXAF(balance.balance) : "• • • • •"}
+              </span>
+              <span className="text-base font-bold text-gray-400">{balance.currency === "USD" ? "XAF" : balance.currency}</span>
+            </div>
+          ) : (
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-black text-gray-300 font-mono tracking-tight">
+                {showBalance ? "-- . ---" : "• • • • •"}
+              </span>
+              <span className="text-base font-bold text-gray-300">XAF</span>
+            </div>
+          )}
+
+          {balance && (
+            <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
+              <CheckCircle className="w-3 h-3 text-[#8DC63F]" />
+              {balance.ownerName}
+            </p>
+          )}
+          {error && (
+            <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              {error}
+            </p>
+          )}
+        </div>
+
+        {/* Code Entry Card */}
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+          <div className="flex items-center gap-2 mb-3">
+            <Lock className="w-4 h-4 text-[#143024]" />
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex-1">
+              SAISISSEZ VOTRE CODE À 10 CHIFFRES ICI
+            </span>
+            {enteredCode.length > 0 && (
+              <button onClick={clearCode} className="text-[10px] text-gray-400 hover:text-red-400 font-bold transition-colors flex items-center gap-1">
+                <Edit2 className="w-3 h-3" /> Effacer
+              </button>
+            )}
+          </div>
+
+          {/* 10 individual digit boxes */}
+          <div className="flex gap-1.5 justify-between" onPaste={handlePaste}>
+            {digits.map((digit, i) => (
+              <input
+                key={i}
+                ref={(el) => { inputRefs.current[i] = el; }}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleDigitInput(i, e.target.value)}
+                onKeyDown={(e) => handleDigitKeyDown(i, e)}
+                onClick={() => inputRefs.current[i]?.select()}
+                className={`
+                  w-full aspect-square min-w-0 text-center font-mono font-bold text-sm rounded-lg border-2 transition-all outline-none
+                  ${digit ? "border-[#143024] bg-[#eaf3ec] text-[#143024]" : "border-gray-200 bg-gray-50 text-gray-300"}
+                  focus:border-[#8DC63F] focus:bg-white focus:shadow-[0_0_0_3px_rgba(141,198,63,0.15)]
+                  ${checking ? "opacity-50 pointer-events-none" : ""}
+                `}
+                placeholder="×"
+              />
+            ))}
+          </div>
+
+          {checking && (
+            <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
+              <div className="w-3.5 h-3.5 border-2 border-[#8DC63F] border-t-transparent rounded-full animate-spin" />
+              Vérification en cours…
+            </div>
+          )}
+
+          {isComplete && !checking && !balance && !error && (
+            <button
+              onClick={() => checkBalance(enteredCode)}
+              className="mt-3 w-full bg-[#143024] text-white text-sm font-bold rounded-xl py-3 hover:bg-[#1e4a30] transition-colors"
+            >
+              Vérifier le solde
+            </button>
+          )}
+        </div>
+
+        {/* Historique row */}
+        <button className="w-full bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center gap-3 hover:bg-gray-50 active:scale-[0.99] transition-all">
+          <div className="w-9 h-9 rounded-full bg-[#eaf3ec] flex items-center justify-center">
+            <History className="w-4 h-4 text-[#143024]" />
+          </div>
+          <span className="font-black text-gray-800 uppercase tracking-wide text-sm flex-1 text-left">HISTORIQUE</span>
+          <ChevronRight className="w-5 h-5 text-gray-300" />
+        </button>
+
+        {/* Recent transactions if balance loaded */}
+        {balance && (
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Compte vérifié</p>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#eaf3ec] flex items-center justify-center">
+                <CheckCircle className="w-5 h-5 text-[#143024]" />
+              </div>
+              <div>
+                <p className="font-bold text-gray-900">{balance.ownerName}</p>
+                <p className="text-xs text-gray-400 font-mono">{balance.code}</p>
+              </div>
+              <div className="ml-auto text-right">
+                <p className="font-black text-[#143024]">{formatXAF(balance.balance)}</p>
+                <p className="text-xs text-gray-400">{balance.currency === "USD" ? "XAF" : balance.currency}</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

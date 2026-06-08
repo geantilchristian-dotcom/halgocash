@@ -5,9 +5,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
-import Draws from "@/pages/draws";
-import Winners from "@/pages/winners";
-import Vendors from "@/pages/vendors";
+import Profile from "@/pages/profile";
+import Settings from "@/pages/settings";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
 import { Layout } from "@/components/layout";
@@ -21,8 +20,8 @@ function ProtectedRouter() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-green-700" />
+      <div className="min-h-screen flex items-center justify-center bg-[#143024]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#8DC63F]" />
       </div>
     );
   }
@@ -43,9 +42,8 @@ function ProtectedRouter() {
         <Layout>
           <Switch>
             <Route path="/" component={Home} />
-            <Route path="/draws" component={Draws} />
-            <Route path="/winners" component={Winners} />
-            <Route path="/vendors" component={Vendors} />
+            <Route path="/profile" component={Profile} />
+            <Route path="/settings" component={Settings} />
             <Route component={NotFound} />
           </Switch>
         </Layout>
