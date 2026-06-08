@@ -8,41 +8,33 @@ function formatFC(amount: number): string {
   return new Intl.NumberFormat("fr-FR").format(Math.round(amount)).replace(/\s/g, ".");
 }
 
-// Rolling counter hook: animates from 0 to target in ~1.5s, calls onDone when finished
-function useRollingCounter(target: number | null, onDone?: () => void) {
+// Rolling counter: animates from 0 → target over ~1.4s, ease-out curve
+function useRollingCounter(target: number | null) {
   const [display, setDisplay] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const doneRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
     if (target === null) { setDisplay(0); return; }
 
     const STEPS    = 40;
-    const DURATION = 1400; // ms
+    const DURATION = 1400;
     const INTERVAL = DURATION / STEPS;
     let step = 0;
-
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (doneRef.current)  clearTimeout(doneRef.current);
 
     timerRef.current = setInterval(() => {
       step++;
       if (step >= STEPS) {
         setDisplay(target);
         clearInterval(timerRef.current!);
-        if (onDone) doneRef.current = setTimeout(onDone, 2800);
       } else {
-        // ease-out: fast start, slow finish
         const t = step / STEPS;
         const eased = 1 - Math.pow(1 - t, 2.5);
         setDisplay(Math.round(eased * target));
       }
     }, INTERVAL);
 
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (doneRef.current)  clearTimeout(doneRef.current);
-    };
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [target]);
 
   return display;
@@ -61,23 +53,34 @@ export default function Home() {
   } | null>(null);
   const [activationError, setActivationError] = useState<string | null>(null);
 
-  // Balance: persists in memory per session (no backend balance yet)
+  // Balance accumulates across wins in the current session
   const [balance, setBalance] = useState(0);
-  const [balanceAnim, setBalanceAnim] = useState(false);
+  const [balanceFlash, setBalanceFlash] = useState(false);
 
-  // Rolling counter — runs when a win is detected
+  // Rolling counter for the result card
   const rollingAmount = useRollingCounter(
     activationResult?.isWinner ? (activationResult.prizeAmount ?? 0) : null,
-    () => {
-      // After counter finishes: update balance then auto-reset input
-      if (activationResult?.isWinner && activationResult.prizeAmount) {
-        setBalance((b) => b + activationResult.prizeAmount!);
-        setBalanceAnim(true);
-        setTimeout(() => setBalanceAnim(false), 600);
-      }
-      setTimeout(resetActivation, 1500);
-    },
   );
+
+  // As soon as a winning result arrives → update balance immediately
+  useEffect(() => {
+    if (activationResult?.isWinner && activationResult.prizeAmount) {
+      setBalance((b) => b + activationResult.prizeAmount!);
+      setBalanceFlash(true);
+      const t = setTimeout(() => setBalanceFlash(false), 700);
+      return () => clearTimeout(t);
+    }
+  }, [activationResult?.code, activationResult?.isWinner]);
+
+  // Auto-reset the input field after showing the result
+  useEffect(() => {
+    if (!activationResult) return;
+    // Win: reset after animation finishes (1.4s) + brief pause (1s) = 2.4s
+    // Loss: reset after 3s
+    const delay = activationResult.isWinner ? 2400 : 3000;
+    const t = setTimeout(resetActivation, delay);
+    return () => clearTimeout(t);
+  }, [activationResult?.code]);
 
   useEffect(() => {
     const name = user?.fullName ?? user?.username ?? "Utilisateur";
@@ -129,6 +132,10 @@ export default function Home() {
   const cardText = isDark ? "text-white" : "text-gray-900";
   const subText  = isDark ? "text-gray-400" : "text-gray-500";
   const page     = isDark ? "bg-[#080f0a]" : "bg-gray-50";
+
+  // Determine if the counter is still animating
+  const prizeTarget = activationResult?.isWinner ? (activationResult.prizeAmount ?? 0) : 0;
+  const isAnimating = activationResult?.isWinner && rollingAmount < prizeTarget;
 
   return (
     <div className={`min-h-dvh flex flex-col pb-20 transition-colors ${page}`}>
@@ -186,12 +193,12 @@ export default function Home() {
             </div>
             <div className="flex flex-col items-center mb-3">
               <div
-                className="flex items-baseline gap-2 transition-all duration-300"
-                style={{ transform: balanceAnim ? "scale(1.10)" : "scale(1)" }}
+                className="flex items-baseline gap-2 transition-transform duration-300"
+                style={{ transform: balanceFlash ? "scale(1.12)" : "scale(1)" }}
               >
                 <span
-                  className="text-4xl font-black font-mono tracking-tight transition-colors duration-300"
-                  style={{ color: balanceAnim ? "#8DC63F" : "#ffffff" }}
+                  className="text-4xl font-black font-mono tracking-tight transition-colors duration-500"
+                  style={{ color: balanceFlash ? "#8DC63F" : "#ffffff" }}
                 >
                   {balance > 0 ? formatFC(balance) : "0 000"}
                 </span>
@@ -253,26 +260,31 @@ export default function Home() {
                 {activationResult.isWinner ? (
                   <>
                     <CheckCircle className="w-10 h-10 text-[#22c55e]" />
-                    <p className="text-white font-black text-lg uppercase tracking-wide text-center">{activationResult.prizeLabel}</p>
+                    <p className="text-white font-black text-lg uppercase tracking-wide text-center">
+                      {activationResult.prizeLabel}
+                    </p>
                     {/* Rolling counter */}
                     <div className="flex items-baseline gap-1">
                       <span
-                        className="text-3xl font-black font-mono transition-none"
+                        className="text-3xl font-black font-mono"
                         style={{
                           color: "#F5C518",
-                          textShadow: rollingAmount > 0 && rollingAmount < (activationResult.prizeAmount ?? 0)
-                            ? "0 0 20px rgba(245,197,24,0.8)"
-                            : "none",
+                          textShadow: isAnimating ? "0 0 20px rgba(245,197,24,0.8)" : "none",
+                          transition: "text-shadow 0.3s",
                         }}
                       >
                         +{formatFC(rollingAmount)}
                       </span>
                       <span className="text-white/60 font-bold text-sm">FC</span>
                     </div>
-                    {rollingAmount < (activationResult.prizeAmount ?? 0) ? (
-                      <p className="text-[#8DC63F] text-[10px] font-bold tracking-widest animate-pulse">CALCUL EN COURS…</p>
+                    {isAnimating ? (
+                      <p className="text-[#8DC63F] text-[10px] font-bold tracking-widest animate-pulse">
+                        CALCUL EN COURS…
+                      </p>
                     ) : (
-                      <p className="text-white/40 text-[10px] text-center">Retour automatique dans 1s…</p>
+                      <p className="text-[#8DC63F] text-[10px] font-bold tracking-widest">
+                        ✓ CRÉDITÉ SUR VOTRE SOLDE
+                      </p>
                     )}
                   </>
                 ) : (
@@ -280,8 +292,6 @@ export default function Home() {
                     <X className="w-10 h-10 text-white/40" />
                     <p className="text-white/60 font-black text-base uppercase tracking-wide">Perdu</p>
                     <p className="text-white/30 text-xs text-center">Tentez votre chance avec un autre ticket</p>
-                    {/* Auto-reset for losing ticket too */}
-                    <AutoReset onReset={resetActivation} delayMs={3000} />
                   </>
                 )}
               </div>
@@ -400,13 +410,4 @@ export default function Home() {
       )}
     </div>
   );
-}
-
-// Helper: fires onReset after delayMs, cleans up on unmount
-function AutoReset({ onReset, delayMs }: { onReset: () => void; delayMs: number }) {
-  useEffect(() => {
-    const t = setTimeout(onReset, delayMs);
-    return () => clearTimeout(t);
-  }, []);
-  return null;
 }
