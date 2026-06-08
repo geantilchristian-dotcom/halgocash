@@ -119,6 +119,19 @@ export default function GenerateCodes() {
   const scaledCount = (base: number) => Math.round(base * (count / 1000));
   const selectedVendor = vendors.find(v => v.vendorId === selectedVendorId);
 
+  // Revenue summary (computed once, not in JSX IIFE)
+  const summaryRevenue = count * price;
+  const summaryFixedPrizes =
+    (Math.round(1 * (count / 1000)) || 0) * 50000 +
+    (Math.max(1, Math.round(2 * (count / 1000))) || 0) * 25000 +
+    Math.round(10 * (count / 1000)) * 10000 +
+    Math.round(10 * (count / 1000)) * 5000;
+  const summaryPetitRatio = Math.max(0, 0.70 - 250 / price);
+  const summaryPetitCount = Math.round(count * summaryPetitRatio);
+  const summaryTotalPrizes = summaryFixedPrizes + summaryPetitCount * price;
+  const summaryCompany = summaryRevenue - summaryTotalPrizes;
+  const summaryPct = summaryRevenue > 0 ? Math.round((summaryCompany / summaryRevenue) * 100) : 30;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -204,15 +217,6 @@ export default function GenerateCodes() {
                 />
               </div>
               {/* Summary 70/30 */}
-              {(() => {
-                const revenue = count * price;
-                const fixedPrizes = (Math.round(1*(count/1000))||0)*50000 + (Math.max(1,Math.round(2*(count/1000)))||0)*25000 + Math.round(10*(count/1000))*10000 + Math.round(10*(count/1000))*5000;
-                const petitRatio = Math.max(0, 0.70 - 250 / price);
-                const petitCount = Math.round(count * petitRatio);
-                const totalPrizes = fixedPrizes + petitCount * price;
-                const company = revenue - totalPrizes;
-                const pct = revenue > 0 ? Math.round((company / revenue) * 100) : 30;
-                return (
               <div className="p-3 bg-zinc-800/60 rounded-lg space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-zinc-400">Total billets</span>
@@ -220,19 +224,17 @@ export default function GenerateCodes() {
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-zinc-400">Recette brute</span>
-                  <span className="text-indigo-300 font-bold">{revenue.toLocaleString("fr-FR")} FC</span>
+                  <span className="text-indigo-300 font-bold">{summaryRevenue.toLocaleString("fr-FR")} FC</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-zinc-400">Redistribué (70%)</span>
-                  <span className="text-amber-400 font-medium">{totalPrizes.toLocaleString("fr-FR")} FC</span>
+                  <span className="text-amber-400 font-medium">{summaryTotalPrizes.toLocaleString("fr-FR")} FC</span>
                 </div>
                 <div className="flex justify-between text-xs border-t border-zinc-700 pt-1">
-                  <span className="text-green-400 font-semibold">Entreprise ({pct}%)</span>
-                  <span className="text-green-400 font-bold">{company.toLocaleString("fr-FR")} FC</span>
+                  <span className="text-green-400 font-semibold">Entreprise ({summaryPct}%)</span>
+                  <span className="text-green-400 font-bold">{summaryCompany.toLocaleString("fr-FR")} FC</span>
                 </div>
               </div>
-                );
-              })()}
 
               <Button
                 onClick={() => generateMutation.mutate()}
