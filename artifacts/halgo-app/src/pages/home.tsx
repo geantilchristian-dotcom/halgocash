@@ -44,28 +44,17 @@ function AdvertisingBanner() {
   const [hasImage, setHasImage] = useState<boolean | null>(null);
   const [ts] = useState(() => Date.now());
 
+  if (hasImage === false) return null;
+
   return (
     <div className="rounded-2xl overflow-hidden" style={{ aspectRatio: "1780/930" }}>
-      {hasImage === false ? (
-        <div className="w-full h-full flex items-center justify-between px-5 py-4 relative"
-          style={{ background: "linear-gradient(135deg, #0f3d1c 0%, #1a5c2a 60%, #0f3d1c 100%)" }}>
-          <div className="absolute inset-0 pointer-events-none"
-            style={{ background: "linear-gradient(120deg, transparent 30%, rgba(141,198,63,0.1) 50%, transparent 70%)" }} />
-          <div className="relative z-10">
-            <p className="text-white/40 text-[9px] font-bold uppercase tracking-[0.25em]">PUBLICITÉ</p>
-            <p className="text-white font-black text-base tracking-wide mt-0.5">HALGO CASH</p>
-            <p className="text-[#8DC63F] text-xs font-semibold">Gagnez jusqu'à 50 000 FC</p>
-          </div>
-        </div>
-      ) : (
-        <img
-          src={`/api/banners/active/image?t=${ts}`}
-          alt="Publicité"
-          className="w-full h-full object-cover"
-          onLoad={() => setHasImage(true)}
-          onError={() => setHasImage(false)}
-        />
-      )}
+      <img
+        src={`/api/banners/active/image?t=${ts}`}
+        alt="Publicité"
+        className="w-full h-full object-cover"
+        onLoad={() => setHasImage(true)}
+        onError={() => setHasImage(false)}
+      />
     </div>
   );
 }
