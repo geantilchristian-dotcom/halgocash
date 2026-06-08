@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { ticketsTable, vendorsTable } from "@workspace/db";
-import { eq, count, sum, isNotNull, and } from "drizzle-orm";
+import { ticketsTable, vendorsTable, drawsTable } from "@workspace/db";
+import { eq, count, sum, isNotNull, and, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 

@@ -67,6 +67,20 @@ export const transactionsTable = pgTable("transactions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const withdrawalsTable = pgTable("withdrawals", {
+  id: serial("id").primaryKey(),
+  clerkId: varchar("clerk_id", { length: 255 }).notNull(),
+  clerkName: text("clerk_name").notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  status: text("status").notNull().default("pending"),
+  paidByVendorId: integer("paid_by_vendor_id"),
+  paidAt: timestamp("paid_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type Withdrawal = typeof withdrawalsTable.$inferSelect;
+
 export const insertVendorSchema = createInsertSchema(vendorsTable).omit({ id: true, createdAt: true });
 export const insertDrawSchema = createInsertSchema(drawsTable).omit({ id: true, createdAt: true, drawnAt: true, winningTicketCode: true, winningNumbers: true, prizePool: true });
 export const insertTicketSchema = createInsertSchema(ticketsTable).omit({ id: true, createdAt: true });

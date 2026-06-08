@@ -9,6 +9,8 @@ import Tickets from "@/pages/tickets";
 import Login from "@/pages/login";
 import GenerateCodes from "@/pages/generate-codes";
 import Settings from "@/pages/settings";
+import Workers from "@/pages/workers";
+import WithdrawalsAdmin from "@/pages/withdrawals-admin";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Loader2 } from "lucide-react";
 
@@ -50,6 +52,8 @@ function ProtectedRouter() {
         <Route path="/" component={Dashboard} />
         <Route path="/generate-codes" component={GenerateCodes} />
         <Route path="/tickets" component={Tickets} />
+        <Route path="/workers" component={Workers} />
+        <Route path="/withdrawals" component={WithdrawalsAdmin} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>

@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import bcrypt from "bcryptjs";
-import { eq, desc, or, sql, count, and, isNotNull, isNull } from "drizzle-orm";
-import { db, usersTable, ticketsTable, drawsTable } from "@workspace/db";
+import { eq, desc, or, sql, count, sum, and, isNotNull, isNull } from "drizzle-orm";
+import { db, usersTable, ticketsTable, drawsTable, vendorsTable, withdrawalsTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { getOnlineUsers } from "../lib/presence";
 
@@ -340,6 +340,149 @@ router.get("/admin/batches/:series", requireAdmin, async (req: Request, res: Res
     registeredAt: t.registeredAt?.toISOString() ?? null,
     createdAt: t.createdAt.toISOString(),
   })));
+});
+
+// GET /api/admin/workers — list all vendor users with their stats
+router.get("/admin/workers", requireAdmin, async (_req: Request, res: Response): Promise<void> => {
+  const vendorUsers = await db
+    .select()
+    .from(usersTable)
+    .where(isNotNull(usersTable.vendorId))
+    .orderBy(usersTable.createdAt);
+
+  const results = await Promise.all(
+    vendorUsers.map(async (u) => {
+      const [vendor] = await db
+        .select()
+        .from(vendorsTable)
+        .where(eq(vendorsTable.id, u.vendorId!))
+        .limit(1);
+
+      const [tRow] = await db
+        .select({ total: count(), scratched: count() })
+        .from(ticketsTable)
+        .where(eq(ticketsTable.vendorId, u.vendorId!));
+
+      const [scratchedRow] = await db
+        .select({ cnt: count() })
+        .from(ticketsTable)
+        .where(and(eq(ticketsTable.vendorId, u.vendorId!), isNotNull(ticketsTable.registeredAt)));
+
+      const [revenueRow] = await db
+        .select({ total: sum(ticketsTable.price) })
+        .from(ticketsTable)
+        .where(eq(ticketsTable.vendorId, u.vendorId!));
+
+      return {
+        userId: u.id,
+        username: u.username,
+        email: u.email,
+        isSuspended: u.isSuspended,
+        vendorId: u.vendorId,
+        vendorName: vendor?.name ?? "—",
+        vendorLocation: vendor?.location ?? "—",
+        vendorPhone: vendor?.phone ?? null,
+        vendorStatus: vendor?.status ?? "active",
+        totalTickets: Number(tRow?.total ?? 0),
+        totalScratched: Number(scratchedRow?.cnt ?? 0),
+        totalRevenue: parseFloat(String(revenueRow?.total ?? "0")),
+        createdAt: u.createdAt.toISOString(),
+      };
+    }),
+  );
+
+  res.json(results);
+});
+
+// POST /api/admin/workers — create vendor + user account
+router.post("/admin/workers", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const { vendorName, location, phone, username, email, password } = req.body as {
+    vendorName: string; location: string; phone?: string;
+    username: string; email: string; password: string;
+  };
+
+  if (!vendorName || !location || !username || !email || !password) {
+    res.status(400).json({ error: "Tous les champs sont obligatoires" });
+    return;
+  }
+
+  // Check uniqueness
+  const [existing] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(or(eq(usersTable.username, username), eq(usersTable.email, email)))
+    .limit(1);
+  if (existing) {
+    res.status(409).json({ error: "Nom d'utilisateur ou email déjà utilisé" });
+    return;
+  }
+
+  // Create vendor record
+  const [vendor] = await db
+    .insert(vendorsTable)
+    .values({ name: vendorName, location, phone: phone ?? null, status: "active" })
+    .returning();
+
+  // Create user account
+  const passwordHash = await bcrypt.hash(password, 10);
+  const [newUser] = await db
+    .insert(usersTable)
+    .values({
+      email,
+      username,
+      passwordHash,
+      role: "vendor",
+      vendorId: vendor!.id,
+    })
+    .returning();
+
+  res.status(201).json({
+    userId: newUser!.id,
+    username: newUser!.username,
+    email: newUser!.email,
+    password, // shown once to admin
+    vendorId: vendor!.id,
+    vendorName: vendor!.name,
+    vendorLocation: vendor!.location,
+    createdAt: newUser!.createdAt.toISOString(),
+  });
+});
+
+// GET /api/admin/withdrawals — all withdrawals
+router.get("/admin/withdrawals", requireAdmin, async (_req: Request, res: Response): Promise<void> => {
+  const rows = await db
+    .select()
+    .from(withdrawalsTable)
+    .orderBy(desc(withdrawalsTable.createdAt))
+    .limit(200);
+
+  const results = await Promise.all(
+    rows.map(async (w) => {
+      let paidByVendorName: string | null = null;
+      if (w.paidByVendorId) {
+        const [v] = await db
+          .select({ name: vendorsTable.name })
+          .from(vendorsTable)
+          .where(eq(vendorsTable.id, w.paidByVendorId))
+          .limit(1);
+        paidByVendorName = v?.name ?? null;
+      }
+      return {
+        id: w.id,
+        clerkId: w.clerkId,
+        clerkName: w.clerkName,
+        amount: parseFloat(String(w.amount)),
+        token: w.token,
+        status: w.status,
+        paidByVendorId: w.paidByVendorId,
+        paidByVendorName,
+        paidAt: w.paidAt?.toISOString() ?? null,
+        createdAt: w.createdAt.toISOString(),
+      };
+    }),
+  );
+
+  res.json(results);
 });
 
 export default router;

@@ -1,0 +1,3 @@
+- [DB push workaround](db-push-workaround.md) — drizzle-kit push is interactive; use executeSql() via code_execution for schema changes instead.
+- [Lib declarations rebuild](lib-declarations-rebuild.md) — stale lib declarations cause false TS errors in artifacts; run `pnpm run typecheck:libs` before leaf typechecks after changing lib schemas.
+- [Vendor-context provider order](vendor-context-order.md) — VendorProvider must be nested inside AuthProvider; HMR invalidation warnings on context hooks are cosmetic and do not affect runtime.

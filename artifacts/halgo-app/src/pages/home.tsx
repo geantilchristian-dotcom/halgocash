@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Bell, ChevronRight, History, CheckCircle, AlertCircle, X, QrCode, Zap, Sparkles, RotateCcw, Wallet, Send, ChevronDown } from "lucide-react";
+import { Bell, ChevronRight, History, CheckCircle, AlertCircle, X, QrCode, Zap, Sparkles, RotateCcw, Wallet, Send, ChevronDown, Loader2 } from "lucide-react";
 import { useUser } from "@clerk/react";
 import { QRCodeSVG } from "qrcode.react";
 import { useTheme } from "@/lib/theme-context";
@@ -59,8 +59,8 @@ export default function Home() {
 
   // Withdrawal state
   const [retraitAmount, setRetraitAmount] = useState("");
-  const [retraitPhone, setRetraitPhone] = useState("");
-  const [retraitSent, setRetraitSent] = useState(false);
+  const [retraitLoading, setRetraitLoading] = useState(false);
+  const [retraitQR, setRetraitQR] = useState<{ token: string; amount: number; qrValue: string } | null>(null);
   const [retraitError, setRetraitError] = useState<string | null>(null);
 
   const fetchBalance = useCallback(async () => {
@@ -86,6 +86,7 @@ export default function Home() {
       const t = setTimeout(() => setBalanceFlash(false), 700);
       return () => clearTimeout(t);
     }
+    return undefined;
   }, [activationResult?.code, activationResult?.isWinner]);
 
   useEffect(() => {
@@ -139,19 +140,32 @@ export default function Home() {
 
   const openRetrait = () => {
     setRetraitAmount("");
-    setRetraitPhone("");
-    setRetraitSent(false);
+    setRetraitQR(null);
     setRetraitError(null);
     setShowRetrait(true);
   };
 
-  const submitRetrait = () => {
+  const submitRetrait = async () => {
     const amt = parseFloat(retraitAmount.replace(/\s/g, "").replace(",", "."));
     if (!amt || amt <= 0) { setRetraitError("Entrez un montant valide"); return; }
     if (!balance || amt > balance) { setRetraitError("Montant supérieur à votre solde disponible"); return; }
-    if (!retraitPhone.trim()) { setRetraitError("Entrez votre numéro de téléphone"); return; }
     setRetraitError(null);
-    setRetraitSent(true);
+    setRetraitLoading(true);
+    try {
+      const res = await fetch("/api/withdrawals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ amount: amt }),
+      });
+      const data = await res.json() as { token?: string; error?: string };
+      if (!res.ok) { setRetraitError(data.error ?? "Erreur serveur"); return; }
+      setRetraitQR({ token: data.token!, amount: amt, qrValue: data.token! });
+    } catch {
+      setRetraitError("Erreur de connexion");
+    } finally {
+      setRetraitLoading(false);
+    }
   };
 
   const displayId   = user ? `HG${(user.id ?? "").slice(-8).toUpperCase()}` : "HG----------";
@@ -476,21 +490,34 @@ export default function Home() {
               </button>
             </div>
 
-            {retraitSent ? (
-              /* ── Success state ── */
-              <div className="px-5 py-8 flex flex-col items-center gap-3 text-center">
-                <div className="w-16 h-16 rounded-full flex items-center justify-center mb-2"
-                  style={{ background: "rgba(34,197,94,0.15)", border: "2px solid rgba(34,197,94,0.35)" }}>
-                  <CheckCircle className="w-8 h-8 text-[#22c55e]" />
+            {retraitQR ? (
+              /* ── QR Code state ── */
+              <div className="px-5 py-6 flex flex-col items-center gap-4 text-center">
+                <p className={`font-black text-base ${cardText}`}>
+                  Présentez ce QR à un vendeur Halgo Cash
+                </p>
+                <p className={`text-xs ${subText}`}>
+                  Retrait de <span className="text-[#F5C518] font-bold">{formatFC(retraitQR.amount)} FC</span> · valable 15 min
+                </p>
+                <div className="p-4 rounded-2xl" style={{ background: "#fff", boxShadow: "0 4px 24px rgba(0,0,0,0.2)" }}>
+                  <QRCodeSVG
+                    value={retraitQR.qrValue}
+                    size={200}
+                    bgColor="#ffffff"
+                    fgColor="#0a1f0e"
+                    level="M"
+                  />
                 </div>
-                <p className={`font-black text-lg ${cardText}`}>Demande envoyée !</p>
-                <p className={`text-sm ${subText} max-w-xs`}>
-                  Votre retrait de <span className="text-[#F5C518] font-bold">{formatFC(parseFloat(retraitAmount))} FC</span> est en cours de traitement.
-                  Vous recevrez votre paiement sur le <span className="font-semibold">{retraitPhone}</span> sous 24h.
+                <div className="w-full rounded-xl px-4 py-2 text-xs font-mono break-all"
+                  style={{ background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)", color: isDark ? "#aaa" : "#666" }}>
+                  {retraitQR.token}
+                </div>
+                <p className={`text-[11px] ${subText}`}>
+                  Le vendeur scannera ce code et confirmera le paiement en espèces.
                 </p>
                 <button
-                  onClick={() => setShowRetrait(false)}
-                  className="mt-4 w-full py-3 rounded-xl font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98]"
+                  onClick={() => { setShowRetrait(false); setRetraitQR(null); setRetraitAmount(""); }}
+                  className="w-full py-3 rounded-xl font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98]"
                   style={{ background: "linear-gradient(135deg, #F5C518, #d4a017)", color: "#0a1f0e" }}
                 >
                   FERMER
@@ -552,24 +579,6 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* Phone number */}
-                <div>
-                  <p className={`text-[10px] font-bold uppercase tracking-wider mb-1.5 ${subText}`}>Numéro Mobile Money</p>
-                  <input
-                    type="tel"
-                    inputMode="tel"
-                    placeholder="+243 8XX XXX XXXX"
-                    value={retraitPhone}
-                    onChange={(e) => { setRetraitPhone(e.target.value); setRetraitError(null); }}
-                    className="w-full px-4 py-3.5 rounded-xl font-semibold text-base outline-none border-2 transition-all"
-                    style={{
-                      background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
-                      borderColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)",
-                      color: isDark ? "#fff" : "#111",
-                    }}
-                  />
-                </div>
-
                 {/* Error */}
                 {retraitError && (
                   <p className="text-red-400 text-xs flex items-center gap-1.5">
@@ -579,8 +588,8 @@ export default function Home() {
 
                 {/* Submit */}
                 <button
-                  onClick={submitRetrait}
-                  disabled={!retraitAmount || !retraitPhone}
+                  onClick={() => { void submitRetrait(); }}
+                  disabled={!retraitAmount || retraitLoading}
                   className="w-full py-3.5 rounded-xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40"
                   style={{
                     background: "linear-gradient(135deg, #F5C518, #d4a017)",
@@ -588,8 +597,8 @@ export default function Home() {
                     boxShadow: "0 4px 16px rgba(245,197,24,0.35)",
                   }}
                 >
-                  <Send className="w-4 h-4" />
-                  CONFIRMER LE RETRAIT
+                  {retraitLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
+                  {retraitLoading ? "GÉNÉRATION..." : "GÉNÉRER LE QR CODE"}
                 </button>
 
                 <p className={`text-[10px] text-center pb-2 ${subText}`}>

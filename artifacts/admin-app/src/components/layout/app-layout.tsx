@@ -8,6 +8,8 @@ import {
   QrCode,
   Menu,
   X,
+  Users,
+  ArrowDownLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -20,6 +22,8 @@ const navItems = [
   { href: "/",               label: "Dashboard",           icon: LayoutDashboard },
   { href: "/generate-codes", label: "Générer tickets",     icon: QrCode          },
   { href: "/tickets",        label: "Historique tickets",  icon: TicketIcon      },
+  { href: "/workers",        label: "Annuaire vendeurs",   icon: Users           },
+  { href: "/withdrawals",    label: "Retraits joueurs",    icon: ArrowDownLeft   },
   { href: "/settings",       label: "Paramètres",          icon: Settings        },
 ];
 

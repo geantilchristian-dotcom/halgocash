@@ -15,7 +15,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const { data: user, isLoading } = useGetMe({ query: { retry: false } });
+  const { data: user, isLoading } = useGetMe({ query: { retry: false, queryKey: ["/api/auth/me"] } });
   const loginMutation = useLogin();
   const registerMutation = useRegister();
   const logoutMutation = useLogout();

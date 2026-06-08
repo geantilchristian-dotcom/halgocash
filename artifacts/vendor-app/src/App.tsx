@@ -11,6 +11,7 @@ import Draws from "@/pages/draws";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
 import NotFound from "@/pages/not-found";
+import ScanRetrait from "@/pages/scan-retrait";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient({
@@ -50,6 +51,7 @@ function ProtectedRouter() {
       <Route path="/validate" component={Validate} />
       <Route path="/claim" component={Claim} />
       <Route path="/draws" component={Draws} />
+      <Route path="/scan-retrait" component={ScanRetrait} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -8,6 +8,8 @@ import drawsRouter from "./draws";
 import ticketsRouter from "./tickets";
 import vendorsRouter from "./vendors";
 import statsRouter from "./stats";
+import withdrawalsRouter from "./withdrawals";
+import vendorStatsRouter from "./vendor-stats";
 
 const router: IRouter = Router();
 
@@ -20,5 +22,7 @@ router.use(drawsRouter);
 router.use(ticketsRouter);
 router.use(vendorsRouter);
 router.use(statsRouter);
+router.use(withdrawalsRouter);
+router.use(vendorStatsRouter);
 
 export default router;
