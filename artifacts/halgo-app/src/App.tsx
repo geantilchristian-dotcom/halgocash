@@ -52,7 +52,8 @@ function SsoCallbackPage() {
         <Loader2 className="w-8 h-8 animate-spin text-[#3aab3a] mt-2" />
         <p className="text-white/50 text-sm">Connexion en cours…</p>
       </div>
-      <AuthenticateWithRedirectCallback />
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      <AuthenticateWithRedirectCallback {...({ signInForceRedirectUrl: `${basePath}/app`, signUpForceRedirectUrl: `${basePath}/app` } as any)} />
     </div>
   );
 }
