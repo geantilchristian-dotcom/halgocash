@@ -10,7 +10,7 @@ export PATH="$HOME/bin:$PATH"
 pnpm --version
 
 echo "=== [2/6] Installing dependencies ==="
-pnpm install --frozen-lockfile
+pnpm install --no-frozen-lockfile
 
 echo "=== [3/6] Building shared libs ==="
 pnpm run typecheck:libs
