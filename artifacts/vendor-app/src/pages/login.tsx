@@ -69,7 +69,7 @@ export default function Login() {
               <User className="w-4 h-4 text-green-600 shrink-0" />
               <input
                 type="text"
-                placeholder="Nom d'utilisateur"
+                placeholder="Email ou nom d'utilisateur"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 className="flex-1 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none font-medium"

@@ -2,10 +2,17 @@ import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import { eq, or, sum, and, isNotNull } from "drizzle-orm";
 import { db, usersTable, ticketsTable, withdrawalsTable } from "@workspace/db";
-import { RegisterBody, LoginBody } from "@workspace/api-zod";
+import { RegisterBody } from "@workspace/api-zod";
+import { z } from "zod";
 import { logger } from "../lib/logger";
 import { getAuth } from "@clerk/express";
 import { updatePresence } from "../lib/presence";
+
+// Accept email address OR plain username
+const VendorLoginBody = z.object({
+  email: z.string().min(1),
+  password: z.string().min(1),
+});
 
 declare module "express-session" {
   interface SessionData {
@@ -56,18 +63,18 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 });
 
 router.post("/auth/login", async (req, res): Promise<void> => {
-  const parsed = LoginBody.safeParse(req.body);
+  const parsed = VendorLoginBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: "Identifiants invalides" });
     return;
   }
 
-  const { email, password } = parsed.data;
+  const { email: identifier, password } = parsed.data;
 
   const [user] = await db
     .select()
     .from(usersTable)
-    .where(eq(usersTable.email, email))
+    .where(or(eq(usersTable.email, identifier), eq(usersTable.username, identifier)))
     .limit(1);
 
   if (!user) {
