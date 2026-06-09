@@ -3,8 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { History, Trophy, Ticket, ChevronRight, Layers, BarChart2, RefreshCw, CheckCircle2, XCircle, Clock, Trash2 } from "lucide-react";
+import { History, Trophy, Ticket, ChevronRight, Layers, BarChart2, RefreshCw, CheckCircle2, XCircle, Clock, Trash2, QrCode } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { QRCodeSVG } from "qrcode.react";
 
 interface Batch {
   series: string;
@@ -63,6 +64,7 @@ export default function Tickets() {
   const [filterStatus, setFilterStatus] = useState<"all" | "available" | "scratched" | "winners">("all");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [expandedQr, setExpandedQr] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const deleteMutation = useMutation({
@@ -285,16 +287,35 @@ export default function Tickets() {
                       <tr>
                         <th className="text-left px-4 py-2.5 text-xs text-zinc-500 font-medium">#</th>
                         <th className="text-left px-4 py-2.5 text-xs text-zinc-500 font-medium">Code</th>
+                        <th className="text-left px-4 py-2.5 text-xs text-zinc-500 font-medium">QR</th>
                         <th className="text-left px-4 py-2.5 text-xs text-zinc-500 font-medium">Statut</th>
                         <th className="text-left px-4 py-2.5 text-xs text-zinc-500 font-medium">Résultat</th>
                         <th className="text-left px-4 py-2.5 text-xs text-zinc-500 font-medium">Gratté le</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-800/60">
-                      {filtered.map((t, i) => (
+                      {filtered.map((t, i) => {
+                        const qrUrl = `${window.location.origin}/app?code=${t.code}`;
+                        const showQr = expandedQr === t.code;
+                        return (
                         <tr key={t.id} className="hover:bg-zinc-800/30 transition-colors">
                           <td className="px-4 py-2.5 text-zinc-600 text-xs">{i + 1}</td>
                           <td className="px-4 py-2.5 font-mono text-white text-sm tracking-wider">{t.code}</td>
+                          <td className="px-4 py-2.5">
+                            <button
+                              onClick={() => setExpandedQr(showQr ? null : t.code)}
+                              className="flex items-center justify-center w-7 h-7 rounded-md bg-zinc-800 hover:bg-indigo-600/30 transition-colors"
+                              title="Voir le QR code"
+                            >
+                              <QrCode className={cn("w-3.5 h-3.5", showQr ? "text-indigo-400" : "text-zinc-500")} />
+                            </button>
+                            {showQr && (
+                              <div className="absolute z-20 mt-1 p-3 bg-white rounded-xl shadow-2xl border border-zinc-200">
+                                <QRCodeSVG value={qrUrl} size={120} level="M" />
+                                <p className="text-center font-mono text-[10px] text-zinc-500 mt-1">{t.code}</p>
+                              </div>
+                            )}
+                          </td>
                           <td className="px-4 py-2.5">
                             {!t.registeredAt ? (
                               <Badge variant="outline" className="text-blue-400 border-blue-500/30 bg-blue-500/10 text-[10px]">
@@ -327,7 +348,8 @@ export default function Tickets() {
                             {t.registeredAt ? relativeTime(t.registeredAt) : "—"}
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}

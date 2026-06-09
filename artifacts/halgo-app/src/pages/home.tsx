@@ -90,6 +90,29 @@ export default function Home() {
 
   useEffect(() => { void fetchBalance(); }, [user?.id]);
 
+  // Auto-fill + auto-submit from QR code scan (?code= URL param)
+  const autoSubmitRef = useRef(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlCode = params.get("code");
+    if (urlCode) {
+      const cleaned = urlCode.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 10);
+      if (cleaned) {
+        setTicketCode(cleaned);
+        setShowTicketInput(true);
+        autoSubmitRef.current = true;
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (autoSubmitRef.current && ticketCode) {
+      autoSubmitRef.current = false;
+      void activateTicket();
+    }
+  }, [ticketCode, activateTicket]);
+
   const rollingAmount = useRollingCounter(activationResult?.isWinner ? (activationResult.prizeAmount ?? 0) : null);
 
   useEffect(() => {

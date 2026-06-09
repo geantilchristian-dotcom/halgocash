@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "../components/layout/app-layout";
 import { useAuth } from "@/lib/auth-context";
-import { Search, Trophy, Ticket, CheckCircle2, Clock, AlertCircle, Loader2, Star, Zap } from "lucide-react";
+import { Search, Trophy, Ticket, CheckCircle2, Clock, AlertCircle, Loader2, Star, Zap, QrCode, X } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 
 interface TicketRow {
   id: number;
@@ -59,6 +60,7 @@ export default function Validate() {
   const [search, setSearch] = useState("");
   const [flashIds, setFlashIds] = useState<Set<number>>(new Set());
   const prevScratchedIds = useRef<Set<number>>(new Set());
+  const [expandedQr, setExpandedQr] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery<TicketsResponse>({
     queryKey: ["/api/vendor/tickets", filter],
@@ -202,6 +204,9 @@ export default function Validate() {
               else if (isWinner) cardBg = "#fffbeb";
               else if (isScratched) cardBg = "#f9fafb";
 
+              const qrUrl = `${window.location.origin}/app?code=${ticket.code}`;
+              const showQr = expandedQr === ticket.id;
+
               return (
                 <div
                   key={ticket.id}
@@ -237,8 +242,21 @@ export default function Validate() {
                       </p>
                     </div>
 
-                    {/* Right: badge + prize */}
+                    {/* Right: QR toggle (available only) + badge + prize */}
                     <div className="shrink-0 flex flex-col items-end gap-1">
+                      {!isScratched && (
+                        <button
+                          onClick={() => setExpandedQr(showQr ? null : ticket.id)}
+                          className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full transition-all"
+                          style={showQr
+                            ? { background: "#0f3d1c", color: "#fff" }
+                            : { background: "#e5e7eb", color: "#374151" }
+                          }
+                        >
+                          {showQr ? <X style={{ width: 10, height: 10 }} /> : <QrCode style={{ width: 10, height: 10 }} />}
+                          {showQr ? "Fermer" : "QR"}
+                        </button>
+                      )}
                       {isWinner ? (
                         <>
                           <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full"
@@ -271,6 +289,20 @@ export default function Validate() {
                       )}
                     </div>
                   </div>
+
+                  {/* QR code panel — shown when toggled */}
+                  {showQr && (
+                    <div className="flex flex-col items-center gap-2 px-3 py-4 border-t border-gray-100"
+                      style={{ background: "#f9fafb" }}>
+                      <div className="p-3 bg-white rounded-xl shadow-sm">
+                        <QRCodeSVG value={qrUrl} size={160} level="M" />
+                      </div>
+                      <p className="text-[10px] text-gray-400 font-semibold text-center">
+                        Le client scanne ce code pour activer le billet
+                      </p>
+                      <p className="font-mono text-[11px] font-black text-gray-600 tracking-widest">{ticket.code}</p>
+                    </div>
+                  )}
                 </div>
               );
             })}
