@@ -18,6 +18,12 @@ echo "=== [3/6] Building shared libs ==="
 pnpm run typecheck:libs
 
 echo "=== [4/6] Building frontend apps ==="
+# Vite embeds VITE_* vars at build time. Render sets CLERK_PUBLISHABLE_KEY (no prefix),
+# so we map it here so Vite can include it in the bundle.
+export VITE_CLERK_PUBLISHABLE_KEY="${CLERK_PUBLISHABLE_KEY}"
+export VITE_CLERK_PROXY_URL="${CLERK_PROXY_URL:-}"
+echo "  VITE_CLERK_PUBLISHABLE_KEY set: $([ -n "$VITE_CLERK_PUBLISHABLE_KEY" ] && echo yes || echo NO — missing!)"
+
 # Find vite in pnpm's virtual store — works regardless of hoisting/linker config
 VITE_BIN=$(find node_modules -name "vite.js" -path "*/vite/bin/vite.js" 2>/dev/null | head -1)
 if [ -z "$VITE_BIN" ]; then
