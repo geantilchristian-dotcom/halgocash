@@ -45,7 +45,7 @@ function SsoCallbackPage() {
         <p className="text-white/50 text-sm">Connexion en cours…</p>
       </div>
       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-      <AuthenticateWithRedirectCallback {...({ signInForceRedirectUrl: `${basePath}/app`, signUpForceRedirectUrl: `${basePath}/app` } as any)} />
+      <AuthenticateWithRedirectCallback {...({ signInFallbackRedirectUrl: `${basePath}/app`, signUpFallbackRedirectUrl: `${basePath}/app` } as any)} />
     </div>
   );
 }

@@ -115,7 +115,7 @@ export default function SignInPage() {
               path={`${basePath}/sign-in`}
               signUpUrl={`${basePath}/sign-up`}
               appearance={signInAppearance}
-              forceRedirectUrl={`${basePath}/app`}
+              fallbackRedirectUrl={`${basePath}/app`}
             />
           </div>
         </div>
