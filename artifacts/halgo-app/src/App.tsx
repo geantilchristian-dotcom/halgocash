@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { ThemeProvider } from "@/lib/theme-context";
 import { ClerkProvider, useClerk, useAuth, AuthenticateWithRedirectCallback } from "@clerk/react";
+import { publishableKeyFromHost } from "@clerk/react/internal";
 import { Switch, Route, useLocation, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -17,8 +18,16 @@ import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
 
-const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL as string | undefined;
+// REQUIRED — resolves key from window.location.hostname for multi-domain support.
+const clerkPubKey = publishableKeyFromHost(
+  window.location.hostname,
+  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
+);
+
+// REQUIRED — empty in dev (Clerk hits dev FAPI directly), auto-set in prod.
+// Do NOT gate on import.meta.env.PROD — the empty dev value is intentional.
+const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
+
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function stripBase(path: string): string {
@@ -92,7 +101,6 @@ const AppContent = (
 );
 
 function AppRoutes() {
-  if (!clerkPubKey) return AppContent;
   return <AuthGuard>{AppContent}</AuthGuard>;
 }
 
@@ -133,14 +141,6 @@ function Routes() {
 function AppWithClerk() {
   const [, setLocation] = useLocation();
 
-  if (!clerkPubKey) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <Routes />
-      </QueryClientProvider>
-    );
-  }
-
   return (
     <ClerkProvider
       publishableKey={clerkPubKey}
@@ -162,14 +162,12 @@ function AppWithClerk() {
 function App() {
   return (
     <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <WouterRouter base={basePath}>
-            <AppWithClerk />
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
-      </QueryClientProvider>
+      <TooltipProvider>
+        <WouterRouter base={basePath}>
+          <AppWithClerk />
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
     </ThemeProvider>
   );
 }

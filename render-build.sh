@@ -32,7 +32,7 @@ if [ -z "$VITE_BIN" ]; then
 fi
 echo "Found vite at: $VITE_BIN"
 
-(cd artifacts/halgo-app  && PORT=3001 BASE_PATH=/ VITE_CLERK_PROXY_URL=https://halgocash.com/api/__clerk NODE_ENV=production node "$OLDPWD/$VITE_BIN" build --config vite.config.ts)
+(cd artifacts/halgo-app  && PORT=3001 BASE_PATH=/ NODE_ENV=production node "$OLDPWD/$VITE_BIN" build --config vite.config.ts)
 (cd artifacts/admin-app  && PORT=3002 BASE_PATH=/admin/   NODE_ENV=production node "$OLDPWD/$VITE_BIN" build --config vite.config.ts)
 (cd artifacts/vendor-app && PORT=3003 BASE_PATH=/vendor/  NODE_ENV=production node "$OLDPWD/$VITE_BIN" build --config vite.config.ts)
 (cd artifacts/display-app && PORT=3004 BASE_PATH=/display/ NODE_ENV=production node "$OLDPWD/$VITE_BIN" build --config vite.config.ts)
