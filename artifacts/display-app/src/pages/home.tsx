@@ -1,200 +1,217 @@
-import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  useGetLatestDraw, 
-  useGetStats, 
-  useListWinners,
-  getGetLatestDrawQueryKey, 
-  getGetStatsQueryKey, 
-  getListWinnersQueryKey 
-} from "@workspace/api-client-react";
+import { useGetLatestDraw, useGetStats, useListWinners, getGetLatestDrawQueryKey, getGetStatsQueryKey, getListWinnersQueryKey } from "@workspace/api-client-react";
+import { useEffect, useState } from "react";
+
+const FC = (n: number) =>
+  new Intl.NumberFormat("fr-CD", { style: "currency", currency: "CDF", maximumFractionDigits: 0 }).format(n);
+
+function Clock() {
+  const [time, setTime] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span className="font-mono text-2xl text-white/70 tabular-nums">
+      {time.toLocaleTimeString("fr-FR")}
+    </span>
+  );
+}
 
 export default function Home() {
-  const { data: latestDraw } = useGetLatestDraw({
-    query: {
-      refetchInterval: 30000,
-      queryKey: getGetLatestDrawQueryKey(),
-    },
-  });
+  const { data: draw } = useGetLatestDraw({ query: { refetchInterval: 15000, queryKey: getGetLatestDrawQueryKey() } });
+  const { data: stats } = useGetStats({ query: { refetchInterval: 30000, queryKey: getGetStatsQueryKey() } });
+  const { data: winners } = useListWinners({ limit: 50 }, { query: { refetchInterval: 20000, queryKey: getListWinnersQueryKey({ limit: 50 }) } });
 
-  const { data: stats } = useGetStats({
-    query: {
-      refetchInterval: 30000,
-      queryKey: getGetStatsQueryKey(),
-    },
-  });
-
-  const { data: winners } = useListWinners(
-    { limit: 20 },
-    { query: { refetchInterval: 60000, queryKey: getListWinnersQueryKey({ limit: 20 }) } }
-  );
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-CD", {
-      style: "currency",
-      currency: "CDF",
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const isPending = !latestDraw?.winningTicketCode && latestDraw?.status === "active";
+  const jackpot = Number(draw?.jackpotAmount ?? 0);
+  const bestWinner = winners && winners.length > 0
+    ? winners.reduce((best, w) => Number(w.prizeAmount) > Number(best.prizeAmount) ? w : best, winners[0])
+    : null;
 
   return (
-    <div className="min-h-screen w-full bg-background text-foreground flex flex-col overflow-hidden relative selection:bg-primary selection:text-primary-foreground">
-      {/* Background ambient effects */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none opacity-20">
-        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-accent rounded-full blur-[150px]" />
-      </div>
+    <div className="h-screen w-screen bg-[#0a0a0f] text-white flex flex-col overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
 
-      {/* Top Header */}
-      <header className="relative z-10 w-full px-12 py-8 flex justify-between items-center border-b border-white/5 bg-black/20 backdrop-blur-md">
+      {/* ── HEADER ── */}
+      <header className="flex-none flex items-center justify-between px-10 py-5 bg-black/60 border-b border-white/10 backdrop-blur-md">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-[0_0_30px_rgba(255,215,0,0.5)]">
-            <span className="text-black font-black text-3xl tracking-tighter">HC</span>
+          <div className="w-14 h-14 rounded-2xl bg-[#f5c518] flex items-center justify-center shadow-[0_0_24px_rgba(245,197,24,0.5)]">
+            <span className="text-black font-black text-2xl tracking-tighter">HC</span>
           </div>
           <div>
-            <h1 className="text-3xl font-black tracking-tight text-white uppercase">Halgo Cash</h1>
-            <p className="text-primary font-medium tracking-widest text-sm uppercase opacity-90">Live Draw</p>
+            <h1 className="text-2xl font-black text-white uppercase tracking-wide leading-none">Halgo Cash</h1>
+            <p className="text-[#f5c518] text-xs font-bold tracking-[0.3em] uppercase mt-0.5">Loterie — Tirage en direct</p>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-white/60 text-lg font-medium uppercase tracking-wider">Draw Number</p>
-          <p className="text-5xl font-mono font-bold text-white shadow-black drop-shadow-md">
-            #{latestDraw?.drawNumber?.toString().padStart(4, "0") || "0000"}
-          </p>
+
+        <div className="flex items-center gap-10">
+          <div className="text-center">
+            <p className="text-white/40 text-xs uppercase tracking-widest">Tirage</p>
+            <p className="font-mono text-3xl font-black text-white tracking-wider">
+              #{(draw?.drawNumber ?? 0).toString().padStart(4, "0")}
+            </p>
+          </div>
+          <div className="text-center">
+            <p className="text-white/40 text-xs uppercase tracking-widest">Heure</p>
+            <Clock />
+          </div>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 relative z-10 flex flex-col items-center justify-center p-12 gap-12">
-        {/* Jackpot Section */}
-        <motion.div 
-          initial={{ opacity: 0, y: 40, scale: 0.9 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="text-center w-full max-w-5xl"
-        >
-          <h2 className="text-primary text-3xl md:text-4xl font-bold uppercase tracking-[0.2em] mb-4">Current Jackpot</h2>
-          <div className="relative inline-block">
-            <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full" />
-            <span className="relative text-7xl md:text-[8rem] lg:text-[10rem] font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/60 drop-shadow-2xl">
-              {formatCurrency(latestDraw?.jackpotAmount || 0)}
-            </span>
-          </div>
-        </motion.div>
+      {/* ── BODY ── */}
+      <main className="flex-1 grid grid-cols-12 gap-0 min-h-0">
 
-        {/* Winner Reveal Section */}
-        <div className="w-full max-w-4xl bg-black/40 border border-white/10 p-12 rounded-3xl backdrop-blur-xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-accent to-transparent" />
-          
-          <div className="text-center space-y-6 relative z-10">
-            <h3 className="text-white/60 text-xl font-medium uppercase tracking-widest">Winning Ticket</h3>
-            
-            <div className="h-32 flex items-center justify-center">
-              <AnimatePresence mode="wait">
-                {isPending ? (
-                  <motion.div
-                    key="pending"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="flex flex-col items-center gap-4"
-                  >
-                    <div className="flex gap-3">
-                      {[0,1,2].map((i) => (
-                        <motion.div 
-                          key={i}
-                          animate={{ 
-                            scale: [1, 1.5, 1],
-                            opacity: [0.3, 1, 0.3]
-                          }}
-                          transition={{ 
-                            duration: 1.5, 
-                            repeat: Infinity, 
-                            delay: i * 0.2 
-                          }}
-                          className="w-6 h-6 rounded-full bg-accent shadow-[0_0_15px_rgba(230,57,100,0.6)]"
-                        />
-                      ))}
-                    </div>
-                    <p className="text-2xl font-bold text-accent uppercase tracking-widest animate-pulse">Draw Pending</p>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="revealed"
-                    initial={{ opacity: 0, scale: 0.5, rotateX: -20 }}
-                    animate={{ opacity: 1, scale: 1, rotateX: 0 }}
-                    transition={{ type: "spring", damping: 15, stiffness: 100 }}
-                    className="flex items-center justify-center"
-                  >
-                    <div className="bg-secondary/20 border-2 border-secondary px-10 py-6 rounded-2xl shadow-[0_0_50px_rgba(33,197,94,0.3)]">
-                      <span className="text-6xl font-mono font-bold text-secondary tracking-widest">
-                        {latestDraw?.winningTicketCode || "NO WINNER"}
-                      </span>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+        {/* LEFT — Jackpot + Billet gagnant */}
+        <section className="col-span-5 flex flex-col items-center justify-center gap-6 px-10 border-r border-white/10 relative">
+          <div className="absolute inset-0 bg-gradient-to-br from-[#f5c518]/5 to-transparent pointer-events-none" />
+
+          {/* Jackpot de la semaine */}
+          <div className="text-center relative z-10 w-full">
+            <p className="text-[#f5c518] text-sm font-bold uppercase tracking-[0.35em] mb-2">Jackpot de la semaine</p>
+            <motion.p
+              key={jackpot}
+              initial={{ scale: 0.85, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 120, damping: 14 }}
+              className="text-5xl xl:text-6xl font-black text-white leading-none"
+              style={{ textShadow: "0 0 40px rgba(245,197,24,0.4)" }}
+            >
+              {FC(jackpot)}
+            </motion.p>
+          </div>
+
+          <div className="w-full h-px bg-white/10" />
+
+          {/* Billet gagnant */}
+          <div className="text-center w-full relative z-10">
+            <p className="text-white/40 text-xs uppercase tracking-widest mb-3">Billet gagnant</p>
+            <AnimatePresence mode="wait">
+              {draw?.winningTicketCode ? (
+                <motion.div
+                  key="winner"
+                  initial={{ scale: 0.7, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", stiffness: 140, damping: 12 }}
+                  className="inline-block border-2 border-[#22c55e] rounded-2xl px-8 py-5 bg-[#22c55e]/10 shadow-[0_0_40px_rgba(34,197,94,0.25)]"
+                >
+                  <span className="font-mono text-4xl xl:text-5xl font-black text-[#22c55e] tracking-widest">
+                    {draw.winningTicketCode}
+                  </span>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="pending"
+                  animate={{ opacity: [0.5, 1, 0.5] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="inline-block border-2 border-white/20 rounded-2xl px-8 py-5"
+                >
+                  <span className="font-mono text-3xl font-bold text-white/30 tracking-widest uppercase">
+                    {draw?.status === "active" ? "En cours…" : "Pas de gagnant"}
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <div className="w-full h-px bg-white/10" />
+
+          {/* Meilleur gagnant */}
+          <div className="text-center w-full relative z-10">
+            <p className="text-[#f5c518] text-xs font-bold uppercase tracking-[0.3em] mb-3">🏆 Meilleur gagnant</p>
+            {bestWinner ? (
+              <div className="bg-white/5 border border-white/10 rounded-2xl px-6 py-4">
+                <p className="font-mono text-2xl font-black text-white tracking-widest">{bestWinner.maskedCode}</p>
+                <p className="text-[#f5c518] text-lg font-bold mt-1">{FC(Number(bestWinner.prizeAmount))}</p>
+                <p className="text-white/30 text-xs mt-1">Tirage #{bestWinner.drawNumber}</p>
+              </div>
+            ) : (
+              <div className="bg-white/5 border border-white/10 rounded-2xl px-6 py-4">
+                <p className="text-white/30 text-sm uppercase tracking-widest">Aucun gagnant pour l'instant</p>
+              </div>
+            )}
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 gap-3 w-full relative z-10">
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Billets vendus</p>
+              <p className="text-2xl font-black text-white">{(stats?.totalTicketsSold ?? 0).toLocaleString("fr-FR")}</p>
+            </div>
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Vendeurs actifs</p>
+              <p className="text-2xl font-black text-white">{stats?.activeVendors ?? 0}</p>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Stats Grid */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.6 }}
-          className="grid grid-cols-3 gap-8 w-full max-w-5xl"
-        >
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-center backdrop-blur-sm">
-            <p className="text-white/50 text-sm uppercase tracking-wider mb-2">Total Prizes Paid</p>
-            <p className="text-3xl font-bold text-white">{formatCurrency(stats?.totalPrizesPaid || 0)}</p>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-center backdrop-blur-sm">
-            <p className="text-white/50 text-sm uppercase tracking-wider mb-2">Active Vendors</p>
-            <p className="text-3xl font-bold text-white">{stats?.activeVendors || 0}</p>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-center backdrop-blur-sm">
-            <p className="text-white/50 text-sm uppercase tracking-wider mb-2">Completed Draws</p>
-            <p className="text-3xl font-bold text-white">{stats?.completedDraws || 0}</p>
-          </div>
-        </motion.div>
+        {/* RIGHT — Liste des numéros gagnants */}
+        <section className="col-span-7 flex flex-col min-h-0 px-8 py-6">
+          <p className="text-white/50 text-xs font-bold uppercase tracking-[0.35em] mb-4 flex-none">
+            Numéros grattés &amp; gagnants récents
+          </p>
+
+          {winners && winners.length > 0 ? (
+            <div className="flex-1 overflow-hidden relative">
+              {/* fade mask top/bottom */}
+              <div className="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-[#0a0a0f] to-transparent z-10 pointer-events-none" />
+              <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-[#0a0a0f] to-transparent z-10 pointer-events-none" />
+
+              <div className="h-full overflow-y-auto scrollbar-hide pr-1">
+                <div className="grid grid-cols-2 gap-3">
+                  {winners.map((w, i) => (
+                    <motion.div
+                      key={`${w.drawNumber}-${w.maskedCode}-${i}`}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.03 }}
+                      className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3 gap-3"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-[#f5c518]/15 border border-[#f5c518]/30 flex items-center justify-center flex-none">
+                          <span className="text-[#f5c518] text-xs font-black">#{w.drawNumber}</span>
+                        </div>
+                        <span className="font-mono text-base font-bold text-white tracking-widest truncate">
+                          {w.maskedCode}
+                        </span>
+                      </div>
+                      <span className="text-[#22c55e] font-black text-sm whitespace-nowrap flex-none">
+                        {FC(Number(w.prizeAmount))}
+                      </span>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <div className="text-6xl mb-4">🎟️</div>
+                <p className="text-white/30 text-lg uppercase tracking-widest">Aucun numéro gagnant</p>
+                <p className="text-white/20 text-sm mt-2">Les billets gagnants apparaîtront ici</p>
+              </div>
+            </div>
+          )}
+        </section>
       </main>
 
-      {/* Scrolling Ticker (Recent Winners / Draws) */}
-      <footer className="relative z-20 bg-primary border-t-4 border-primary-border overflow-hidden py-4">
-        <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-primary to-transparent z-10" />
-        <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-primary to-transparent z-10" />
-        
-        <div className="flex w-[200%] animate-ticker hover:[animation-play-state:paused]">
-          {/* Repeat content twice for smooth infinite scrolling */}
-          {[...Array(2)].map((_, i) => (
-            <div key={i} className="flex-1 flex items-center justify-around whitespace-nowrap">
-              {winners?.slice(0, 10).map((winner, idx) => (
-                <div key={idx} className="flex items-center gap-4 mx-8">
-                  <div className="bg-black text-primary px-3 py-1 rounded font-bold text-sm uppercase">Winner #{winner.drawNumber}</div>
-                  <span className="text-black font-mono font-bold text-2xl">
-                    {winner.maskedCode}
-                  </span>
-                  <span className="text-black/60 font-black text-2xl">•</span>
-                  <span className="text-black font-bold text-2xl">
-                    {formatCurrency(winner.prizeAmount)}
-                  </span>
-                  <span className="text-black/60 font-black text-2xl mx-8">||</span>
-                </div>
-              ))}
-              {/* Fallback if not enough data */}
-              {(!winners || winners.length === 0) && (
-                <div className="flex items-center gap-4 mx-8">
-                  <div className="bg-black text-primary px-3 py-1 rounded font-bold text-sm uppercase">Join Now</div>
-                  <span className="text-black font-bold text-2xl uppercase tracking-wider">
-                    Play Halgo Cash Today
-                  </span>
-                  <span className="text-black/60 font-black text-2xl mx-8">||</span>
-                </div>
-              )}
-            </div>
+      {/* ── TICKER BAS ── */}
+      <footer className="flex-none bg-[#f5c518] py-3 overflow-hidden relative">
+        <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-[#f5c518] to-transparent z-10" />
+        <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-[#f5c518] to-transparent z-10" />
+        <div className="flex animate-ticker whitespace-nowrap">
+          {[...Array(3)].map((_, rep) => (
+            <span key={rep} className="inline-flex items-center gap-6 text-black font-bold text-sm uppercase tracking-widest mx-4">
+              {winners && winners.length > 0
+                ? winners.slice(0, 10).map((w, i) => (
+                    <span key={i} className="inline-flex items-center gap-3 mr-8">
+                      <span className="bg-black text-[#f5c518] px-2 py-0.5 rounded text-xs font-black">#{w.drawNumber}</span>
+                      <span className="font-mono font-black">{w.maskedCode}</span>
+                      <span className="text-green-800 font-black">{FC(Number(w.prizeAmount))}</span>
+                      <span className="text-black/40 mx-2">◆</span>
+                    </span>
+                  ))
+                : <span className="mr-8">Jouez à Halgo Cash — Grattez et gagnez ! ◆ Disponible chez tous nos vendeurs agréés ◆</span>
+              }
+            </span>
           ))}
         </div>
       </footer>

@@ -118,3 +118,7 @@
     @apply font-sans antialiased bg-background text-foreground overflow-hidden;
   }
 }
+
+/* Hide scrollbar visually but keep scroll functionality */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
