@@ -1,0 +1,42 @@
+==> It looks like we don't have access to your repo, but we'll try to clone it anyway.
+==> Cloning from https://github.com/geantilchristian-dotcom/halgocash
+==> Checking out commit e5c79d2a197c9c0d9322026aeadb1d426155d1ca in branch main
+==> Using Node.js version 24.14.1 (default)
+==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+==> Running build command 'bash render-build.sh'...
+=== [1/6] Installing pnpm ===
+added 1 package in 1s
+1 package is looking for funding
+  run `npm fund` for details
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.onlyBuiltDependencies". See https://pnpm.io/settings for the new home of each setting.
+11.5.2
+=== [2/6] Installing dependencies ===
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.onlyBuiltDependencies". See https://pnpm.io/settings for the new home of each setting.
+Scope: all 12 workspace projects
+? Verifying lockfile against supply-chain policies (520 entries)...
+✓ Lockfile passes supply-chain policies (520 entries in 2.9s)
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +518
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 518, reused 0, downloaded 34, added 8
+Progress: resolved 518, reused 0, downloaded 173, added 141
+Progress: resolved 518, reused 0, downloaded 180, added 141
+Progress: resolved 518, reused 0, downloaded 196, added 145
+Progress: resolved 518, reused 0, downloaded 266, added 179
+Progress: resolved 518, reused 0, downloaded 298, added 202
+Progress: resolved 518, reused 0, downloaded 381, added 302
+Progress: resolved 518, reused 0, downloaded 469, added 378
+Progress: resolved 518, reused 0, downloaded 470, added 381
+Progress: resolved 518, reused 0, downloaded 470, added 382
+Progress: resolved 518, reused 0, downloaded 518, added 518, done
+devDependencies:
++ prettier 3.8.3
++ typescript 5.9.3
++ vite 7.3.3
+. preinstall$ sh -c 'rm -f package-lock.json yarn.lock; case "$npm_config_user_agent" in pnpm/*) ;; *) echo "Use pnpm instead" >&2; exit 1 ;; esac'
+. preinstall: Done
+[ERR_PNPM_IGNORED_BUILDS] Ignored build scripts: @clerk/shared@3.47.7, esbuild@0.27.3
+Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.
+==> Build failed 😞
+==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys

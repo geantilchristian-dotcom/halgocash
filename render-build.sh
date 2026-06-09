@@ -4,8 +4,8 @@
 set -e
 
 echo "=== [1/6] Installing pnpm ==="
-# Use pnpm@latest (v10) — same major as used to generate the lockfile
-npm_config_prefix=$HOME npm install -g pnpm@latest
+# pnpm@9: supports catalog: protocol + onlyBuiltDependencies in pnpm-workspace.yaml
+npm_config_prefix=$HOME npm install -g pnpm@9
 export PATH="$HOME/bin:$PATH"
 pnpm --version
 
