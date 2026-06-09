@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { useUser } from "@clerk/react";
+import { useUser, useClerk } from "@clerk/react";
 import { User, Mail, LogOut, Shield, Phone, Edit3, Check, X, Loader2 } from "lucide-react";
 import { useTheme } from "@/lib/theme-context";
 import { useAuth } from "@/lib/auth-context";
 
 export default function Profile() {
   const { user, isLoaded } = useUser();
-  const { logout, user: sessionUser } = useAuth();
+  const { signOut } = useClerk();
+  const { logout } = useAuth();
   const { isDark } = useTheme();
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -178,7 +179,12 @@ export default function Profile() {
         <button
           onClick={async () => {
             try { await logout(); } catch { /* ignore */ }
-            window.location.href = `${basePath}/`;
+            if (user) {
+              // Clerk user — signOut handles redirect
+              await signOut({ redirectUrl: `${basePath}/` });
+            } else {
+              window.location.href = `${basePath}/`;
+            }
           }}
           className={`w-full rounded-2xl p-4 shadow-sm border flex items-center gap-3 transition-colors ${isDark ? "bg-red-900/20 border-red-900/30 hover:bg-red-900/30" : "bg-white border-gray-100 hover:bg-red-50"}`}
         >
