@@ -114,9 +114,15 @@ router.post("/admin/login", async (req: Request, res: Response): Promise<void> =
   await db.update(usersTable).set({ lastLoginAt: new Date(), lastLoginIp: ip }).where(eq(usersTable.id, user.id));
 
   req.session.userId = user.id;
-  logger.info({ userId: user.id }, "Admin logged in");
-
-  res.json({ id: user.id, email: user.email, username: user.username, role: user.role, vendorId: user.vendorId ?? null });
+  req.session.save((err) => {
+    if (err) {
+      logger.error({ err }, "Session save failed");
+      res.status(500).json({ error: "Erreur serveur" });
+      return;
+    }
+    logger.info({ userId: user.id }, "Admin logged in");
+    res.json({ id: user.id, email: user.email, username: user.username, role: user.role, vendorId: user.vendorId ?? null });
+  });
 });
 
 // GET /api/admin/users

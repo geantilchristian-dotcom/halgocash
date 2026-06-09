@@ -70,15 +70,20 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     .returning();
 
   req.session.userId = user!.id;
-
-  req.log.info({ userId: user!.id, role: user!.role }, "User registered");
-
-  res.status(201).json({
-    id: user!.id,
-    email: user!.email,
-    username: user!.username,
-    role: user!.role,
-    vendorId: user!.vendorId,
+  req.session.save((saveErr) => {
+    if (saveErr) {
+      req.log.error({ err: saveErr }, "Session save failed");
+      res.status(500).json({ error: "Erreur serveur" });
+      return;
+    }
+    req.log.info({ userId: user!.id, role: user!.role }, "User registered");
+    res.status(201).json({
+      id: user!.id,
+      email: user!.email,
+      username: user!.username,
+      role: user!.role,
+      vendorId: user!.vendorId,
+    });
   });
 });
 
@@ -134,13 +139,20 @@ router.post("/auth/login", loginRateLimit, async (req, res): Promise<void> => {
       return;
     }
     req.session.userId = user.id;
-    req.log.info({ userId: user.id, role: user.role }, "User logged in");
-    res.json({
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      role: user.role,
-      vendorId: user.vendorId,
+    req.session.save((saveErr) => {
+      if (saveErr) {
+        req.log.error({ err: saveErr }, "Session save failed");
+        res.status(500).json({ error: "Erreur serveur" });
+        return;
+      }
+      req.log.info({ userId: user.id, role: user.role }, "User logged in");
+      res.json({
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        vendorId: user.vendorId,
+      });
     });
   });
 });
