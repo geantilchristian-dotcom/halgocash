@@ -114,7 +114,6 @@ export default function SignInPage() {
               routing="hash"
               signUpUrl={`${basePath}/sign-up`}
               appearance={signInAppearance}
-              fallbackRedirectUrl={`${basePath}/app`}
             />
           </div>
         </div>
