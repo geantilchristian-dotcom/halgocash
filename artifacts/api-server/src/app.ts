@@ -133,7 +133,6 @@ app.use(
   clerkMiddleware({
     publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
     secretKey: process.env.CLERK_SECRET_KEY,
-    proxyUrl: isProd ? `https://halgocash.com${CLERK_PROXY_PATH}` : undefined,
   }),
 );
 
