@@ -16,12 +16,16 @@ echo "=== [3/6] Building shared libs ==="
 pnpm run typecheck:libs
 
 echo "=== [4/6] Building frontend apps ==="
-# pnpm exec finds the binary via the workspace package's node_modules chain,
-# bypassing PATH issues caused by pnpm subprocess isolation.
-PORT=3001 BASE_PATH=/         NODE_ENV=production pnpm -C artifacts/halgo-app  exec vite build --config vite.config.ts
-PORT=3002 BASE_PATH=/admin/   NODE_ENV=production pnpm -C artifacts/admin-app  exec vite build --config vite.config.ts
-PORT=3003 BASE_PATH=/vendor/  NODE_ENV=production pnpm -C artifacts/vendor-app exec vite build --config vite.config.ts
-PORT=3004 BASE_PATH=/display/ NODE_ENV=production pnpm -C artifacts/display-app exec vite build --config vite.config.ts
+# Invoke vite's JS entry point directly via node — no bin link or PATH needed.
+# node-linker=hoisted places vite at root node_modules/vite/bin/vite.js.
+VITE_BIN="$PWD/node_modules/vite/bin/vite.js"
+echo "Using vite at: $VITE_BIN"
+ls "$VITE_BIN"
+
+(cd artifacts/halgo-app  && PORT=3001 BASE_PATH=/         NODE_ENV=production node "$VITE_BIN" build --config vite.config.ts)
+(cd artifacts/admin-app  && PORT=3002 BASE_PATH=/admin/   NODE_ENV=production node "$VITE_BIN" build --config vite.config.ts)
+(cd artifacts/vendor-app && PORT=3003 BASE_PATH=/vendor/  NODE_ENV=production node "$VITE_BIN" build --config vite.config.ts)
+(cd artifacts/display-app && PORT=3004 BASE_PATH=/display/ NODE_ENV=production node "$VITE_BIN" build --config vite.config.ts)
 
 echo "=== [5/6] Building API server ==="
 NODE_ENV=production pnpm -C artifacts/api-server exec node build.mjs
