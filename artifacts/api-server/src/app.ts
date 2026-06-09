@@ -129,9 +129,13 @@ app.use(
 );
 
 // ── Clerk middleware ───────────────────────────────────────────────────────
+// CLERK_PUBLISHABLE_KEY is the standard server-side name; VITE_CLERK_PUBLISHABLE_KEY
+// is the Vite-prefixed variant set on Render — accept either.
+const clerkPublishableKey =
+  process.env.CLERK_PUBLISHABLE_KEY ?? process.env.VITE_CLERK_PUBLISHABLE_KEY;
 app.use(
   clerkMiddleware({
-    publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
+    publishableKey: clerkPublishableKey,
     secretKey: process.env.CLERK_SECRET_KEY,
   }),
 );
