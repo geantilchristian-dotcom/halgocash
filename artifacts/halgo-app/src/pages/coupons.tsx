@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
-import { CheckCircle, XCircle, Clock, Ticket, Trophy, Plus, X, Loader2 } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Ticket, Trophy, Plus, X, Loader2, ScanLine } from "lucide-react";
 import { useTheme } from "@/lib/theme-context";
+import { QrScanner } from "@/components/qr-scanner";
 
 type TicketStatus = "available" | "sold" | "validated" | "claimed" | "expired";
 
@@ -48,8 +49,31 @@ export default function Coupons() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<Filter>("tous");
   const [showAdd, setShowAdd] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const [newCode, setNewCode] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
+
+  const handleScanResult = (raw: string) => {
+    setShowScanner(false);
+    // QR codes contain either a URL (?code=XXXXXXXXXX) or a raw 10-digit code
+    let code = raw.trim();
+    try {
+      const url = new URL(raw);
+      const param = url.searchParams.get("code");
+      if (param) code = param;
+    } catch { /* not a URL — use raw value */ }
+    code = code.replace(/\D/g, "").slice(0, 10);
+    if (code.length === 10) {
+      setNewCode(code);
+      setShowAdd(true);
+      setAddError(null);
+      registerMutation.mutate(code);
+    } else {
+      setNewCode(code);
+      setShowAdd(true);
+      setAddError("QR invalide — vérifiez le code ci-dessous.");
+    }
+  };
 
   const { data: tickets = [], isLoading } = useQuery<CouponItem[]>({
     queryKey: ["/api/coupons"],
@@ -104,6 +128,11 @@ export default function Coupons() {
 
   return (
     <div className={`min-h-dvh transition-colors ${page}`}>
+      {/* QR Scanner overlay */}
+      {showScanner && (
+        <QrScanner onResult={handleScanResult} onClose={() => setShowScanner(false)} />
+      )}
+
       {/* Header */}
       <div
         className="px-5 pt-10 pb-14"
@@ -114,14 +143,24 @@ export default function Coupons() {
             <h1 className="text-white font-black text-2xl uppercase tracking-wider">MES COUPONS</h1>
             <p className="text-white/60 text-sm mt-0.5">Historique de vos tickets de loterie</p>
           </div>
-          <button
-            onClick={() => { setShowAdd(true); setAddError(null); setNewCode(""); }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold transition-all active:scale-[0.97]"
-            style={{ background: "rgba(245,197,24,0.2)", color: "#F5C518", border: "1px solid rgba(245,197,24,0.3)" }}
-          >
-            <Plus className="w-4 h-4" />
-            Ajouter
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowScanner(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold transition-all active:scale-[0.97]"
+              style={{ background: "rgba(58,171,58,0.2)", color: "#3aab3a", border: "1px solid rgba(58,171,58,0.3)" }}
+            >
+              <ScanLine className="w-4 h-4" />
+              Scanner
+            </button>
+            <button
+              onClick={() => { setShowAdd(true); setAddError(null); setNewCode(""); }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold transition-all active:scale-[0.97]"
+              style={{ background: "rgba(245,197,24,0.2)", color: "#F5C518", border: "1px solid rgba(245,197,24,0.3)" }}
+            >
+              <Plus className="w-4 h-4" />
+              Ajouter
+            </button>
+          </div>
         </div>
 
         {/* Stats */}
