@@ -122,6 +122,22 @@ router.get("/vendor/tickets", async (req, res): Promise<void> => {
     filter === "winners"   ? and(baseWhere, isNotNull(ticketsTable.registeredAt), eq(ticketsTable.isWinner, true)) :
     baseWhere;
 
+  // True totals (used for summary cards — independent of pagination)
+  const [cntAvailable] = await db
+    .select({ cnt: count() })
+    .from(ticketsTable)
+    .where(and(eq(ticketsTable.vendorId, vid), isNull(ticketsTable.registeredAt)));
+
+  const [cntScratched] = await db
+    .select({ cnt: count() })
+    .from(ticketsTable)
+    .where(and(eq(ticketsTable.vendorId, vid), isNotNull(ticketsTable.registeredAt)));
+
+  const [cntWinners] = await db
+    .select({ cnt: count() })
+    .from(ticketsTable)
+    .where(and(eq(ticketsTable.vendorId, vid), isNotNull(ticketsTable.registeredAt), eq(ticketsTable.isWinner, true)));
+
   const rows = await db
     .select({
       id: ticketsTable.id,
@@ -136,7 +152,7 @@ router.get("/vendor/tickets", async (req, res): Promise<void> => {
     .from(ticketsTable)
     .where(whereClause)
     .orderBy(desc(ticketsTable.registeredAt), desc(ticketsTable.createdAt))
-    .limit(300);
+    .limit(500);
 
   // Never reveal winner status before a customer has scratched the ticket
   const tickets = rows.map((t) => ({
@@ -145,7 +161,12 @@ router.get("/vendor/tickets", async (req, res): Promise<void> => {
     prizeAmount: t.registeredAt ? t.prizeAmount : null,
   }));
 
-  res.json({ tickets });
+  res.json({
+    tickets,
+    totalAvailable: Number(cntAvailable?.cnt ?? 0),
+    totalScratched: Number(cntScratched?.cnt ?? 0),
+    totalWinners:   Number(cntWinners?.cnt   ?? 0),
+  });
 });
 
 // GET /api/vendor/rapport — list of clients this vendor has paid withdrawals to

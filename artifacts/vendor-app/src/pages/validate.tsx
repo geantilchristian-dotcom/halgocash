@@ -17,6 +17,9 @@ interface TicketRow {
 
 interface TicketsResponse {
   tickets: TicketRow[];
+  totalAvailable: number;
+  totalScratched: number;
+  totalWinners: number;
 }
 
 type Filter = "all" | "available" | "scratched" | "winners";
@@ -70,6 +73,11 @@ export default function Validate() {
 
   const tickets = data?.tickets ?? [];
 
+  // Use server-side totals (accurate, not limited by pagination)
+  const totalAvailable = data?.totalAvailable ?? tickets.filter((t) => !t.registeredAt).length;
+  const totalScratched  = data?.totalScratched  ?? tickets.filter((t) => t.registeredAt).length;
+  const totalWinners    = data?.totalWinners    ?? tickets.filter((t) => t.isWinner).length;
+
   useEffect(() => {
     const scratched = new Set(tickets.filter((t) => t.registeredAt).map((t) => t.id));
     const newIds = [...scratched].filter((id) => !prevScratchedIds.current.has(id));
@@ -85,10 +93,6 @@ export default function Validate() {
   const filtered = tickets.filter((t) =>
     !search || t.code.toLowerCase().includes(search.toLowerCase())
   );
-
-  const totalAvailable = tickets.filter((t) => !t.registeredAt).length;
-  const totalScratched  = tickets.filter((t) => t.registeredAt).length;
-  const totalWinners    = tickets.filter((t) => t.isWinner).length;
 
   if (!user?.vendorId) {
     return (
