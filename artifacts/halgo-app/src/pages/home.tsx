@@ -216,7 +216,7 @@ export default function Home() {
           {fallingChips.map((chip) => (
             <img
               key={chip.id}
-              src="/chips.png"
+              src="/chips.webp"
               alt=""
               className="chip-falling absolute"
               style={{
@@ -239,7 +239,7 @@ export default function Home() {
         {/* Logo + chips group — shifted right */}
         <div className="flex items-center gap-0 ml-10">
           <img
-            src="/logo-halgo-cash-nobg.png"
+            src="/logo-halgo-cash-nobg.webp"
             alt="Halgo Cash"
             className="w-44 object-contain"
           />
@@ -250,7 +250,7 @@ export default function Home() {
             onClick={handleChipsTouch}
           >
             <img
-              src="/chips.png"
+              src="/chips.webp"
               alt=""
               className={`absolute object-contain ${chipsWiggling ? "chips-wiggle" : ""}`}
               style={{
@@ -263,7 +263,7 @@ export default function Home() {
               onAnimationEnd={() => setChipsWiggling(false)}
             />
             <img
-              src="/chips.png"
+              src="/chips.webp"
               alt="jetons"
               className={`absolute object-contain ${chipsWiggling ? "chips-wiggle" : ""}`}
               style={{
