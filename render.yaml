@@ -1,80 +1,30 @@
-databases:
-  - name: halgo-db
-    plan: free
-    databaseName: halgo
-    user: halgo
-
 services:
   - type: web
-    name: halgo-api
-    runtime: node
+    name: halgo-cash
+    env: node
     plan: free
-    rootDir: .
-    buildCommand: npm_config_prefix=$HOME npm install -g pnpm && pnpm install && pnpm run typecheck:libs && pnpm --filter @workspace/api-server run build
+    region: frankfurt
+    buildCommand: bash render-build.sh
     startCommand: node --enable-source-maps artifacts/api-server/dist/index.mjs
+    healthCheckPath: /api/healthz
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
-      - key: DATABASE_URL
-        fromDatabase:
-          name: halgo-db
-          property: connectionString
       - key: SESSION_SECRET
         generateValue: true
-      - key: CLERK_SECRET_KEY
-        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: halgo-cash-db
+          property: connectionString
+      # Clés Clerk — à remplir manuellement après création du service
       - key: CLERK_PUBLISHABLE_KEY
         sync: false
-
-  - type: web
-    name: halgo-player
-    runtime: static
-    plan: free
-    rootDir: .
-    buildCommand: npm_config_prefix=$HOME npm install -g pnpm && pnpm install && pnpm run typecheck:libs && BASE_PATH=/ VITE_API_URL=https://halgo-api.onrender.com pnpm --filter @workspace/halgo-app run build
-    staticPublishPath: artifacts/halgo-app/dist/public
-    envVars:
-      - key: VITE_CLERK_PUBLISHABLE_KEY
+      - key: CLERK_SECRET_KEY
         sync: false
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
 
-  - type: web
-    name: halgo-vendor
-    runtime: static
+databases:
+  - name: halgo-cash-db
     plan: free
-    rootDir: .
-    buildCommand: npm_config_prefix=$HOME npm install -g pnpm && pnpm install && pnpm run typecheck:libs && BASE_PATH=/ VITE_API_URL=https://halgo-api.onrender.com pnpm --filter @workspace/vendor-app run build
-    staticPublishPath: artifacts/vendor-app/dist/public
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-
-  - type: web
-    name: halgo-admin
-    runtime: static
-    plan: free
-    rootDir: .
-    buildCommand: npm_config_prefix=$HOME npm install -g pnpm && pnpm install && pnpm run typecheck:libs && BASE_PATH=/ VITE_API_URL=https://halgo-api.onrender.com pnpm --filter @workspace/admin-app run build
-    staticPublishPath: artifacts/admin-app/dist/public
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-
-  - type: web
-    name: halgo-display
-    runtime: static
-    plan: free
-    rootDir: .
-    buildCommand: npm_config_prefix=$HOME npm install -g pnpm && pnpm install && pnpm run typecheck:libs && BASE_PATH=/ pnpm --filter @workspace/display-app run build
-    staticPublishPath: artifacts/display-app/dist/public
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+    region: frankfurt

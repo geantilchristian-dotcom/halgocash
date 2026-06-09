@@ -13,6 +13,8 @@ import {
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import path from "path";
+import fs from "fs";
 
 const isProd = process.env["NODE_ENV"] === "production";
 
@@ -62,6 +64,7 @@ const allowedOrigins = [
   /\.replit\.app$/,
   /\.replit\.dev$/,
   /\.repl\.co$/,
+  /\.onrender\.com$/,
   /localhost/,
   /127\.0\.0\.1/,
 ];
@@ -126,7 +129,39 @@ app.use(
 // ── API routes ────────────────────────────────────────────────────────────
 app.use("/api", router);
 
-// ── 404 handler ───────────────────────────────────────────────────────────
+// ── Static file serving for single-server deployments (e.g. Render) ──────
+// On Replit each app runs its own dev server; dist/ only exists after build.
+// Paths are served in order: specific sub-paths first, root (halgo) last.
+{
+  const root = process.cwd();
+
+  function tryServeApp(basePath: string, distDir: string) {
+    const absDir = path.join(root, distDir);
+    if (!fs.existsSync(absDir)) return;
+    logger.info({ basePath, absDir }, "Serving static app");
+    app.use(basePath, express.static(absDir, { index: false }));
+    // SPA fallback — all unmatched sub-routes return index.html
+    app.use(basePath, (_req: Request, res: Response) => {
+      res.sendFile(path.join(absDir, "index.html"));
+    });
+  }
+
+  tryServeApp("/admin", "artifacts/admin-app/dist/public");
+  tryServeApp("/vendor", "artifacts/vendor-app/dist/public");
+  tryServeApp("/display", "artifacts/display-app/dist/public");
+
+  // Root app (halgo-app) — must be registered last so /api and sub-paths match first
+  const halgoDist = path.join(root, "artifacts/halgo-app/dist/public");
+  if (fs.existsSync(halgoDist)) {
+    logger.info({ halgoDist }, "Serving halgo-app at /");
+    app.use(express.static(halgoDist, { index: false }));
+    app.use((_req: Request, res: Response) => {
+      res.sendFile(path.join(halgoDist, "index.html"));
+    });
+  }
+}
+
+// ── 404 handler (only reached when no dist/ folders exist) ────────────────
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ error: "Route introuvable" });
 });
