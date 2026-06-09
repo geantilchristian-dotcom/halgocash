@@ -95,6 +95,7 @@ export async function runMigrations() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN NOT NULL DEFAULT FALSE`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_ip VARCHAR(45)`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS plain_password TEXT`);
 
     // Add coupon registration columns to tickets table (idempotent)
     await client.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS registered_by_clerk_id VARCHAR(255)`);

@@ -1,0 +1,61 @@
+computing gzip size...
+dist/public/index.html                   1.39 kB │ gzip:   0.55 kB
+dist/public/assets/index-BwEZV43A.css  105.36 kB │ gzip:  17.43 kB
+dist/public/assets/index-DYMxKqP6.js   392.08 kB │ gzip: 120.96 kB
+✓ built in 2.55s
+vite v7.3.3 building client environment for production...
+transforming...
+✓ 2159 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/public/index.html                   1.42 kB │ gzip:   0.54 kB
+dist/public/assets/index-Bpvc0ybz.css  100.72 kB │ gzip:  16.32 kB
+dist/public/assets/index-CoNjirmF.js   420.01 kB │ gzip: 134.42 kB
+✓ built in 2.82s
+=== [5/6] Building API server ===
+  artifacts/api-server/dist/index.mjs                       2.8mb ⚠️
+  artifacts/api-server/dist/pino-worker.mjs               150.5kb
+  artifacts/api-server/dist/pino-file.mjs                 139.5kb
+  artifacts/api-server/dist/pino-pretty.mjs               111.1kb
+  artifacts/api-server/dist/thread-stream-worker.mjs        7.0kb
+  artifacts/api-server/dist/index.mjs.map                   5.2mb
+  artifacts/api-server/dist/pino-worker.mjs.map           255.6kb
+  artifacts/api-server/dist/pino-file.mjs.map             227.9kb
+  artifacts/api-server/dist/pino-pretty.mjs.map           202.4kb
+  artifacts/api-server/dist/thread-stream-worker.mjs.map   11.9kb
+⚡ Done in 519ms
+=== [6/6] Build complete ===
+  halgo-app   → artifacts/halgo-app/dist/public
+  admin-app   → artifacts/admin-app/dist/public
+  vendor-app  → artifacts/vendor-app/dist/public
+  display-app → artifacts/display-app/dist/public
+  api-server  → artifacts/api-server/dist/index.mjs
+==> Uploading build...
+==> Uploaded in 5.2s. Compression took 3.9s
+==> Build successful 🎉
+==> Deploying...
+==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+==> Running 'node --enable-source-maps artifacts/api-server/dist/index.mjs'
+Warning: connect.session() MemoryStore is not
+designed for a production environment, as it will leak
+memory, and will not scale past a single process.
+{"level":30,"time":1781008524580,"pid":70,"hostname":"srv-d8jvgjmq1p3s73a6oaog-hibernate-68795887bf-fljv8","basePath":"/admin","absDir":"/opt/render/project/src/artifacts/admin-app/dist/public","msg":"Serving static app"}
+{"level":30,"time":1781008524581,"pid":70,"hostname":"srv-d8jvgjmq1p3s73a6oaog-hibernate-68795887bf-fljv8","basePath":"/vendor","absDir":"/opt/render/project/src/artifacts/vendor-app/dist/public","msg":"Serving static app"}
+{"level":30,"time":1781008524581,"pid":70,"hostname":"srv-d8jvgjmq1p3s73a6oaog-hibernate-68795887bf-fljv8","basePath":"/display","absDir":"/opt/render/project/src/artifacts/display-app/dist/public","msg":"Serving static app"}
+{"level":30,"time":1781008524581,"pid":70,"hostname":"srv-d8jvgjmq1p3s73a6oaog-hibernate-68795887bf-fljv8","halgoDist":"/opt/render/project/src/artifacts/halgo-app/dist/public","msg":"Serving halgo-app at /"}
+{"level":30,"time":1781008524686,"pid":70,"hostname":"srv-d8jvgjmq1p3s73a6oaog-hibernate-68795887bf-fljv8","msg":"Running database migrations..."}
+{"level":30,"time":1781008524805,"pid":70,"hostname":"srv-d8jvgjmq1p3s73a6oaog-hibernate-68795887bf-fljv8","msg":"Database migrations completed successfully"}
+{"level":50,"time":1781008526972,"pid":70,"hostname":"srv-d8jvgjmq1p3s73a6oaog-hibernate-68795887bf-fljv8","err":{"type":"_DrizzleQueryError","message":"Failed query: insert into \"users\" (\"id\", \"email\", \"username\", \"password_hash\", \"role\", \"vendor_id\", \"is_suspended\", \"last_login_at\", \"last_login_ip\", \"plain_password\", \"created_at\") values (default, $1, $2, $3, $4, default, default, default, default, default, default)\nparams: admin@halgo.cash,admin,$2b$12$lZpLUEy5imjRXQzc3uDBbuL7BH.4C.AffmM5URNRc1x68y4sBOMFi,admin: column \"plain_password\" of relation \"users\" does not exist","stack":"Error: Failed query: insert into \"users\" (\"id\", \"email\", \"username\", \"password_hash\", \"role\", \"vendor_id\", \"is_suspended\", \"last_login_at\", \"last_login_ip\", \"plain_password\", \"created_at\") values (default, $1, $2, $3, $4, default, default, default, default, default, default)\nparams: admin@halgo.cash,admin,$2b$12$lZpLUEy5imjRXQzc3uDBbuL7BH.4C.AffmM5URNRc1x68y4sBOMFi,admin\n    at NodePgPreparedQuery.queryWithCache (/opt/render/project/src/node_modules/src/pg-core/session.ts:73:11)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async seedAdmin (/opt/render/project/src/artifacts/api-server/src/lib/migrate.ts:118:5)\ncaused by: error: column \"plain_password\" of relation \"users\" does not exist\n    at <anonymous> (/opt/render/project/src/node_modules/pg-pool/index.js:45:11)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async <anonymous> (/opt/render/project/src/node_modules/src/node-postgres/session.ts:149:14)\n    at async NodePgPreparedQuery.queryWithCache (/opt/render/project/src/node_modules/src/pg-core/session.ts:71:12)\n    at async seedAdmin (/opt/render/project/src/artifacts/api-server/src/lib/migrate.ts:118:5)","query":"insert into \"users\" (\"id\", \"email\", \"username\", \"password_hash\", \"role\", \"vendor_id\", \"is_suspended\", \"last_login_at\", \"last_login_ip\", \"plain_password\", \"created_at\") values (default, $1, $2, $3, $4, default, default, default, default, default, default)","params":["admin@halgo.cash","admin","$2b$12$lZpLUEy5imjRXQzc3uDBbuL7BH.4C.AffmM5URNRc1x68y4sBOMFi","admin"]},"msg":"Database migration failed"}
+==> Exited with status 1
+==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
+==> Running 'node --enable-source-maps artifacts/api-server/dist/index.mjs'
+Warning: connect.session() MemoryStore is not
+designed for a production environment, as it will leak
+memory, and will not scale past a single process.
+{"level":30,"time":1781008540140,"pid":52,"hostname":"srv-d8jvgjmq1p3s73a6oaog-hibernate-68795887bf-fljv8","basePath":"/admin","absDir":"/opt/render/project/src/artifacts/admin-app/dist/public","msg":"Serving static app"}
+{"level":30,"time":1781008540141,"pid":52,"hostname":"srv-d8jvgjmq1p3s73a6oaog-hibernate-68795887bf-fljv8","basePath":"/vendor","absDir":"/opt/render/project/src/artifacts/vendor-app/dist/public","msg":"Serving static app"}
+{"level":30,"time":1781008540141,"pid":52,"hostname":"srv-d8jvgjmq1p3s73a6oaog-hibernate-68795887bf-fljv8","basePath":"/display","absDir":"/opt/render/project/src/artifacts/display-app/dist/public","msg":"Serving static app"}
+{"level":30,"time":1781008540141,"pid":52,"hostname":"srv-d8jvgjmq1p3s73a6oaog-hibernate-68795887bf-fljv8","halgoDist":"/opt/render/project/src/artifacts/halgo-app/dist/public","msg":"Serving halgo-app at /"}
+{"level":30,"time":1781008540247,"pid":52,"hostname":"srv-d8jvgjmq1p3s73a6oaog-hibernate-68795887bf-fljv8","msg":"Running database migrations..."}
+{"level":30,"time":1781008540266,"pid":52,"hostname":"srv-d8jvgjmq1p3s73a6oaog-hibernate-68795887bf-fljv8","msg":"Database migrations completed successfully"}
+{"level":50,"time":1781008542551,"pid":52,"hostname":"srv-d8jvgjmq1p3s73a6oaog-hibernate-68795887bf-fljv8","err":{"type":"_DrizzleQueryError","message":"Failed query: insert into \"users\" (\"id\", \"email\", \"username\", \"password_hash\", \"role\", \"vendor_id\", \"is_suspended\", \"last_login_at\", \"last_login_ip\", \"plain_password\", \"created_at\") values (default, $1, $2, $3, $4, default, default, default, default, default, default)\nparams: admin@halgo.cash,admin,$2b$12$rf9vVGeNTPjfi.9nKetsE.FDbc4hE5yr4nTBtPBWoamIBpjP/UZke,admin: column \"plain_password\" of relation \"users\" does not exist","stack":"Error: Failed query: insert into \"users\" (\"id\", \"email\", \"username\", \"password_hash\", \"role\", \"vendor_id\", \"is_suspended\", \"last_login_at\", \"last_login_ip\", \"plain_password\", \"created_at\") values (default, $1, $2, $3, $4, default, default, default, default, default, default)\nparams: admin@halgo.cash,admin,$2b$12$rf9vVGeNTPjfi.9nKetsE.FDbc4hE5yr4nTBtPBWoamIBpjP/UZke,admin\n    at NodePgPreparedQuery.queryWithCache (/opt/render/project/src/node_modules/src/pg-core/session.ts:73:11)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async seedAdmin (/opt/render/project/src/artifacts/api-server/src/lib/migrate.ts:118:5)\ncaused by: error: column \"plain_password\" of relation \"users\" does not exist\n    at <anonymous> (/opt/render/project/src/node_modules/pg-pool/index.js:45:11)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async <anonymous> (/opt/render/project/src/node_modules/src/node-postgres/session.ts:149:14)\n    at async NodePgPreparedQuery.queryWithCache (/opt/render/project/src/node_modules/src/pg-core/session.ts:71:12)\n    at async seedAdmin (/opt/render/project/src/artifacts/api-server/src/lib/migrate.ts:118:5)","query":"insert into \"users\" (\"id\", \"email\", \"username\", \"password_hash\", \"role\", \"vendor_id\", \"is_suspended\", \"last_login_at\", \"last_login_ip\", \"plain_password\", \"created_at\") values (default, $1, $2, $3, $4, default, default, default, default, default, default)","params":["admin@halgo.cash","admin","$2b$12$rf9vVGeNTPjfi.9nKetsE.FDbc4hE5yr4nTBtPBWoamIBpjP/UZke","admin"]},"msg":"Database migration failed"}
