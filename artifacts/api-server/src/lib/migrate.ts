@@ -100,6 +100,43 @@ export async function runMigrations() {
     // Add coupon registration columns to tickets table (idempotent)
     await client.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS registered_by_clerk_id VARCHAR(255)`);
     await client.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS registered_at TIMESTAMP`);
+    await client.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS received_by_vendor_at TIMESTAMP`);
+
+    // Withdrawals table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS withdrawals (
+        id SERIAL PRIMARY KEY,
+        clerk_id VARCHAR(255) NOT NULL,
+        clerk_name TEXT NOT NULL,
+        amount DECIMAL(12,2) NOT NULL,
+        token VARCHAR(64) NOT NULL UNIQUE,
+        status TEXT NOT NULL DEFAULT 'pending',
+        paid_by_vendor_id INTEGER,
+        paid_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Banners table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS banners (
+        id SERIAL PRIMARY KEY,
+        file_name TEXT NOT NULL,
+        mime_type TEXT NOT NULL DEFAULT 'image/png',
+        image_data TEXT NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Site settings table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS site_settings (
+        key VARCHAR(100) PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
 
     logger.info("Database migrations completed successfully");
   } finally {
