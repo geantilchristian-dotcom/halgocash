@@ -111,7 +111,8 @@ export default function SignInPage() {
           {/* Clerk SignIn widget — handles Google OAuth natively */}
           <div className="hg-widget w-full max-w-sm">
             <SignIn
-              routing="hash"
+              routing="path"
+              path={`${basePath}/sign-in`}
               signUpUrl={`${basePath}/sign-up`}
               appearance={signInAppearance}
             />
