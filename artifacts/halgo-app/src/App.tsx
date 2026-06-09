@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ThemeProvider } from "@/lib/theme-context";
-import { ClerkProvider, useClerk, AuthenticateWithRedirectCallback } from "@clerk/react";
+import { ClerkProvider, useClerk, useAuth, AuthenticateWithRedirectCallback, RedirectToSignIn } from "@clerk/react";
 import { Switch, Route, useLocation, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -50,18 +50,39 @@ function SsoCallbackPage() {
   );
 }
 
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { isLoaded, isSignedIn } = useAuth();
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-[#0a2e14]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#3aab3a]" />
+      </div>
+    );
+  }
+
+  if (!isSignedIn) {
+    return <RedirectToSignIn />;
+  }
+
+  return <>{children}</>;
+}
+
+const AppContent = (
+  <Layout>
+    <Switch>
+      <Route path="/app" component={Home} />
+      <Route path="/app/coupons" component={Coupons} />
+      <Route path="/app/profile" component={Profile} />
+      <Route path="/app/settings" component={Settings} />
+      <Route path="/app/*?" component={NotFound} />
+    </Switch>
+  </Layout>
+);
+
 function AppRoutes() {
-  return (
-    <Layout>
-      <Switch>
-        <Route path="/app" component={Home} />
-        <Route path="/app/coupons" component={Coupons} />
-        <Route path="/app/profile" component={Profile} />
-        <Route path="/app/settings" component={Settings} />
-        <Route path="/app/*?" component={NotFound} />
-      </Switch>
-    </Layout>
-  );
+  if (!clerkPubKey) return AppContent;
+  return <AuthGuard>{AppContent}</AuthGuard>;
 }
 
 function ClerkQueryClientCacheInvalidator() {
