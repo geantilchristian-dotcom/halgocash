@@ -31,11 +31,11 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://clerk.com", "*.clerk.accounts.dev"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://clerk.com", "*.clerk.accounts.dev", "*.halgocash.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         imgSrc: ["'self'", "data:", "https:"],
         connectSrc: ["'self'", "https:", "wss:"],
-        fontSrc: ["'self'", "data:", "https:"],
+        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com", "https:"],
         frameSrc: ["'none'"],
       },
     },
@@ -66,6 +66,7 @@ const allowedOrigins = [
   /\.replit\.dev$/,
   /\.repl\.co$/,
   /\.onrender\.com$/,
+  /halgocash\.com$/,
   /localhost/,
   /127\.0\.0\.1/,
 ];
