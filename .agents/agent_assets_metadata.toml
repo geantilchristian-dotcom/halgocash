@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "ryVjOwMwkXF9zWoguRuQe"
+uri = "file://halgo-cash.tar.gz"
+type = "unspecified"
+title = "Halgo Cash — Code source complet"
