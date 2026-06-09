@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { ThemeProvider } from "@/lib/theme-context";
 import { ClerkProvider, Show, useClerk, useAuth, AuthenticateWithRedirectCallback } from "@clerk/react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
@@ -62,13 +62,36 @@ function SsoCallbackPage() {
 
 function HomeRedirect() {
   const { isLoaded } = useAuth();
+  const [timedOut, setTimedOut] = React.useState(false);
+
+  React.useEffect(() => {
+    if (isLoaded) return;
+    const t = setTimeout(() => setTimedOut(true), 10000);
+    return () => clearTimeout(t);
+  }, [isLoaded]);
+
   if (!isLoaded) {
     return (
       <div
-        className="min-h-screen flex items-center justify-center"
+        className="min-h-screen flex flex-col items-center justify-center gap-4"
         style={{ background: "linear-gradient(160deg, #0a2e14 0%, #0f3d1c 100%)" }}
       >
-        <Loader2 className="w-8 h-8 animate-spin text-[#3aab3a]" />
+        {timedOut ? (
+          <>
+            <p className="text-white font-bold text-lg">Impossible de se connecter</p>
+            <p className="text-white/50 text-sm text-center max-w-xs">
+              Vérifiez votre connexion internet ou réessayez dans quelques instants.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-2 px-5 py-2 rounded-lg bg-[#3aab3a] text-white font-bold text-sm"
+            >
+              Réessayer
+            </button>
+          </>
+        ) : (
+          <Loader2 className="w-8 h-8 animate-spin text-[#3aab3a]" />
+        )}
       </div>
     );
   }
