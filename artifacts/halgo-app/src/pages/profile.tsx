@@ -7,7 +7,6 @@ export default function Profile() {
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
   const { isDark } = useTheme();
-  const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   const [editingPhone, setEditingPhone] = useState(false);
   const [phoneInput, setPhoneInput] = useState("");
@@ -175,9 +174,7 @@ export default function Profile() {
 
         {/* Déconnexion */}
         <button
-          onClick={async () => {
-            await signOut({ redirectUrl: `${basePath}/` });
-          }}
+          onClick={() => signOut()}
           className={`w-full rounded-2xl p-4 shadow-sm border flex items-center gap-3 transition-colors ${isDark ? "bg-red-900/20 border-red-900/30 hover:bg-red-900/30" : "bg-white border-gray-100 hover:bg-red-50"}`}
         >
           <div className="w-9 h-9 rounded-full bg-red-500/10 flex items-center justify-center">
