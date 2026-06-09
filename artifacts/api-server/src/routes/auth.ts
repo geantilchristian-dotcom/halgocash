@@ -7,11 +7,12 @@ import { z } from "zod";
 import { logger } from "../lib/logger";
 import { getAuth } from "@clerk/express";
 import { updatePresence } from "../lib/presence";
+import { loginRateLimit, balanceCheckRateLimit } from "../middlewares/rateLimiters";
 
 // Accept email address OR plain username
 const VendorLoginBody = z.object({
-  email: z.string().min(1),
-  password: z.string().min(1),
+  email: z.string().min(1).max(200),
+  password: z.string().min(1).max(200),
 });
 
 declare module "express-session" {
@@ -22,14 +23,33 @@ declare module "express-session" {
 
 const router: IRouter = Router();
 
+// POST /api/auth/register — only admin can create vendor/admin accounts
 router.post("/auth/register", async (req, res): Promise<void> => {
   const parsed = RegisterBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: "Données invalides" });
     return;
   }
 
   const { email, username, password, role, vendorId } = parsed.data;
+
+  // Block self-registration as admin or vendor — must be done by an admin session
+  if (role === "admin" || role === "vendor") {
+    const callerUserId = req.session.userId;
+    if (!callerUserId) {
+      res.status(403).json({ error: "Seul un administrateur peut créer ce type de compte" });
+      return;
+    }
+    const [caller] = await db
+      .select({ role: usersTable.role })
+      .from(usersTable)
+      .where(eq(usersTable.id, callerUserId))
+      .limit(1);
+    if (caller?.role !== "admin") {
+      res.status(403).json({ error: "Seul un administrateur peut créer ce type de compte" });
+      return;
+    }
+  }
 
   const existing = await db
     .select({ id: usersTable.id })
@@ -62,7 +82,8 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   });
 });
 
-router.post("/auth/login", async (req, res): Promise<void> => {
+// POST /api/auth/login — rate-limited (anti-bruteforce)
+router.post("/auth/login", loginRateLimit, async (req, res): Promise<void> => {
   const parsed = VendorLoginBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Identifiants invalides" });
@@ -78,6 +99,8 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     .limit(1);
 
   if (!user) {
+    // Constant-time response to prevent user enumeration
+    await bcrypt.compare(password, "$2b$12$invalidhashfortimingprotection000000000000000000000000");
     res.status(401).json({ error: "Email ou mot de passe incorrect" });
     return;
   }
@@ -103,16 +126,22 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     .set({ lastLoginAt: new Date(), lastLoginIp: ip })
     .where(eq(usersTable.id, user.id));
 
-  req.session.userId = user.id;
-
-  req.log.info({ userId: user.id, role: user.role }, "User logged in");
-
-  res.json({
-    id: user.id,
-    email: user.email,
-    username: user.username,
-    role: user.role,
-    vendorId: user.vendorId,
+  // Regenerate session to prevent session fixation attacks
+  req.session.regenerate((err) => {
+    if (err) {
+      logger.error({ err }, "Session regeneration failed");
+      res.status(500).json({ error: "Erreur serveur" });
+      return;
+    }
+    req.session.userId = user.id;
+    req.log.info({ userId: user.id, role: user.role }, "User logged in");
+    res.json({
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      vendorId: user.vendorId,
+    });
   });
 });
 
@@ -131,6 +160,7 @@ router.post("/auth/logout", async (req, res): Promise<void> => {
       logger.error({ err }, "Session destroy failed");
     }
   });
+  res.clearCookie("halgosid");
   res.json({ success: true });
 });
 
@@ -168,8 +198,8 @@ router.get("/auth/me", async (req, res): Promise<void> => {
   });
 });
 
-// GET /api/auth/balance — available balance = wins - paid withdrawals - pending withdrawals
-router.get("/auth/balance", async (req, res): Promise<void> => {
+// GET /api/auth/balance — rate-limited (anti-enumeration)
+router.get("/auth/balance", balanceCheckRateLimit, async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   if (!userId) {
     res.json({ balance: 0 });

@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, and, sum, isNotNull } from "drizzle-orm";
 import { db, withdrawalsTable, vendorsTable, usersTable, ticketsTable } from "@workspace/db";
 import { getAuth } from "@clerk/express";
+import { withdrawalRateLimit } from "../middlewares/rateLimiters";
 
 const router: IRouter = Router();
 
@@ -37,8 +38,8 @@ async function getAvailableBalance(clerkId: string): Promise<number> {
   return Math.max(0, wins - paid - pending);
 }
 
-// POST /api/withdrawals — player creates a withdrawal request (Clerk auth required)
-router.post("/withdrawals", async (req, res): Promise<void> => {
+// POST /api/withdrawals — rate-limited, player creates a withdrawal request (Clerk auth required)
+router.post("/withdrawals", withdrawalRateLimit, async (req, res): Promise<void> => {
   const { userId, sessionClaims } = getAuth(req);
   if (!userId) {
     res.status(401).json({ error: "Non authentifié" });
