@@ -5,7 +5,7 @@ import {
   Ticket, Clock, Home as HomeIcon,
   AlertCircle, CheckCircle, MapPin, Scan,
 } from "lucide-react";
-import { useUser } from "@clerk/react";
+import { useUser, useAuth } from "@clerk/react";
 import { QRCodeSVG } from "qrcode.react";
 import { useTheme } from "@/lib/theme-context";
 import { PromoBanner } from "@/components/promo-banner";
@@ -53,7 +53,18 @@ function AdvertisingBanner() {
 
 export default function Home() {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const { isDark } = useTheme();
+
+  // Fetch helper that includes Clerk Bearer token when available, plus session cookies
+  const authFetch = useCallback(async (url: string, options: RequestInit = {}): Promise<Response> => {
+    const token = await getToken().catch(() => null);
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string> | undefined ?? {}),
+    };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    return fetch(url, { ...options, headers, credentials: "include" });
+  }, [getToken]);
 
   const [showRetrait, setShowRetrait] = useState(false);
   const [showQR, setShowQR] = useState(false);
@@ -91,17 +102,17 @@ export default function Home() {
   const fetchHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
-      const res = await fetch("/api/auth/history", { credentials: "include" });
+      const res = await authFetch("/api/auth/history");
       if (res.ok) { const d = await res.json() as typeof historyItems; setHistoryItems(d ?? []); }
     } catch { /* silent */ } finally { setHistoryLoading(false); }
-  }, []);
+  }, [authFetch]);
 
   const fetchBalance = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth/balance", { credentials: "include" });
+      const res = await authFetch("/api/auth/balance");
       if (res.ok) { const d = await res.json() as { balance: number }; setBalance(d.balance); }
     } catch { /* silent */ }
-  }, []);
+  }, [authFetch]);
 
   useEffect(() => { void fetchBalance(); }, [user?.id]);
 
@@ -163,7 +174,7 @@ export default function Home() {
 
   useEffect(() => {
     const name = user?.fullName ?? user?.username ?? "Utilisateur";
-    const ping = () => fetch("/api/auth/ping", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ name }) }).catch(() => {});
+    const ping = () => authFetch("/api/auth/ping", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }).catch(() => {});
     ping();
     const id = setInterval(ping, 60_000);
     return () => clearInterval(id);
@@ -174,7 +185,7 @@ export default function Home() {
     if (!code) return;
     setActivating(true); setActivationError(null); setActivationResult(null);
     try {
-      const res = await fetch("/api/tickets/activate", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ code }) });
+      const res = await authFetch("/api/tickets/activate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
       const data = await res.json();
       if (!res.ok) { setActivationError(data.error || "Code introuvable"); }
       else { setActivationResult(data); void fetchBalance(); }
@@ -196,7 +207,7 @@ export default function Home() {
     if (!retraitQR || retraitPaid) { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } return; }
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch("/api/withdrawals/my", { credentials: "include" });
+        const res = await authFetch("/api/withdrawals/my");
         if (!res.ok) return;
         const data = await res.json() as Array<{ token: string; status: string; paidAt: string | null }>;
         const match = data.find((w) => w.token === retraitQR.token);
@@ -207,7 +218,7 @@ export default function Home() {
   }, [retraitQR, retraitPaid]);
 
   const cancelPendingRetrait = async (token: string) => {
-    try { await fetch(`/api/withdrawals/${encodeURIComponent(token)}`, { method: "DELETE", credentials: "include" }); } catch { /* silent */ }
+    try { await authFetch(`/api/withdrawals/${encodeURIComponent(token)}`, { method: "DELETE" }); } catch { /* silent */ }
   };
 
   const closeRetrait = () => {
@@ -224,7 +235,7 @@ export default function Home() {
     if (!balance || amt > balance) { setRetraitError("Montant supérieur à votre solde disponible"); return; }
     setRetraitError(null); setRetraitLoading(true);
     try {
-      const res = await fetch("/api/withdrawals", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ amount: amt }) });
+      const res = await authFetch("/api/withdrawals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: amt }) });
       const data = await res.json() as { token?: string; error?: string };
       if (!res.ok) { setRetraitError(data.error ?? "Erreur serveur"); return; }
       setRetraitQR({ token: data.token!, amount: amt, qrValue: data.token! });
