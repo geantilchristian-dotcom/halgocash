@@ -54,6 +54,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth();
   const [, setLocation] = useLocation();
 
+  // If Clerk takes too long (proxy issue, DNS, etc.), redirect to sign-in anyway
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (!isLoaded) setLocation("/sign-in");
+    }, 8000);
+    return () => clearTimeout(t);
+  }, [isLoaded, setLocation]);
+
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
       setLocation("/sign-in");
