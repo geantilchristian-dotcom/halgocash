@@ -4,8 +4,8 @@
 set -e
 
 echo "=== [1/6] Installing pnpm ==="
-# Use pnpm v8 (v9+ blocks build scripts by default, causing ERR_PNPM_IGNORED_BUILDS)
-npm_config_prefix=$HOME npm install -g pnpm@8
+# pnpm 9+ is required for catalog: protocol support
+npm_config_prefix=$HOME npm install -g pnpm@9
 export PATH="$HOME/bin:$PATH"
 pnpm --version
 
