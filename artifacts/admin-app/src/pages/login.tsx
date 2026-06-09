@@ -6,13 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ShieldCheck, Loader2, Info } from "lucide-react";
+import { ShieldCheck, Loader2, Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
   const [, setLocation] = useLocation();
   const { login } = useAuth();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -38,8 +39,9 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
+        {/* Header */}
         <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center">
+          <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-600/30">
             <ShieldCheck className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -63,55 +65,60 @@ export default function Login() {
                 </Alert>
               )}
 
+              {/* Identifier — no placeholder hint */}
               <div className="space-y-2">
-                <Label className="text-zinc-300 text-sm">Identifiant administrateur</Label>
+                <Label className="text-zinc-300 text-sm">Identifiant</Label>
                 <Input
                   type="text"
-                  placeholder="admin"
+                  placeholder="••••••••••"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-indigo-500"
+                  className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600 focus:border-indigo-500"
                   autoComplete="username"
                   required
                 />
-                <p className="text-zinc-500 text-xs">Nom d'utilisateur ou email</p>
               </div>
 
+              {/* Password with toggle */}
               <div className="space-y-2">
                 <Label className="text-zinc-300 text-sm">Mot de passe</Label>
-                <Input
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-indigo-500"
-                  autoComplete="current-password"
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    type={showPwd ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600 focus:border-indigo-500 pr-10"
+                    autoComplete="current-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPwd(!showPwd)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <Button
                 type="submit"
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
-                disabled={loading}
+                disabled={loading || !identifier || !password}
               >
                 {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                 Accéder au tableau de bord
               </Button>
             </form>
-
-            <div className="mt-4 p-3 bg-zinc-800/50 rounded-lg flex items-start gap-2">
-              <Info className="w-3.5 h-3.5 text-indigo-400 mt-0.5 shrink-0" />
-              <p className="text-zinc-500 text-xs">
-                Identifiant par défaut: <span className="text-zinc-300 font-mono">admin</span>
-                {" / "}
-                <span className="text-zinc-300 font-mono">Halgo@2024!</span>
-                <br />
-                Modifiable dans Paramètres.
-              </p>
-            </div>
           </CardContent>
         </Card>
+
+        {/* Discrete footer — no credentials */}
+        <p className="text-center text-zinc-600 text-xs mt-4">
+          Accès sécurisé · Halgo Cash © 2025
+        </p>
       </div>
     </div>
   );
