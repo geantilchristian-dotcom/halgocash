@@ -166,11 +166,7 @@ export default function Home() {
     setTimeout(() => setChipsWiggling(false), 750);
   };
 
-  useEffect(() => {
-    if (!activationResult) return;
-    const t = setTimeout(resetActivation, activationResult.isWinner ? 2400 : 3000);
-    return () => clearTimeout(t);
-  }, [activationResult?.code]);
+  // No auto-dismiss — user closes manually so they have time to read the result
 
   useEffect(() => {
     const name = user?.fullName ?? user?.username ?? "Utilisateur";
@@ -187,8 +183,27 @@ export default function Home() {
     try {
       const res = await authFetch("/api/tickets/activate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
       const data = await res.json();
-      if (!res.ok) { setActivationError(data.error || "Code introuvable"); }
-      else { setActivationResult(data); void fetchBalance(); }
+      if (!res.ok) {
+        // 409 = already used — still reveal the result visually
+        if (res.status === 409 && data.alreadyUsed) {
+          setActivationResult({
+            code,
+            isWinner: data.isWinner ?? false,
+            prizeAmount: data.prizeAmount ?? null,
+            prizeLabel: data.prizeLabel ?? (data.isWinner ? "Gagnant" : "Perdu"),
+          });
+        } else {
+          setActivationError(data.error || "Code introuvable");
+        }
+      } else {
+        setActivationResult(data);
+        // Optimistically update balance for winning tickets
+        if (data.isWinner && data.prizeAmount) {
+          setBalance((prev) => (prev ?? 0) + data.prizeAmount);
+          setBalanceFlash(true);
+        }
+        void fetchBalance();
+      }
     } catch { setActivationError("Erreur de connexion"); }
     finally { setActivating(false); }
   }, [ticketCode, fetchBalance]);
