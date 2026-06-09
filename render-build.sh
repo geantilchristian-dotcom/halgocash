@@ -16,6 +16,8 @@ echo "=== [3/6] Building shared libs ==="
 pnpm run typecheck:libs
 
 echo "=== [4/6] Building frontend apps ==="
+# With shamefully-hoist, binaries land in root node_modules/.bin — add it to PATH
+export PATH="$PWD/node_modules/.bin:$PATH"
 # PORT is required by vite.config.ts (dev server port — not used during build output)
 # BASE_PATH controls the Vite `base` option and must match the served path.
 PORT=3001 BASE_PATH=/         NODE_ENV=production pnpm --filter @workspace/halgo-app   run build
