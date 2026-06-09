@@ -4,7 +4,9 @@
 set -e
 
 echo "=== [1/6] Installing pnpm ==="
-npm install -g pnpm
+# Install pnpm in user-writable directory (Render's /usr/lib is read-only)
+npm_config_prefix=$HOME npm install -g pnpm
+export PATH="$HOME/bin:$PATH"
 
 echo "=== [2/6] Installing dependencies ==="
 pnpm install --frozen-lockfile
