@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ThemeProvider } from "@/lib/theme-context";
-import { ClerkProvider, useClerk, useAuth, AuthenticateWithRedirectCallback, RedirectToSignIn } from "@clerk/react";
+import { ClerkProvider, useClerk, useAuth, AuthenticateWithRedirectCallback } from "@clerk/react";
 import { Switch, Route, useLocation, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -52,17 +52,20 @@ function SsoCallbackPage() {
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth();
+  const [, setLocation] = useLocation();
 
-  if (!isLoaded) {
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      setLocation("/sign-in");
+    }
+  }, [isLoaded, isSignedIn, setLocation]);
+
+  if (!isLoaded || !isSignedIn) {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-[#0a2e14]">
         <Loader2 className="w-8 h-8 animate-spin text-[#3aab3a]" />
       </div>
     );
-  }
-
-  if (!isSignedIn) {
-    return <RedirectToSignIn />;
   }
 
   return <>{children}</>;
