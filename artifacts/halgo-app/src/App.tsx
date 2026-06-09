@@ -1,8 +1,7 @@
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { ThemeProvider } from "@/lib/theme-context";
-import { ClerkProvider, Show, useClerk, useAuth, AuthenticateWithRedirectCallback } from "@clerk/react";
-import { publishableKeyFromHost } from "@clerk/react/internal";
-import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from "wouter";
+import { ClerkProvider, useClerk, AuthenticateWithRedirectCallback } from "@clerk/react";
+import { Switch, Route, useLocation, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -18,23 +17,14 @@ import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
 
-const clerkPubKey = publishableKeyFromHost(
-  window.location.hostname,
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-);
-
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
-
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
+const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL as string | undefined;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function stripBase(path: string): string {
   return basePath && path.startsWith(basePath)
     ? path.slice(basePath.length) || "/"
     : path;
-}
-
-if (!clerkPubKey) {
-  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY");
 }
 
 function SsoCallbackPage() {
@@ -60,71 +50,17 @@ function SsoCallbackPage() {
   );
 }
 
-function HomeRedirect() {
-  const { isLoaded } = useAuth();
-  const [timedOut, setTimedOut] = React.useState(false);
-
-  React.useEffect(() => {
-    if (isLoaded) return;
-    const t = setTimeout(() => setTimedOut(true), 10000);
-    return () => clearTimeout(t);
-  }, [isLoaded]);
-
-  if (!isLoaded) {
-    return (
-      <div
-        className="min-h-screen flex flex-col items-center justify-center gap-4"
-        style={{ background: "linear-gradient(160deg, #0a2e14 0%, #0f3d1c 100%)" }}
-      >
-        {timedOut ? (
-          <>
-            <p className="text-white font-bold text-lg">Impossible de se connecter</p>
-            <p className="text-white/50 text-sm text-center max-w-xs">
-              Vérifiez votre connexion internet ou réessayez dans quelques instants.
-            </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="mt-2 px-5 py-2 rounded-lg bg-[#3aab3a] text-white font-bold text-sm"
-            >
-              Réessayer
-            </button>
-          </>
-        ) : (
-          <Loader2 className="w-8 h-8 animate-spin text-[#3aab3a]" />
-        )}
-      </div>
-    );
-  }
-  return (
-    <>
-      <Show when="signed-in">
-        <Redirect to="/app" />
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/sign-in" />
-      </Show>
-    </>
-  );
-}
-
 function AppRoutes() {
   return (
-    <>
-      <Show when="signed-in">
-        <Layout>
-          <Switch>
-            <Route path="/app" component={Home} />
-            <Route path="/app/coupons" component={Coupons} />
-            <Route path="/app/profile" component={Profile} />
-            <Route path="/app/settings" component={Settings} />
-            <Route path="/app/*?" component={NotFound} />
-          </Switch>
-        </Layout>
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/sign-in" />
-      </Show>
-    </>
+    <Layout>
+      <Switch>
+        <Route path="/app" component={Home} />
+        <Route path="/app/coupons" component={Coupons} />
+        <Route path="/app/profile" component={Profile} />
+        <Route path="/app/settings" component={Settings} />
+        <Route path="/app/*?" component={NotFound} />
+      </Switch>
+    </Layout>
   );
 }
 
@@ -147,8 +83,31 @@ function ClerkQueryClientCacheInvalidator() {
   return null;
 }
 
-function ClerkProviderWithRoutes() {
+function Routes() {
+  return (
+    <Switch>
+      <Route path="/">
+        {() => { window.location.replace(`${basePath}/app`); return null; }}
+      </Route>
+      <Route path="/sign-in/*?" component={SignInPage} />
+      <Route path="/sign-up/*?" component={SignUpPage} />
+      <Route path="/sso-callback" component={SsoCallbackPage} />
+      <Route path="/app/*?" component={AppRoutes} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function AppWithClerk() {
   const [, setLocation] = useLocation();
+
+  if (!clerkPubKey) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <Routes />
+      </QueryClientProvider>
+    );
+  }
 
   return (
     <ClerkProvider
@@ -161,14 +120,7 @@ function ClerkProviderWithRoutes() {
     >
       <QueryClientProvider client={queryClient}>
         <ClerkQueryClientCacheInvalidator />
-        <Switch>
-          <Route path="/" component={HomeRedirect} />
-          <Route path="/sign-in/*?" component={SignInPage} />
-          <Route path="/sign-up/*?" component={SignUpPage} />
-          <Route path="/sso-callback" component={SsoCallbackPage} />
-          <Route path="/app/*?" component={AppRoutes} />
-          <Route component={NotFound} />
-        </Switch>
+        <Routes />
       </QueryClientProvider>
     </ClerkProvider>
   );
@@ -180,7 +132,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <WouterRouter base={basePath}>
-            <ClerkProviderWithRoutes />
+            <AppWithClerk />
           </WouterRouter>
           <Toaster />
         </TooltipProvider>
