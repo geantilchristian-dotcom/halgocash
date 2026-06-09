@@ -10,7 +10,9 @@ export PATH="$HOME/bin:$PATH"
 pnpm --version
 
 echo "=== [2/6] Installing dependencies ==="
-pnpm install --no-frozen-lockfile
+# NODE_ENV=production (set in Render env vars) causes pnpm to skip devDependencies.
+# Override to ensure vite and all build tools are installed.
+NODE_ENV=development pnpm install --no-frozen-lockfile
 
 echo "=== [3/6] Building shared libs ==="
 pnpm run typecheck:libs
