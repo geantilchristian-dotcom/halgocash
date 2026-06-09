@@ -1,6 +1,7 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import pinoHttp from "pino-http";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
@@ -87,8 +88,20 @@ app.use(express.json({ limit: "512kb" }));
 app.use(express.urlencoded({ extended: true, limit: "512kb" }));
 
 // ── Session ───────────────────────────────────────────────────────────────
+// Use PostgreSQL store in production so sessions survive restarts/hibernation.
+// Falls back to MemoryStore in dev (no DATABASE_URL needed).
+const PgSession = connectPgSimple(session);
+const sessionStore = isProd && process.env["DATABASE_URL"]
+  ? new PgSession({
+      conString: process.env["DATABASE_URL"],
+      tableName: "session",
+      createTableIfMissing: false, // table created by migrate.ts
+    })
+  : undefined;
+
 app.use(
   session({
+    store: sessionStore,
     secret: process.env["SESSION_SECRET"] ?? "halgo-dev-secret",
     resave: false,
     saveUninitialized: false,
@@ -96,7 +109,7 @@ app.use(
     cookie: {
       httpOnly: true,
       secure: isProd,          // HTTPS-only in production
-      sameSite: isProd ? "strict" : "lax",
+      sameSite: "lax",         // lax: works across same-site navigations & redirects
       maxAge: 8 * 60 * 60 * 1000, // 8 hours
     },
   }),
