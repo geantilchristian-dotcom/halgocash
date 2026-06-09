@@ -81,6 +81,21 @@ export default function Home() {
   const [retraitPaid, setRetraitPaid] = useState<{ paidAt: string } | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [activeTab, setActiveTab] = useState<"home" | "history">("home");
+  const [historyItems, setHistoryItems] = useState<Array<{
+    id: number; code: string; series: string | null; isWinner: boolean;
+    prizeAmount: number | null; registeredAt: string | null;
+  }> | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const fetchHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch("/api/auth/history", { credentials: "include" });
+      if (res.ok) { const d = await res.json() as typeof historyItems; setHistoryItems(d ?? []); }
+    } catch { /* silent */ } finally { setHistoryLoading(false); }
+  }, []);
+
   const fetchBalance = useCallback(async () => {
     try {
       const res = await fetch("/api/auth/balance", { credentials: "include" });
@@ -105,13 +120,6 @@ export default function Home() {
       }
     }
   }, []);
-
-  useEffect(() => {
-    if (autoSubmitRef.current && ticketCode) {
-      autoSubmitRef.current = false;
-      void activateTicket();
-    }
-  }, [ticketCode, activateTicket]);
 
   const rollingAmount = useRollingCounter(activationResult?.isWinner ? (activationResult.prizeAmount ?? 0) : null);
 
@@ -173,6 +181,14 @@ export default function Home() {
     } catch { setActivationError("Erreur de connexion"); }
     finally { setActivating(false); }
   }, [ticketCode, fetchBalance]);
+
+  // Auto-submit when ticket code is set via QR scan URL param
+  useEffect(() => {
+    if (autoSubmitRef.current && ticketCode) {
+      autoSubmitRef.current = false;
+      void activateTicket();
+    }
+  }, [ticketCode, activateTicket]);
 
   const resetActivation = () => { setTicketCode(""); setActivationResult(null); setActivationError(null); setShowTicketInput(false); };
 
@@ -318,6 +334,70 @@ export default function Home() {
       </header>
 
       <div className="px-4 pb-24 flex-1 space-y-3 mt-3">
+
+        {/* ── Historique Tab ── */}
+        {activeTab === "history" && (
+          <div className="pt-2">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-white font-black text-base uppercase tracking-wider">Mes Tickets</h2>
+              <button onClick={() => void fetchHistory()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold" style={{ background: "rgba(245,197,24,0.15)", color: "#F5C518" }}>
+                <Clock className="w-3 h-3" /> Actualiser
+              </button>
+            </div>
+            {historyLoading ? (
+              <div className="flex flex-col items-center py-16 gap-3">
+                <div className="w-8 h-8 border-2 border-[#F5C518]/30 border-t-[#F5C518] rounded-full animate-spin" />
+                <p className="text-white/40 text-xs">Chargement…</p>
+              </div>
+            ) : historyItems === null ? (
+              <div className="flex flex-col items-center py-16 gap-2">
+                <Clock className="w-10 h-10 text-white/20" />
+                <p className="text-white/40 text-sm">Connectez-vous pour voir votre historique</p>
+              </div>
+            ) : historyItems.length === 0 ? (
+              <div className="flex flex-col items-center py-16 gap-2">
+                <Clock className="w-10 h-10 text-white/20" />
+                <p className="text-white/40 text-sm">Aucun ticket gratté pour l'instant</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {historyItems.map((t) => {
+                  const fc = t.prizeAmount ? t.prizeAmount.toLocaleString("fr-FR") : null;
+                  return (
+                    <div key={t.id} className="rounded-2xl px-4 py-3 flex items-center gap-3"
+                      style={{ background: t.isWinner ? "linear-gradient(135deg,rgba(245,197,24,0.12),rgba(22,92,40,0.3))" : "rgba(255,255,255,0.05)", border: t.isWinner ? "1px solid rgba(245,197,24,0.3)" : "1px solid rgba(255,255,255,0.08)" }}>
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                        style={{ background: t.isWinner ? "rgba(245,197,24,0.15)" : "rgba(255,255,255,0.07)" }}>
+                        {t.isWinner
+                          ? <span className="text-lg">🏆</span>
+                          : <span className="text-lg">✗</span>}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-mono text-white text-xs tracking-wider">{t.code}</p>
+                        {t.series && <p className="text-white/40 text-[10px]">Série {t.series}</p>}
+                      </div>
+                      <div className="text-right shrink-0">
+                        {t.isWinner ? (
+                          <p className="text-[#F5C518] font-bold text-sm">{fc} FC</p>
+                        ) : (
+                          <p className="text-white/30 text-xs font-medium">Perdant</p>
+                        )}
+                        {t.registeredAt && (
+                          <p className="text-white/25 text-[10px]">
+                            {new Date(t.registeredAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Home content (hidden when history tab is active) ── */}
+        {activeTab === "home" && <>
 
         {/* ── Balance Card ── */}
         <div
@@ -591,6 +671,7 @@ export default function Home() {
           </div>
         )}
 
+        </>}
 
       </div>
 
@@ -702,11 +783,17 @@ export default function Home() {
         }}
       >
         {[
-          { label: "Accueil",     icon: HomeIcon,  active: true  },
-          { label: "Historique",  icon: Clock, active: false },
-        ].map(({ label, icon: Icon, active }) => (
+          { label: "Accueil",    icon: HomeIcon, tab: "home"    as const },
+          { label: "Historique", icon: Clock,    tab: "history" as const },
+        ].map(({ label, icon: Icon, tab }) => {
+          const active = activeTab === tab;
+          return (
           <button
             key={label}
+            onClick={() => {
+              setActiveTab(tab);
+              if (tab === "history" && historyItems === null) void fetchHistory();
+            }}
             className="flex-1 flex flex-col items-center justify-center gap-1 transition-all active:opacity-70"
           >
             {active && (
@@ -732,7 +819,8 @@ export default function Home() {
               {label}
             </span>
           </button>
-        ))}
+          );
+        })}
       </nav>
 
       {/* ── QR Code Modal ── */}

@@ -109,7 +109,11 @@ router.post("/coupons/register", async (req, res): Promise<void> => {
 
 // POST /api/tickets/activate — reveal a ticket result and link to user
 router.post("/tickets/activate", async (req, res): Promise<void> => {
-  const { userId } = getAuth(req);
+  const { userId: clerkUserId } = getAuth(req);
+  const sessionUserId = req.session.userId;
+  // Prefer Clerk auth; fall back to session user stored as "local:<id>"
+  const effectiveUserId = clerkUserId ?? (sessionUserId ? `local:${sessionUserId}` : null);
+
   const { code } = req.body as { code?: string };
 
   if (!code || typeof code !== "string" || code.trim().length === 0) {
@@ -156,13 +160,11 @@ router.post("/tickets/activate", async (req, res): Promise<void> => {
     return;
   }
 
-  // Link to current user if logged in and not yet linked
-  if (userId) {
-    await db
-      .update(ticketsTable)
-      .set({ registeredByClerkId: userId, registeredAt: new Date() })
-      .where(eq(ticketsTable.id, ticket.id));
-  }
+  // Always mark ticket as scratched; link to whoever activated it
+  await db
+    .update(ticketsTable)
+    .set({ registeredByClerkId: effectiveUserId ?? null, registeredAt: new Date() })
+    .where(eq(ticketsTable.id, ticket.id));
 
   res.json({
     code: ticket.code,

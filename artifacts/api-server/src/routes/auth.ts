@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
-import { eq, or, sum, and, isNotNull } from "drizzle-orm";
+import { eq, or, sum, and, isNotNull, desc } from "drizzle-orm";
 import { db, usersTable, ticketsTable, withdrawalsTable } from "@workspace/db";
 import { RegisterBody } from "@workspace/api-zod";
 import { z } from "zod";
@@ -200,8 +200,11 @@ router.get("/auth/me", async (req, res): Promise<void> => {
 
 // GET /api/auth/balance — rate-limited (anti-enumeration)
 router.get("/auth/balance", balanceCheckRateLimit, async (req, res): Promise<void> => {
-  const { userId } = getAuth(req);
-  if (!userId) {
+  const { userId: clerkUserId } = getAuth(req);
+  const sessionUserId = req.session.userId;
+  const effectiveUserId = clerkUserId ?? (sessionUserId ? `local:${sessionUserId}` : null);
+
+  if (!effectiveUserId) {
     res.json({ balance: 0 });
     return;
   }
@@ -211,7 +214,7 @@ router.get("/auth/balance", balanceCheckRateLimit, async (req, res): Promise<voi
     .from(ticketsTable)
     .where(
       and(
-        eq(ticketsTable.registeredByClerkId, userId),
+        eq(ticketsTable.registeredByClerkId, effectiveUserId),
         eq(ticketsTable.isWinner, true),
         isNotNull(ticketsTable.prizeAmount),
       ),
@@ -220,18 +223,50 @@ router.get("/auth/balance", balanceCheckRateLimit, async (req, res): Promise<voi
   const [paidRow] = await db
     .select({ total: sum(withdrawalsTable.amount) })
     .from(withdrawalsTable)
-    .where(and(eq(withdrawalsTable.clerkId, userId), eq(withdrawalsTable.status, "paid")));
+    .where(and(eq(withdrawalsTable.clerkId, effectiveUserId), eq(withdrawalsTable.status, "paid")));
 
   const [pendingRow] = await db
     .select({ total: sum(withdrawalsTable.amount) })
     .from(withdrawalsTable)
-    .where(and(eq(withdrawalsTable.clerkId, userId), eq(withdrawalsTable.status, "pending")));
+    .where(and(eq(withdrawalsTable.clerkId, effectiveUserId), eq(withdrawalsTable.status, "pending")));
 
   const wins    = winsRow?.total    ? parseFloat(String(winsRow.total))    : 0;
   const paid    = paidRow?.total    ? parseFloat(String(paidRow.total))    : 0;
   const pending = pendingRow?.total ? parseFloat(String(pendingRow.total)) : 0;
 
   res.json({ balance: Math.max(0, wins - paid - pending) });
+});
+
+// GET /api/auth/history — activated tickets for the current user
+router.get("/auth/history", async (req, res): Promise<void> => {
+  const { userId: clerkUserId } = getAuth(req);
+  const sessionUserId = req.session.userId;
+  const effectiveUserId = clerkUserId ?? (sessionUserId ? `local:${sessionUserId}` : null);
+
+  if (!effectiveUserId) {
+    res.json([]);
+    return;
+  }
+
+  const tickets = await db
+    .select({
+      id: ticketsTable.id,
+      code: ticketsTable.code,
+      series: ticketsTable.series,
+      isWinner: ticketsTable.isWinner,
+      prizeAmount: ticketsTable.prizeAmount,
+      registeredAt: ticketsTable.registeredAt,
+    })
+    .from(ticketsTable)
+    .where(eq(ticketsTable.registeredByClerkId, effectiveUserId))
+    .orderBy(desc(ticketsTable.registeredAt))
+    .limit(50);
+
+  res.json(tickets.map((t) => ({
+    ...t,
+    prizeAmount: t.prizeAmount ? parseFloat(t.prizeAmount) : null,
+    registeredAt: t.registeredAt?.toISOString() ?? null,
+  })));
 });
 
 export default router;
