@@ -171,8 +171,19 @@ export default function Home() {
       const res = await authFetch("/api/auth/balance");
       if (res.ok) {
         const d = await res.json() as { balance: number };
-        setBalance(d.balance);
-        try { localStorage.setItem("halgo_balance", String(d.balance)); } catch { /* ignore */ }
+        if (d.balance > 0) {
+          // Server returned a real balance — it can authenticate us, clear local tracking
+          localWinsRef.current = 0;
+          setBalance(d.balance);
+          try { localStorage.setItem("halgo_balance", String(d.balance)); } catch { /* ignore */ }
+        } else if (localWinsRef.current > 0) {
+          // Server returned 0 but we have locally tracked wins (server auth failure on Render)
+          // Do NOT overwrite — keep the locally computed balance
+        } else {
+          // Server returned 0 with no pending local wins — trust it (e.g. after full withdrawal)
+          setBalance(0);
+          try { localStorage.setItem("halgo_balance", "0"); } catch { /* ignore */ }
+        }
       }
     } catch { /* silent */ }
   }, [authFetch]);
@@ -195,6 +206,10 @@ export default function Home() {
   useEffect(() => { if (isLoaded) { void fetchBalance(); void fetchNotifications(); } }, [isLoaded]);
 
   // QR scan auto-fill
+  // Tracks locally-confirmed wins not yet reflected by server balance.
+  // Prevents a server balance:0 (auth failure) from wiping real wins.
+  const localWinsRef = useRef(0);
+
   const autoSubmitRef = useRef(false);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -236,13 +251,20 @@ export default function Home() {
         setActivationResult(data);
         if (data.isWinner && data.prizeAmount) {
           if (typeof data.newBalance === "number") {
+            // Server confirmed balance — reset local tracking and use server value
+            localWinsRef.current = 0;
             setBalance(data.newBalance);
             try { localStorage.setItem("halgo_balance", String(data.newBalance)); } catch { /* ignore */ }
+            setTimeout(() => { void fetchBalance(); }, 2000);
           } else {
-            setBalance((prev) => { const nb = (prev ?? 0) + data.prizeAmount; try { localStorage.setItem("halgo_balance", String(nb)); } catch { /* ignore */ } return nb; });
+            // Server couldn't compute balance (Clerk auth failing on server) —
+            // increment locally and track so fetchBalance won't wipe it with 0
+            localWinsRef.current += data.prizeAmount as number;
+            setBalance((prev) => { const nb = (prev ?? 0) + (data.prizeAmount as number); try { localStorage.setItem("halgo_balance", String(nb)); } catch { /* ignore */ } return nb; });
+            // Still try to refetch — it will NOT overwrite thanks to localWinsRef guard
+            setTimeout(() => { void fetchBalance(); }, 2000);
           }
           setBalanceFlash(true);
-          setTimeout(() => { void fetchBalance(); }, 2000);
         } else { void fetchBalance(); }
       }
     } catch { setActivationError("Erreur de connexion"); }
