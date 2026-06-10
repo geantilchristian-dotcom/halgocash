@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { eq, desc, or, sql, count, sum, and, isNotNull, isNull } from "drizzle-orm";
-import { db, usersTable, ticketsTable, drawsTable, vendorsTable, withdrawalsTable } from "@workspace/db";
+import { db, usersTable, ticketsTable, drawsTable, vendorsTable, withdrawalsTable, playerProfilesTable, creditAdjustmentsTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { getOnlineUsers } from "../lib/presence";
 
@@ -476,6 +476,129 @@ router.post("/admin/workers", requireAdmin, async (req: Request, res: Response):
     vendorLocation: vendor!.location,
     createdAt: newUser!.createdAt.toISOString(),
   });
+});
+
+// PATCH /api/admin/workers/:userId — edit vendor worker credentials & info
+router.patch("/admin/workers/:userId", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const userId = parseInt(String(req.params["userId"]));
+  const { username, email, password, vendorName, location, phone } = req.body as {
+    username?: string; email?: string; password?: string;
+    vendorName?: string; location?: string; phone?: string;
+  };
+
+  const [worker] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!worker || worker.role !== "vendor") { res.status(404).json({ error: "Vendeur introuvable" }); return; }
+
+  // Check username/email uniqueness if changed
+  if (username && username !== worker.username) {
+    const [clash] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username)).limit(1);
+    if (clash) { res.status(409).json({ error: "Nom d'utilisateur déjà pris" }); return; }
+  }
+  if (email && email !== worker.email) {
+    const [clash] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email)).limit(1);
+    if (clash) { res.status(409).json({ error: "Email déjà utilisé" }); return; }
+  }
+
+  // Update user record
+  const userUpdates: Partial<typeof usersTable.$inferInsert> = {};
+  if (username) userUpdates.username = username;
+  if (email) userUpdates.email = email;
+  if (password) { userUpdates.passwordHash = await bcrypt.hash(password, 10); userUpdates.plainPassword = password; }
+  if (Object.keys(userUpdates).length > 0) {
+    await db.update(usersTable).set(userUpdates).where(eq(usersTable.id, userId));
+  }
+
+  // Update vendor record
+  if (worker.vendorId) {
+    const vendorUpdates: Partial<typeof vendorsTable.$inferInsert> = {};
+    if (vendorName) vendorUpdates.name = vendorName;
+    if (location) vendorUpdates.location = location;
+    if (phone !== undefined) vendorUpdates.phone = phone || null;
+    if (Object.keys(vendorUpdates).length > 0) {
+      await db.update(vendorsTable).set(vendorUpdates).where(eq(vendorsTable.id, worker.vendorId));
+    }
+  }
+
+  res.json({ ok: true });
+});
+
+// GET /api/admin/players — list all Clerk players with referral stats
+router.get("/admin/players", requireAdmin, async (_req: Request, res: Response): Promise<void> => {
+  const profiles = await db.select().from(playerProfilesTable).orderBy(desc(playerProfilesTable.createdAt));
+
+  const results = await Promise.all(profiles.map(async (p) => {
+    const [referralCountRow] = await db.select({ total: count() }).from(playerProfilesTable)
+      .where(eq(playerProfilesTable.referredByCode, p.referralCode));
+    const [ticketsCountRow] = await db.select({ total: count() }).from(creditAdjustmentsTable)
+      .where(and(eq(creditAdjustmentsTable.clerkId, p.clerkId), eq(creditAdjustmentsTable.reason, "referral_ticket")));
+    const [activatedRow] = await db.select({ total: count() }).from(ticketsTable)
+      .where(and(eq(ticketsTable.registeredByClerkId, p.clerkId), isNotNull(ticketsTable.registeredAt)));
+    const [winningsRow] = await db.select({ total: sum(ticketsTable.prizeAmount) }).from(ticketsTable)
+      .where(and(eq(ticketsTable.registeredByClerkId, p.clerkId), eq(ticketsTable.isWinner, true), isNotNull(ticketsTable.registeredAt)));
+
+    const referralCount = Number(referralCountRow?.total ?? 0);
+    const level = referralCount === 0 ? "Débutant" : referralCount <= 2 ? "Bronze" : referralCount <= 9 ? "Argent" : referralCount <= 24 ? "Or" : "Platine";
+
+    return {
+      clerkId: p.clerkId,
+      playerId: p.referralCode.slice(0, 3) + "-" + p.referralCode.slice(3),
+      referralCode: p.referralCode,
+      referredByCode: p.referredByCode ?? null,
+      referralCount,
+      referralLevel: level,
+      referralTickets: Number(ticketsCountRow?.total ?? 0),
+      activatedTickets: Number(activatedRow?.total ?? 0),
+      totalWinnings: parseFloat(String(winningsRow?.total ?? "0")),
+      createdAt: p.createdAt.toISOString(),
+    };
+  }));
+
+  res.json(results);
+});
+
+// GET /api/admin/winners/leaderboard — top players ranked by total winnings
+router.get("/admin/winners/leaderboard", requireAdmin, async (_req: Request, res: Response): Promise<void> => {
+  // Aggregate winning tickets per Clerk player
+  const rows = await db
+    .select({
+      clerkId: ticketsTable.registeredByClerkId,
+      totalWinnings: sum(ticketsTable.prizeAmount),
+      winningTickets: count(),
+    })
+    .from(ticketsTable)
+    .where(and(
+      eq(ticketsTable.isWinner, true),
+      isNotNull(ticketsTable.registeredAt),
+      isNotNull(ticketsTable.registeredByClerkId),
+    ))
+    .groupBy(ticketsTable.registeredByClerkId)
+    .orderBy(desc(sum(ticketsTable.prizeAmount)))
+    .limit(100);
+
+  const results = await Promise.all(rows.map(async (r, idx) => {
+    const [profile] = await db.select().from(playerProfilesTable)
+      .where(eq(playerProfilesTable.clerkId, r.clerkId!)).limit(1);
+    const playerId = profile
+      ? profile.referralCode.slice(0, 3) + "-" + profile.referralCode.slice(3)
+      : r.clerkId!.slice(0, 8) + "…";
+
+    // Best single prize
+    const [bestRow] = await db.select({ best: ticketsTable.prizeAmount })
+      .from(ticketsTable)
+      .where(and(eq(ticketsTable.registeredByClerkId, r.clerkId!), eq(ticketsTable.isWinner, true), isNotNull(ticketsTable.registeredAt)))
+      .orderBy(desc(ticketsTable.prizeAmount)).limit(1);
+
+    return {
+      rank: idx + 1,
+      clerkId: r.clerkId,
+      playerId,
+      totalWinnings: parseFloat(String(r.totalWinnings ?? "0")),
+      winningTickets: Number(r.winningTickets ?? 0),
+      bestPrize: parseFloat(String(bestRow?.best ?? "0")),
+    };
+  }));
+
+  res.json(results);
 });
 
 // DELETE /api/admin/reset — wipe ALL tickets and ALL pending withdrawals

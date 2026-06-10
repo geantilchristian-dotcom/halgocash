@@ -9,9 +9,11 @@ import {
   Menu,
   X,
   Users,
+  Users2,
   ArrowDownLeft,
   BarChart2,
   Megaphone,
+  Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -25,6 +27,8 @@ const navItems = [
   { href: "/generate-codes", label: "Générer tickets",     icon: QrCode          },
   { href: "/tickets",        label: "Historique tickets",  icon: TicketIcon      },
   { href: "/workers",        label: "Annuaire vendeurs",   icon: Users           },
+  { href: "/players",        label: "Joueurs inscrits",    icon: Users2          },
+  { href: "/winners",        label: "Classement gagnants", icon: Trophy          },
   { href: "/withdrawals",    label: "Retraits joueurs",    icon: ArrowDownLeft   },
   { href: "/rapport",        label: "Rapport",             icon: BarChart2       },
   { href: "/publicite",      label: "Publicité",           icon: Megaphone       },

@@ -13,6 +13,8 @@ import Workers from "@/pages/workers";
 import WithdrawalsAdmin from "@/pages/withdrawals-admin";
 import Rapport from "@/pages/rapport";
 import Publicite from "@/pages/publicite";
+import PlayersPage from "@/pages/players";
+import WinnersPage from "@/pages/winners";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Loader2 } from "lucide-react";
 
@@ -58,6 +60,8 @@ function ProtectedRouter() {
         <Route path="/withdrawals" component={WithdrawalsAdmin} />
         <Route path="/rapport" component={Rapport} />
         <Route path="/publicite" component={Publicite} />
+        <Route path="/players" component={PlayersPage} />
+        <Route path="/winners" component={WinnersPage} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Plus, Eye, EyeOff, Copy, Check, AlertCircle, MapPin, Phone, Ticket, TrendingUp, X, Loader2, KeyRound } from "lucide-react";
+import { Users, Plus, Eye, EyeOff, Copy, Check, AlertCircle, MapPin, Phone, X, Loader2, KeyRound, Pencil } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -39,6 +39,121 @@ function CopyButton({ value }: { value: string }) {
     >
       {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
     </button>
+  );
+}
+
+function EditModal({ worker, onClose, onSaved }: { worker: Worker; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({
+    vendorName: worker.vendorName,
+    location:   worker.vendorLocation,
+    phone:      worker.vendorPhone ?? "",
+    username:   worker.username,
+    email:      worker.email,
+    password:   "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSaving(true);
+    try {
+      const body: Record<string, string> = {};
+      if (form.vendorName !== worker.vendorName) body.vendorName = form.vendorName;
+      if (form.location   !== worker.vendorLocation) body.location = form.location;
+      if (form.phone      !== (worker.vendorPhone ?? "")) body.phone = form.phone;
+      if (form.username   !== worker.username) body.username = form.username;
+      if (form.email      !== worker.email)    body.email    = form.email;
+      if (form.password)                       body.password = form.password;
+
+      const res = await fetch(`/api/admin/workers/${worker.userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+      const json = await res.json() as { ok?: boolean; error?: string };
+      if (!res.ok) throw new Error(json.error ?? "Erreur serveur");
+      setSuccess(true);
+      setTimeout(() => { onSaved(); onClose(); }, 900);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+      <div className="bg-background rounded-2xl p-6 w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2">
+            <Pencil className="w-5 h-5 text-primary" />
+            <h3 className="text-base font-bold">Modifier le vendeur</h3>
+          </div>
+          <button onClick={onClose}><X className="w-5 h-5" /></button>
+        </div>
+
+        <form onSubmit={(e) => { void handleSave(e); }} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Nom du point de vente</label>
+              <input value={form.vendorName} onChange={(e) => setForm(f => ({ ...f, vendorName: e.target.value }))}
+                className="w-full mt-1 px-3 py-2.5 rounded-lg border bg-background text-sm outline-none focus:ring-2 focus:ring-primary/40" />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Localisation</label>
+              <input value={form.location} onChange={(e) => setForm(f => ({ ...f, location: e.target.value }))}
+                className="w-full mt-1 px-3 py-2.5 rounded-lg border bg-background text-sm outline-none focus:ring-2 focus:ring-primary/40" />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Téléphone</label>
+              <input value={form.phone} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))}
+                className="w-full mt-1 px-3 py-2.5 rounded-lg border bg-background text-sm outline-none focus:ring-2 focus:ring-primary/40" />
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Nom d'utilisateur</label>
+              <input value={form.username} onChange={(e) => setForm(f => ({ ...f, username: e.target.value }))}
+                className="w-full mt-1 px-3 py-2.5 rounded-lg border bg-background text-sm font-mono outline-none focus:ring-2 focus:ring-primary/40" />
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email</label>
+              <input type="email" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
+                className="w-full mt-1 px-3 py-2.5 rounded-lg border bg-background text-sm outline-none focus:ring-2 focus:ring-primary/40" />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Nouveau mot de passe <span className="text-zinc-500 normal-case font-normal">(laisser vide = inchangé)</span></label>
+              <input type="text" value={form.password} onChange={(e) => setForm(f => ({ ...f, password: e.target.value }))}
+                placeholder="Nouveau mot de passe…"
+                className="w-full mt-1 px-3 py-2.5 rounded-lg border bg-background text-sm font-mono outline-none focus:ring-2 focus:ring-primary/40" />
+            </div>
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />{error}
+            </div>
+          )}
+          {success && (
+            <div className="flex items-center gap-2 text-sm text-emerald-500 bg-emerald-500/10 rounded-lg px-3 py-2">
+              <Check className="w-4 h-4 shrink-0" />Modifications enregistrées !
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 py-2.5 rounded-lg border font-semibold text-sm">Annuler</button>
+            <button type="submit" disabled={saving || success}
+              className="flex-1 py-2.5 rounded-lg bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              {success ? "Enregistré ✓" : "Enregistrer"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
@@ -122,6 +237,7 @@ export default function Workers() {
   const [newWorker, setNewWorker] = useState<CreatedWorker | null>(null);
   const [showPwd, setShowPwd] = useState(false);
   const [credWorker, setCredWorker] = useState<Worker | null>(null);
+  const [editWorker, setEditWorker] = useState<Worker | null>(null);
   const [form, setForm] = useState({ vendorName: "", location: "", phone: "", username: "", email: "", password: "" });
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -168,8 +284,8 @@ export default function Workers() {
 
   return (
     <div className="space-y-6">
-      {/* Credentials modal */}
       {credWorker && <CredentialsModal worker={credWorker} onClose={() => setCredWorker(null)} />}
+      {editWorker && <EditModal worker={editWorker} onClose={() => setEditWorker(null)} onSaved={() => void qc.invalidateQueries({ queryKey: ["/api/admin/workers"] })} />}
 
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Annuaire Vendeurs</h2>
@@ -347,13 +463,22 @@ export default function Workers() {
                     <span className="font-semibold text-foreground">{w.username}</span>
                     <CopyButton value={w.username} />
                   </div>
-                  <button
-                    onClick={() => setCredWorker(w)}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 text-primary font-bold text-xs hover:bg-primary/20 transition-colors"
-                  >
-                    <KeyRound className="w-3 h-3" />
-                    Identifiants
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setEditWorker(w)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-700/50 text-zinc-300 font-bold text-xs hover:bg-zinc-700 transition-colors"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      Modifier
+                    </button>
+                    <button
+                      onClick={() => setCredWorker(w)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 text-primary font-bold text-xs hover:bg-primary/20 transition-colors"
+                    >
+                      <KeyRound className="w-3 h-3" />
+                      Identifiants
+                    </button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
