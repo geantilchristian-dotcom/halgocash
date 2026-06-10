@@ -54,6 +54,19 @@ const K = 0.07;
 function tToM(t: number) { return Math.exp(K * t); }
 function mToT(m: number) { return Math.log(Math.max(1, m)) / K; }
 
+// ── Player ID from localStorage ────────────────────────────────────────
+function getOrCreatePlayerId(): string {
+  try {
+    const stored = localStorage.getItem("halgo_player_id");
+    if (stored) return stored;
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const suffix = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+    const id = "HG#" + suffix;
+    localStorage.setItem("halgo_player_id", id);
+    return id;
+  } catch { return "HG#????" }
+}
+
 // ── Balance from localStorage ──────────────────────────────────────────
 function readLocalBalance(): number {
   try {
@@ -189,10 +202,14 @@ function drawCurve(canvas: HTMLCanvasElement, elapsed: number, phase: Phase, cra
 export default function CrashGame() {
   const [, setLocation] = useLocation();
 
+  // ── Player ID (persistent) ─────────────────────────────────────────
+  const [playerId] = useState<string>(() => getOrCreatePlayerId());
+
   // ── Display state ──────────────────────────────────────────────────
   const [phase, setPhase] = useState<Phase>("waiting");
   const [multiplier, setMultiplier] = useState(1.0);
   const [countdown, setCountdown] = useState(WAIT);
+  const [crashCountdown, setCrashCountdown] = useState(0);
   const [history, setHistory] = useState<HistoryEntry[]>(SEED_HISTORY);
   const [balance, setBalance] = useState<number>(readLocalBalance);
   const [balanceFlash, setBalanceFlash] = useState(false);
@@ -345,11 +362,19 @@ export default function CrashGame() {
           if (c) drawCurve(c, mToT(finalM), "crashed", finalM);
           setHistory((h) => [{ cp: finalM }, ...h].slice(0, 12));
 
-          // Start next round after 3.5s, aligned to global schedule
-          setTimeout(() => {
-            const nextRound = currentRoundId();
-            startRound(nextRound);
-          }, 3500);
+          // 10s countdown before next round
+          const POST_CRASH_WAIT = 10;
+          setCrashCountdown(POST_CRASH_WAIT);
+          let remaining = POST_CRASH_WAIT;
+          const cdPostCrash = setInterval(() => {
+            remaining -= 1;
+            setCrashCountdown(Math.max(0, remaining));
+            if (remaining <= 0) {
+              clearInterval(cdPostCrash);
+              const nextRound = currentRoundId();
+              startRound(nextRound);
+            }
+          }, 1000);
           return;
         }
 
@@ -452,38 +477,24 @@ export default function CrashGame() {
           </span>
         </div>
 
-        <div
-          className="flex items-center gap-1.5 px-3 h-8 rounded-full transition-all"
-          style={{
-            background: balanceFlash ? "rgba(141,198,63,0.15)" : "rgba(255,255,255,0.06)",
-            border: `1px solid ${balanceFlash ? "rgba(141,198,63,0.4)" : "rgba(255,255,255,0.1)"}`,
-            transition: "all 0.3s",
-          }}
-        >
-          <span className="font-black text-[11px]" style={{ color: balanceFlash ? "#8DC63F" : "#fff" }}>
-            {fFC(balance)} <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>FC</span>
+        <div className="flex flex-col items-end gap-0.5">
+          <div
+            className="flex items-center gap-1.5 px-3 h-8 rounded-full transition-all"
+            style={{
+              background: balanceFlash ? "rgba(141,198,63,0.15)" : "rgba(255,255,255,0.06)",
+              border: `1px solid ${balanceFlash ? "rgba(141,198,63,0.4)" : "rgba(255,255,255,0.1)"}`,
+              transition: "all 0.3s",
+            }}
+          >
+            <span className="font-black text-[11px]" style={{ color: balanceFlash ? "#8DC63F" : "#fff" }}>
+              {fFC(balance)} <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>FC</span>
+            </span>
+          </div>
+          <span className="text-[9px] font-black tracking-wide" style={{ color: "rgba(141,198,63,0.6)" }}>
+            {playerId}
           </span>
         </div>
       </header>
-
-      {/* ── History row ── */}
-      <div
-        className="flex gap-1.5 px-4 py-2 overflow-x-auto shrink-0"
-        style={{ scrollbarWidth: "none", background: "#0b1410" }}
-      >
-        {history.map((h, i) => {
-          const c = h.cp < 2 ? "#ef4444" : h.cp < 5 ? "#facc15" : "#4ade80";
-          return (
-            <span
-              key={i}
-              className="shrink-0 text-[10px] font-black px-2.5 py-1 rounded-lg"
-              style={{ background: hexToRgba(c, 0.12), color: c, border: `1px solid ${hexToRgba(c, 0.25)}` }}
-            >
-              {fMult(h.cp)}
-            </span>
-          );
-        })}
-      </div>
 
       {/* ── Canvas area ── */}
       <div
@@ -524,6 +535,9 @@ export default function CrashGame() {
               >
                 {fMult(multiplier)}
               </span>
+              <span className="text-[11px] font-bold px-3 py-1 rounded-full mt-1" style={{ background: "rgba(239,68,68,0.12)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                Prochain match dans {crashCountdown}s
+              </span>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-1">
@@ -560,6 +574,30 @@ export default function CrashGame() {
             </span>
           </div>
         )}
+      </div>
+
+      {/* ── Match history row (moved here so players see it before deciding) ── */}
+      <div
+        className="flex items-center gap-2 px-4 py-2 shrink-0"
+        style={{ background: "#0b1410", borderTop: "1px solid rgba(255,255,255,0.04)" }}
+      >
+        <span className="text-[9px] font-black uppercase tracking-widest shrink-0" style={{ color: "rgba(255,255,255,0.2)" }}>
+          Historique
+        </span>
+        <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          {history.map((h, i) => {
+            const c = h.cp < 2 ? "#ef4444" : h.cp < 5 ? "#facc15" : "#4ade80";
+            return (
+              <span
+                key={i}
+                className="shrink-0 text-[10px] font-black px-2.5 py-1 rounded-lg"
+                style={{ background: hexToRgba(c, 0.12), color: c, border: `1px solid ${hexToRgba(c, 0.25)}` }}
+              >
+                {fMult(h.cp)}
+              </span>
+            );
+          })}
+        </div>
       </div>
 
       {/* ── Live cashout feed ── */}
@@ -764,7 +802,7 @@ export default function CrashGame() {
           {phase === "crashed" && (
             <button disabled className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[13px] opacity-40"
               style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>
-              PROCHAIN DÉCOLLAGE DANS {WAIT}s…
+              PROCHAIN DÉCOLLAGE DANS {crashCountdown}s…
             </button>
           )}
         </div>
