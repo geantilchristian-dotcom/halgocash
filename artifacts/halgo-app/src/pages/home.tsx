@@ -18,6 +18,63 @@ function formatFC(amount: number): string {
   return new Intl.NumberFormat("fr-FR").format(Math.round(amount)).replace(/\s/g, ".");
 }
 
+function JackpotBanner({ countdown }: { countdown: string }) {
+  const [imgOk, setImgOk] = useState<boolean | null>(null);
+  const ts = useRef(Date.now());
+
+  return (
+    <div
+      className="relative rounded-2xl overflow-hidden"
+      style={{
+        background: "linear-gradient(135deg,#0d3320 0%,#165c2a 50%,#1a7a36 100%)",
+        border: "1px solid rgba(141,198,63,0.3)",
+        boxShadow: "0 8px 32px rgba(22,92,40,0.5)",
+        minHeight: imgOk ? undefined : undefined,
+      }}
+    >
+      {/* Image affiche (cachée si erreur) */}
+      <img
+        src={`/api/jackpot-poster/image?t=${ts.current}`}
+        alt="Affiche jackpot"
+        onLoad={() => setImgOk(true)}
+        onError={() => setImgOk(false)}
+        className="w-full block"
+        style={{ display: imgOk ? "block" : "none" }}
+      />
+
+      {/* Fallback texte si pas d'image */}
+      {imgOk === false && (
+        <div className="p-5">
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] mb-1 text-white">
+            JACKPOT HEBDOMADAIRE
+          </p>
+          <p className="font-black leading-none text-white" style={{ fontFamily: "'Oswald', sans-serif", fontSize: "2.1rem", letterSpacing: "0.04em" }}>
+            5 000 000 <span className="text-2xl">CDF</span>
+          </p>
+        </div>
+      )}
+
+      {/* Barre PARTICIPER — toujours visible */}
+      <div
+        className="flex items-center gap-3 px-4 py-3"
+        style={imgOk ? { background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" } : {}}
+      >
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.12)" }}>
+          <Clock style={{ width: 11, height: 11, color: "rgba(255,255,255,0.5)" }} />
+          <span className="text-[10px] font-bold uppercase" style={{ color: "rgba(255,255,255,0.5)" }}>FIN DANS</span>
+          <span className="text-[11px] font-black text-white">{countdown}</span>
+        </div>
+        <button
+          className="flex items-center gap-1 px-4 py-2 rounded-xl font-black text-[11px] uppercase tracking-wide"
+          style={{ background: "rgba(255,255,255,0.13)", color: "#fff", border: "1px solid rgba(255,255,255,0.22)" }}
+        >
+          PARTICIPER <ChevronRight style={{ width: 13, height: 13 }} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function useRollingCounter(target: number | null) {
   const [display, setDisplay] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -555,34 +612,7 @@ export default function Home() {
       <div className="flex-1 px-4 pb-28 space-y-4 mt-3 overflow-y-auto">
 
         {/* ── Jackpot Banner ── */}
-        <div
-          className="relative rounded-2xl overflow-hidden p-5"
-          style={{
-            background: "linear-gradient(135deg,#0d3320 0%,#165c2a 50%,#1a7a36 100%)",
-            border: "1px solid rgba(141,198,63,0.3)",
-            boxShadow: "0 8px 32px rgba(22,92,40,0.5)",
-          }}
-        >
-          <p className="text-[11px] font-black uppercase tracking-[0.2em] mb-1 text-white">
-            JACKPOT HEBDOMADAIRE
-          </p>
-          <p className="font-black leading-none text-white" style={{ fontFamily: "'Oswald', sans-serif", fontSize: "2.1rem", letterSpacing: "0.04em" }}>
-            5 000 000 <span className="text-2xl">CDF</span>
-          </p>
-          <div className="flex items-center gap-3 mt-3">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.1)" }}>
-              <Clock style={{ width: 11, height: 11, color: "rgba(255,255,255,0.45)" }} />
-              <span className="text-[10px] font-bold uppercase" style={{ color: "rgba(255,255,255,0.45)" }}>FIN DANS</span>
-              <span className="text-[11px] font-black text-white">{countdown}</span>
-            </div>
-            <button
-              className="flex items-center gap-1 px-4 py-2 rounded-xl font-black text-[11px] uppercase tracking-wide"
-              style={{ background: "rgba(255,255,255,0.12)", color: "#fff", border: "1px solid rgba(255,255,255,0.2)" }}
-            >
-              PARTICIPER <ChevronRight style={{ width: 13, height: 13 }} />
-            </button>
-          </div>
-        </div>
+        <JackpotBanner countdown={countdown} />
 
         {/* ── Jeux Populaires ── */}
         <div>

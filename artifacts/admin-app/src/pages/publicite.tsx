@@ -137,6 +137,59 @@ export default function Publicite() {
   const [animKey, setAnimKey] = useState(0);
   const [savingPromo, setSavingPromo] = useState(false);
 
+  // Jackpot poster state
+  const jpInputRef = useRef<HTMLInputElement>(null);
+  const [jpPreview, setJpPreview] = useState<string | null>(null);
+  const [jpFile, setJpFile] = useState<File | null>(null);
+  const [jpUploading, setJpUploading] = useState(false);
+  const [jpTs, setJpTs] = useState(Date.now());
+  const [jpExists, setJpExists] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/jackpot-poster/exists", { credentials: "include" })
+      .then(r => r.ok ? r.json() as Promise<{ exists: boolean }> : null)
+      .then(d => { if (d) setJpExists(d.exists); })
+      .catch(() => {});
+  }, [jpTs]);
+
+  async function handleJpFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setJpFile(file);
+    const b64 = await toBase64(file);
+    setJpPreview(b64);
+  }
+
+  async function uploadJpPoster() {
+    if (!jpFile) return;
+    setJpUploading(true);
+    try {
+      const imageData = await toBase64(jpFile);
+      const r = await apiFetch<{ ok: boolean }>("/api/admin/jackpot-poster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageData, mimeType: jpFile.type }),
+      });
+      if (r.ok) {
+        toast({ title: "Affiche jackpot mise à jour" });
+        setJpPreview(null);
+        setJpFile(null);
+        setJpTs(Date.now());
+      }
+    } catch (e) {
+      toast({ title: "Erreur upload", variant: "destructive" });
+    } finally {
+      setJpUploading(false);
+    }
+  }
+
+  async function deleteJpPoster() {
+    await apiFetch<{ ok: boolean }>("/api/admin/jackpot-poster", { method: "DELETE" });
+    toast({ title: "Affiche supprimée" });
+    setJpTs(Date.now());
+    setJpExists(false);
+  }
+
   const { data: banners = [], isLoading } = useQuery<BannerMeta[]>({
     queryKey: ["/api/admin/banners"],
     queryFn: () => apiFetch("/api/admin/banners"),
@@ -468,6 +521,72 @@ export default function Publicite() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Affiche Jackpot ── */}
+      <div className="border-t pt-6 mt-2">
+        <h2 className="text-lg font-bold mb-1">Affiche Jackpot</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Cette image s'affiche dans la zone jackpot de l'app joueur. Le bouton <strong>PARTICIPER</strong> reste toujours visible par-dessus.
+        </p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ImagePlus className="w-4 h-4" /> Importer une affiche jackpot
+          </CardTitle>
+          <CardDescription>PNG, JPG ou WebP. Taille recommandée : 800×400 px.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {jpPreview ? (
+            <div className="relative rounded-xl overflow-hidden border border-border">
+              <img src={jpPreview} alt="Aperçu affiche" className="w-full object-cover max-h-64" />
+              <button
+                onClick={() => { setJpPreview(null); setJpFile(null); }}
+                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white hover:bg-black/80"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => jpInputRef.current?.click()}
+              className="w-full aspect-[2/1] max-h-52 rounded-xl border-2 border-dashed border-border hover:border-amber-500 transition-colors flex flex-col items-center justify-center gap-3 text-muted-foreground hover:text-amber-500 bg-muted/30"
+            >
+              <ImagePlus className="w-10 h-10" />
+              <span className="text-sm font-medium">Cliquer pour choisir une affiche</span>
+              <span className="text-xs">PNG, JPG, WebP</span>
+            </button>
+          )}
+          <input ref={jpInputRef} type="file" accept="image/png,image/jpeg,image/webp"
+            className="hidden" onChange={handleJpFile} />
+
+          {jpPreview && (
+            <Button onClick={uploadJpPoster} disabled={jpUploading} className="w-full gap-2">
+              {jpUploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {jpUploading ? "Envoi en cours…" : "Publier cette affiche"}
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {jpExists && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Eye className="w-4 h-4 text-amber-500" /> Affiche jackpot active
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="rounded-xl overflow-hidden border border-amber-500/20">
+              <img src={`/api/jackpot-poster/image?t=${jpTs}`} alt="Affiche jackpot active" className="w-full object-cover max-h-52" />
+            </div>
+            <Button variant="destructive" size="sm" className="gap-2" onClick={deleteJpPoster}>
+              <Trash2 className="w-3.5 h-3.5" /> Supprimer l'affiche
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

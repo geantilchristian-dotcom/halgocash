@@ -16,6 +16,7 @@ import kycRouter from "./kyc";
 import supportRouter from "./support";
 import pushNotificationsRouter from "./push-notifications";
 import sportRouter from "./sport";
+import jackpotPosterRouter from "./jackpot-poster";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(kycRouter);
 router.use(supportRouter);
 router.use(pushNotificationsRouter);
 router.use(sportRouter);
+router.use(jackpotPosterRouter);
 
 export default router;
