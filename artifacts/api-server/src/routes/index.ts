@@ -19,6 +19,7 @@ import sportRouter from "./sport";
 import jackpotPosterRouter from "./jackpot-poster";
 import gameCoversRouter from "./game-covers";
 import crashRouter from "./crash";
+import rouletteRouter from "./roulette";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(sportRouter);
 router.use(jackpotPosterRouter);
 router.use(gameCoversRouter);
 router.use(crashRouter);
+router.use(rouletteRouter);
 
 export default router;

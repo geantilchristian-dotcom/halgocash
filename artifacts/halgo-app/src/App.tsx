@@ -16,6 +16,8 @@ import ParrainagePage from "@/pages/parrainage";
 import CrashGame from "@/pages/crash";
 import RoulettePage from "@/pages/roulette";
 import SportPage from "@/pages/sport";
+import DrawsPage from "@/pages/draws";
+import WinnersPage from "@/pages/winners";
 import NotFound from "@/pages/not-found";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
@@ -107,6 +109,8 @@ const AppContent = (
         <Route path="/app/crash" component={CrashGame} />
         <Route path="/app/roulette" component={RoulettePage} />
         <Route path="/app/sport" component={SportPage} />
+        <Route path="/app/draws" component={DrawsPage} />
+        <Route path="/app/winners" component={WinnersPage} />
         <Route path="/app/*?" component={NotFound} />
       </Switch>
     </Layout>

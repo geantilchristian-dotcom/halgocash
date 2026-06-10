@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, CircleDot, Users } from "lucide-react";
+import { useAuth, useUser } from "@clerk/react";
+import { ArrowLeft, CircleDot, Users, Loader2 } from "lucide-react";
 
-// ── Wheel segments ──────────────────────────────────────────────────────────
-// 37 pockets: 18 red, 18 black, 1 green (0)
-// Simplified to 18 segments for visual clarity: 8 red, 8 black, 1 green, 1 gold(00)
+// ── Wheel segments (must match server SEGMENT_LABELS order) ─────────────────
 const SEGMENTS = [
   { label: "0",  color: "#16a34a", text: "#fff"  },
   { label: "7",  color: "#dc2626", text: "#fff"  },
@@ -30,7 +29,7 @@ const SEG_COUNT = SEGMENTS.length;
 const SEG_ANGLE = (2 * Math.PI) / SEG_COUNT;
 
 type BetType = "rouge" | "noir" | "vert" | null;
-type SpinState = "idle" | "spinning" | "result";
+type SpinState = "idle" | "pending" | "spinning" | "result";
 
 interface HistoryEntry { label: string; color: string; won: boolean }
 
@@ -38,38 +37,9 @@ interface HistoryEntry { label: string; color: string; won: boolean }
 function fFC(n: number) {
   return new Intl.NumberFormat("fr-FR").format(Math.round(n)).replace(/\s/g, ".") + " FC";
 }
-function readBalance(): number {
-  try { const v = localStorage.getItem("halgo_balance"); return v !== null ? Math.max(0, parseFloat(v)) : 50000; }
-  catch { return 50000; }
-}
-function writeBalance(n: number) {
-  try { localStorage.setItem("halgo_balance", String(Math.max(0, Math.round(n)))); } catch { /* ignore */ }
-}
-function getPlayerId(): string {
-  try {
-    const s = localStorage.getItem("halgo_player_id");
-    if (s) return s;
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    const id = "HG#" + Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-    localStorage.setItem("halgo_player_id", id);
-    return id;
-  } catch { return "HG#????" }
-}
 function segmentColor(label: string): string {
   if (label === "0") return "#16a34a";
   return parseInt(label) % 2 === 1 ? "#dc2626" : "#1a1a2e";
-}
-function betCovers(bet: BetType, label: string): boolean {
-  if (!bet) return false;
-  if (bet === "vert") return label === "0";
-  const n = parseInt(label);
-  if (bet === "rouge") return n !== 0 && n % 2 === 1;
-  return n !== 0 && n % 2 === 0;
-}
-function payout(bet: BetType, label: string): number {
-  if (!betCovers(bet, label)) return 0;
-  if (bet === "vert") return 14;
-  return 2;
 }
 
 // ── Canvas draw ─────────────────────────────────────────────────────────────
@@ -87,24 +57,21 @@ function drawWheel(
   const innerR = outerR * 0.38;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Outer ring
   ctx.beginPath();
   ctx.arc(cx, cy, outerR + 5, 0, 2 * Math.PI);
   ctx.fillStyle = "#1c1c2e";
   ctx.fill();
 
-  // Gold border
   ctx.beginPath();
   ctx.arc(cx, cy, outerR + 4, 0, 2 * Math.PI);
   ctx.strokeStyle = "#F5C518";
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  // Segments
   for (let i = 0; i < SEG_COUNT; i++) {
     const startAngle = rotation + i * SEG_ANGLE - Math.PI / 2;
     const endAngle = startAngle + SEG_ANGLE;
-    const seg = SEGMENTS[i];
+    const seg = SEGMENTS[i]!;
     const isHl = highlightIdx === i;
 
     ctx.beginPath();
@@ -117,7 +84,6 @@ function drawWheel(
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Label
     const midAngle = startAngle + SEG_ANGLE / 2;
     const labelR = outerR * 0.72;
     const lx = cx + Math.cos(midAngle) * labelR;
@@ -133,7 +99,6 @@ function drawWheel(
     ctx.restore();
   }
 
-  // Inner circle hub
   const hubGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, innerR);
   hubGrad.addColorStop(0, "#2a1a00");
   hubGrad.addColorStop(1, "#1c1c2e");
@@ -145,14 +110,12 @@ function drawWheel(
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Center logo
   ctx.font = `bold ${Math.floor(innerR * 0.45)}px sans-serif`;
   ctx.fillStyle = "#F5C518";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("HG", cx, cy);
 
-  // Pointer (top)
   const pSize = 14;
   ctx.beginPath();
   ctx.moveTo(cx - pSize * 0.6, cy - outerR - 3);
@@ -176,8 +139,19 @@ type LiveEntry = { id: string; bet: string; result: string; won: boolean; ts: nu
 // ── Component ────────────────────────────────────────────────────────────────
 export default function RouletteGame() {
   const [, setLocation] = useLocation();
-  const [playerId] = useState(getPlayerId);
-  const [balance, setBalance] = useState(readBalance);
+  const { getToken } = useAuth();
+  const { user, isLoaded } = useUser();
+
+  // ── Auth fetch helper ──────────────────────────────────────────────────────
+  const authFetch = useCallback(async (url: string, options: RequestInit = {}): Promise<Response> => {
+    const token = await getToken().catch(() => null);
+    const headers: Record<string, string> = { "Content-Type": "application/json", ...(options.headers as Record<string, string> | undefined ?? {}) };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    return fetch(url, { ...options, headers, credentials: "include" });
+  }, [getToken]);
+
+  const [balance, setBalance] = useState(0);
+  const [balanceLoaded, setBalanceLoaded] = useState(false);
   const [balanceFlash, setBalanceFlash] = useState(false);
 
   const [betType, setBetType] = useState<BetType>(null);
@@ -190,12 +164,24 @@ export default function RouletteGame() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [liveEntries, setLiveEntries] = useState<LiveEntry[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
   const rotRef = useRef(0);
-  const targetRef = useRef(0);
+
+  // ── Load real balance ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isLoaded) return;
+    authFetch("/api/auth/balance")
+      .then(r => r.json())
+      .then((d: { balance: number }) => {
+        setBalance(d.balance);
+        setBalanceLoaded(true);
+      })
+      .catch(() => setBalanceLoaded(true));
+  }, [isLoaded, authFetch]);
 
   // Resize canvas
   useEffect(() => {
@@ -218,137 +204,136 @@ export default function RouletteGame() {
     if (canvas) drawWheel(canvas, rotRef.current, hl, sp);
   }, []);
 
-  // Sync balance
-  useEffect(() => { writeBalance(balance); }, [balance]);
-
-  const betAmt = parseInt(betInput.replace(/\D/g, ""), 10) || 0;
-  const canSpin = spinState === "idle" && betType !== null && betAmt >= 100 && betAmt <= balance;
-
-  // Determine which segment is under the pointer (top = -PI/2 in canvas coords).
-  // Segment i starts at: rot + i*SEG_ANGLE - PI/2.
-  // Pointer is at -PI/2, so pointer hits segment i when rot + i*SEG_ANGLE ≈ 0 (mod 2π).
-  // Therefore: normAngle = (-rot) mod 2π, and i = floor(normAngle / SEG_ANGLE).
-  function getPointerSegIdx(rot: number): number {
-    const normAngle = ((-rot % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-    return Math.floor(normAngle / SEG_ANGLE) % SEG_COUNT;
-  }
-
-  const spin = () => {
-    if (!canSpin) return;
-    setBalance(p => p - betAmt);
-    setSpinState("spinning");
-    setResultIdx(null);
-    setResultLabel(null);
-    setWinAmount(null);
-    setMsg(null);
-
-    // Pick a random result segment
-    const winningIdx = Math.floor(Math.random() * SEG_COUNT);
-    // How many degrees does pointer need to be pointing at winningIdx?
-    // Segment i starts at (rotation + i * SEG_ANGLE - PI/2)
-    // We want pointer (at -PI/2 from top = 0 in canvas terms) to land at center of segment winningIdx
-    const segCenterAngle = winningIdx * SEG_ANGLE + SEG_ANGLE / 2;
-    // Total rotation = current + many full turns + offset to land on winningIdx
-    const totalSpins = 6 + Math.random() * 3; // 6-9 full spins
-    const extraAngle = 2 * Math.PI * totalSpins;
-    // We want: (targetRot + segCenterAngle) % (2PI) = PI/2 (pointer is at top = PI/2 from x-axis after rotation)
-    // Simplified: just add enough to overshoot and land on the segment
-    const current = rotRef.current;
-    const targetRot = current + extraAngle + (2 * Math.PI - ((current + segCenterAngle) % (2 * Math.PI)));
-    targetRef.current = targetRot;
-
-    const startTime = performance.now();
-    const duration = 4000 + Math.random() * 1000; // 4-5 seconds
-
-    function easeOut(t: number): number {
-      return 1 - Math.pow(1 - t, 3);
-    }
-
-    function animate(now: number) {
-      const elapsed = now - startTime;
-      const t = Math.min(elapsed / duration, 1);
-      const eased = easeOut(t);
-      rotRef.current = current + (targetRef.current - current) * eased;
-      draw(null, true);
-
-      if (t < 1) {
-        rafRef.current = requestAnimationFrame(animate);
-      } else {
-        rotRef.current = targetRef.current;
-        // Determine actual result from final rotation
-        const finalIdx = getPointerSegIdx(rotRef.current);
-        const finalSeg = SEGMENTS[finalIdx];
-        const multiplier = payout(betType, finalSeg.label);
-        const won = multiplier > 0;
-        const wonAmount = won ? Math.floor(betAmt * multiplier) : 0;
-
-        setResultIdx(finalIdx);
-        setResultLabel(finalSeg.label);
-        draw(finalIdx, false);
-        setSpinState("result");
-
-        if (won) {
-          setBalance(p => { const nb = p + wonAmount; writeBalance(nb); return nb; });
-          setWinAmount(wonAmount);
-          setBalanceFlash(true);
-          setTimeout(() => setBalanceFlash(false), 600);
-          setMsg(`${finalSeg.label} — Vous gagnez +${fFC(wonAmount)} !`);
-        } else {
-          setWinAmount(0);
-          setMsg(`${finalSeg.label} — Perdu`);
-        }
-
-        const c = segmentColor(finalSeg.label);
-        setHistory(h => [{ label: finalSeg.label, color: c, won }, ...h].slice(0, 14));
-
-        // Add fake live entries
-        const fakeCount = 2 + Math.floor(Math.random() * 3);
-        const newLive: LiveEntry[] = Array.from({ length: fakeCount }, (_, i) => {
-          const fakeBets = ["rouge", "noir", "vert"] as const;
-          const fb = fakeBets[Math.floor(Math.random() * 3)];
-          const fw = betCovers(fb, finalSeg.label);
-          return {
-            id: FAKE_PLAYERS[Math.floor(Math.random() * FAKE_PLAYERS.length)],
-            bet: fb,
-            result: finalSeg.label,
-            won: fw,
-            ts: Date.now() + i,
-          };
-        });
-        setLiveEntries(prev => [...newLive, ...prev].slice(0, 6));
-
-        // Ready to spin again after 2s
-        setTimeout(() => {
-          setSpinState("idle");
-          setResultIdx(null);
-          setResultLabel(null);
-          setMsg(null);
-          draw(null, false);
-        }, 2500);
-      }
-    }
-
-    rafRef.current = requestAnimationFrame(animate);
-  };
-
-  useEffect(() => {
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, []);
-
   // Initial draw
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas && canvas.width > 0) drawWheel(canvas, 0, null, false);
   }, []);
 
-  const quickAmounts = [500, 1000, 2000, 5000];
+  const betAmt = parseInt(betInput.replace(/\D/g, ""), 10) || 0;
+  const canSpin = spinState === "idle" && betType !== null && betAmt >= 100 && betAmt <= balance && balanceLoaded;
 
+  function animateTo(winningIdx: number, onDone: () => void) {
+    const segCenterAngle = winningIdx * SEG_ANGLE + SEG_ANGLE / 2;
+    const totalSpins = 6 + Math.random() * 3;
+    const extraAngle = 2 * Math.PI * totalSpins;
+    const current = rotRef.current;
+    const targetRot = current + extraAngle + (2 * Math.PI - ((current + segCenterAngle) % (2 * Math.PI)));
+    const startTime = performance.now();
+    const duration = 4000 + Math.random() * 1000;
+
+    function easeOut(t: number) { return 1 - Math.pow(1 - t, 3); }
+
+    function animate(now: number) {
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      rotRef.current = current + (targetRot - current) * easeOut(t);
+      draw(null, true);
+      if (t < 1) {
+        rafRef.current = requestAnimationFrame(animate);
+      } else {
+        rotRef.current = targetRot;
+        onDone();
+      }
+    }
+    rafRef.current = requestAnimationFrame(animate);
+  }
+
+  const spin = async () => {
+    if (!canSpin) return;
+    setSpinState("pending");
+    setResultIdx(null);
+    setResultLabel(null);
+    setWinAmount(null);
+    setMsg(null);
+    setError(null);
+
+    let segmentIdx: number;
+    let result: string;
+    let won: boolean;
+    let wonAmount: number;
+    let newBalance: number;
+
+    try {
+      const res = await authFetch("/api/roulette/spin", {
+        method: "POST",
+        body: JSON.stringify({ betType, amount: betAmt }),
+      });
+      if (!res.ok) {
+        const err = await res.json() as { error?: string };
+        setError(err.error ?? "Erreur serveur");
+        setSpinState("idle");
+        return;
+      }
+      const data = await res.json() as { segmentIdx: number; result: string; won: boolean; wonAmount: number; newBalance: number };
+      segmentIdx = data.segmentIdx;
+      result     = data.result;
+      won        = data.won;
+      wonAmount  = data.wonAmount;
+      newBalance = data.newBalance;
+    } catch {
+      setError("Connexion perdue. Réessayez.");
+      setSpinState("idle");
+      return;
+    }
+
+    // Deduct from display immediately
+    setBalance(b => b - betAmt);
+    setSpinState("spinning");
+
+    animateTo(segmentIdx, () => {
+      draw(segmentIdx, false);
+      setResultIdx(segmentIdx);
+      setResultLabel(result);
+      setSpinState("result");
+      setBalance(newBalance);
+
+      if (won) {
+        setWinAmount(wonAmount);
+        setBalanceFlash(true);
+        setTimeout(() => setBalanceFlash(false), 600);
+        setMsg(`${result} — Vous gagnez +${fFC(wonAmount)} !`);
+      } else {
+        setWinAmount(0);
+        setMsg(`${result} — Perdu`);
+      }
+
+      const c = segmentColor(result);
+      setHistory(h => [{ label: result, color: c, won }, ...h].slice(0, 14));
+
+      // Add fake live entries
+      const fakeCount = 2 + Math.floor(Math.random() * 3);
+      const newLive: LiveEntry[] = Array.from({ length: fakeCount }, (_, i) => {
+        const fakeBets = ["rouge", "noir", "vert"] as const;
+        const fb = fakeBets[Math.floor(Math.random() * 3)]!;
+        const fmult = fb === "vert" ? (result === "0" ? 14 : 0) : (fb === "rouge" ? (parseInt(result) % 2 === 1 && result !== "0" ? 2 : 0) : (parseInt(result) % 2 === 0 && result !== "0" ? 2 : 0));
+        return { id: FAKE_PLAYERS[Math.floor(Math.random() * FAKE_PLAYERS.length)]!, bet: fb, result, won: fmult > 0, ts: Date.now() + i };
+      });
+      setLiveEntries(prev => [...newLive, ...prev].slice(0, 6));
+
+      setTimeout(() => {
+        setSpinState("idle");
+        setResultIdx(null);
+        setResultLabel(null);
+        setMsg(null);
+        draw(null, false);
+      }, 2500);
+    });
+  };
+
+  useEffect(() => {
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, []);
+
+  const quickAmounts = [500, 1000, 2000, 5000];
   const betLabel = { rouge: "Rouge ×2", noir: "Noir ×2", vert: "Vert ×14" };
   const betBg = {
     rouge: "linear-gradient(135deg,#7f1d1d,#dc2626)",
     noir: "linear-gradient(135deg,#111,#1a1a2e)",
     vert: "linear-gradient(135deg,#14532d,#16a34a)",
   };
+
+  const playerLabel = user?.username ?? user?.firstName ?? "Joueur";
 
   return (
     <div
@@ -390,12 +375,15 @@ export default function RouletteGame() {
               transition: "all 0.3s",
             }}
           >
-            <span className="font-black text-[11px]" style={{ color: balanceFlash ? "#F5C518" : "#fff" }}>
-              {fFC(balance)} <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>FC</span>
-            </span>
+            {!balanceLoaded
+              ? <Loader2 style={{ width: 12, height: 12, color: "#F5C518" }} className="animate-spin" />
+              : <span className="font-black text-[11px]" style={{ color: balanceFlash ? "#F5C518" : "#fff" }}>
+                  {fFC(balance)} <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>FC</span>
+                </span>
+            }
           </div>
           <span className="text-[9px] font-black tracking-wide" style={{ color: "rgba(245,197,24,0.6)" }}>
-            {playerId}
+            {playerLabel}
           </span>
         </div>
       </header>
@@ -408,6 +396,16 @@ export default function RouletteGame() {
       >
         <canvas ref={canvasRef} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
       </div>
+
+      {/* ── Error ── */}
+      {error && (
+        <div
+          className="mx-4 px-4 py-2 rounded-2xl shrink-0"
+          style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)" }}
+        >
+          <span className="text-[12px] font-bold" style={{ color: "#f87171" }}>{error}</span>
+        </div>
+      )}
 
       {/* ── Result message ── */}
       {msg && (
@@ -475,7 +473,7 @@ export default function RouletteGame() {
                 {e.bet}
               </span>
               <span className="text-[10px] font-black shrink-0" style={{ color: e.won ? "#F5C518" : "rgba(255,255,255,0.35)" }}>
-                {e.won ? `+${e.result === "0" ? "14" : "2"}×` : "perdu"}
+                {e.won ? `+${resultLabel === "0" ? "14" : "2"}×` : "perdu"}
               </span>
             </div>
           ))}
@@ -487,13 +485,12 @@ export default function RouletteGame() {
         className="mt-3 mx-4 mb-4 rounded-2xl overflow-hidden shrink-0"
         style={{ background: "#160d00", border: "1px solid rgba(245,197,24,0.12)" }}
       >
-        {/* Bet type selector */}
         <div className="p-3 grid grid-cols-3 gap-2" style={{ borderBottom: "1px solid rgba(245,197,24,0.08)" }}>
           {(["rouge", "noir", "vert"] as BetType[]).map((b) => (
             <button
               key={b!}
               onClick={() => spinState === "idle" && setBetType(b)}
-              disabled={spinState === "spinning"}
+              disabled={spinState === "spinning" || spinState === "pending"}
               className="py-3 rounded-xl font-black text-[11px] uppercase tracking-wide transition-all active:scale-95 disabled:opacity-50"
               style={{
                 background: betType === b
@@ -516,14 +513,13 @@ export default function RouletteGame() {
         </div>
 
         <div className="px-4 pt-3 pb-4 space-y-3">
-          {/* Amount */}
           <div
             className="flex items-center rounded-xl overflow-hidden"
             style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(245,197,24,0.15)" }}
           >
             <button
               onClick={() => setBetInput(v => String(Math.max(100, (parseInt(v) || 0) - 500)))}
-              disabled={spinState === "spinning"}
+              disabled={spinState !== "idle"}
               className="w-10 h-10 flex items-center justify-center font-black text-lg transition-all active:scale-90 disabled:opacity-30"
               style={{ color: "rgba(255,255,255,0.6)" }}
             >−</button>
@@ -531,14 +527,14 @@ export default function RouletteGame() {
               type="number"
               value={betInput}
               onChange={e => setBetInput(e.target.value)}
-              disabled={spinState === "spinning"}
+              disabled={spinState !== "idle"}
               className="flex-1 bg-transparent text-center font-black text-white outline-none disabled:opacity-50"
               style={{ fontSize: "1rem" }}
               min={100}
             />
             <button
               onClick={() => setBetInput(v => String((parseInt(v) || 0) + 500))}
-              disabled={spinState === "spinning"}
+              disabled={spinState !== "idle"}
               className="w-10 h-10 flex items-center justify-center font-black text-lg transition-all active:scale-90 disabled:opacity-30"
               style={{ color: "rgba(255,255,255,0.6)" }}
             >+</button>
@@ -549,7 +545,7 @@ export default function RouletteGame() {
               <button
                 key={a}
                 onClick={() => setBetInput(String(a))}
-                disabled={spinState === "spinning"}
+                disabled={spinState !== "idle"}
                 className="flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all active:scale-95 disabled:opacity-30"
                 style={{ background: "rgba(245,197,24,0.08)", color: "#F5C518", border: "1px solid rgba(245,197,24,0.15)" }}
               >
@@ -558,16 +554,15 @@ export default function RouletteGame() {
             ))}
             <button
               onClick={() => setBetInput(String(Math.floor(balance)))}
-              disabled={spinState === "spinning"}
+              disabled={spinState !== "idle"}
               className="flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all active:scale-95 disabled:opacity-30"
               style={{ background: "rgba(245,197,24,0.08)", color: "#F5C518", border: "1px solid rgba(245,197,24,0.15)" }}
             >MAX</button>
           </div>
 
-          {/* Spin button */}
           {spinState === "idle" && (
             <button
-              onClick={spin}
+              onClick={() => void spin()}
               disabled={!canSpin}
               className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[13px] transition-all active:scale-[0.97] disabled:opacity-40"
               style={{
@@ -576,7 +571,17 @@ export default function RouletteGame() {
                 boxShadow: canSpin ? "0 4px 20px rgba(245,197,24,0.35)" : "none",
               }}
             >
-              {!betType ? "CHOISISSEZ UNE MISE" : betAmt < 100 ? "MISE MIN 100 FC" : betAmt > balance ? "SOLDE INSUFFISANT" : `🎰 LANCER · ${fFC(betAmt)} FC`}
+              {!balanceLoaded ? "CHARGEMENT…" : !betType ? "CHOISISSEZ UNE MISE" : betAmt < 100 ? "MISE MIN 100 FC" : betAmt > balance ? "SOLDE INSUFFISANT" : `🎰 LANCER · ${fFC(betAmt)}`}
+            </button>
+          )}
+
+          {spinState === "pending" && (
+            <button disabled className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[13px]"
+              style={{ background: "rgba(245,197,24,0.12)", color: "#F5C518", border: "1px solid rgba(245,197,24,0.3)" }}>
+              <div className="flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                VALIDATION…
+              </div>
             </button>
           )}
 
@@ -599,7 +604,6 @@ export default function RouletteGame() {
         </div>
       </div>
 
-      {/* Players online */}
       <div className="flex items-center justify-center gap-1.5 pb-4">
         <Users style={{ width: 10, height: 10, color: "rgba(245,197,24,0.6)" }} />
         <span className="text-[9px] font-bold" style={{ color: "rgba(255,255,255,0.3)" }}>
