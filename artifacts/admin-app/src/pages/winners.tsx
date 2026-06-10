@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Trophy } from "lucide-react";
 
 export default function Winners() {
-  const { data: winners } = useListWinners();
+  const { data: winners } = useListWinners(undefined, { query: { queryKey: [], refetchInterval: 8_000 } });
 
   return (
     <div className="space-y-6">

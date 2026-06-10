@@ -19,7 +19,7 @@ function timeAgo(iso: string): string {
 }
 
 export default function Dashboard() {
-  const { data: stats, isLoading } = useGetStats();
+  const { data: stats, isLoading } = useGetStats({ query: { queryKey: [], refetchInterval: 8_000 } });
 
   const { data: onlineUsers = [], refetch: refetchOnline } = useQuery<OnlineUser[]>({
     queryKey: ["/api/admin/online-users"],

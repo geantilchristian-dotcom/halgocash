@@ -207,8 +207,13 @@ export default function Home() {
 
   // QR scan auto-fill
   // Tracks locally-confirmed wins not yet reflected by server balance.
-  // Prevents a server balance:0 (auth failure) from wiping real wins.
-  const localWinsRef = useRef(0);
+  // Initialized from localStorage so wins survive page reloads when server auth fails.
+  const localWinsRef = useRef<number>(
+    (() => {
+      try { const v = localStorage.getItem("halgo_balance"); return v ? parseFloat(v) : 0; }
+      catch { return 0; }
+    })()
+  );
 
   const autoSubmitRef = useRef(false);
   useEffect(() => {
