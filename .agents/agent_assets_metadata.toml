@@ -1,5 +1,16 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "YZ8z8WQsdX1mjpwQuqpTz"
+uri = "file://artifacts/halgo-mobile/assets/images/icon.png"
+type = "image"
+title = "halgo_cash_icon"
+
+[[generated]]
+id = "mnICL6U_1ut64oxBXPgwb"
+uri = "file://artifacts/halgo-mobile/assets/images/splash-icon.png"
+type = "image"
+title = "halgo_splash"
 
 [[outputs]]
 id = "ryVjOwMwkXF9zWoguRuQe"

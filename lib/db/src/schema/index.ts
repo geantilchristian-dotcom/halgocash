@@ -117,6 +117,38 @@ export const creditAdjustmentsTable = pgTable("credit_adjustments", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const kycTable = pgTable("kyc_submissions", {
+  id: serial("id").primaryKey(),
+  clerkId: varchar("clerk_id", { length: 255 }).notNull().unique(),
+  fullName: text("full_name").notNull(),
+  birthDate: varchar("birth_date", { length: 10 }).notNull(),
+  idType: varchar("id_type", { length: 20 }).notNull().default("cni"),
+  idNumber: varchar("id_number", { length: 50 }).notNull(),
+  status: text("status").notNull().default("pending"),
+  adminNote: text("admin_note"),
+  submittedAt: timestamp("submitted_at").notNull().defaultNow(),
+  reviewedAt: timestamp("reviewed_at"),
+});
+
+export const fcmTokensTable = pgTable("fcm_tokens", {
+  id: serial("id").primaryKey(),
+  clerkId: varchar("clerk_id", { length: 255 }).notNull(),
+  token: text("token").notNull().unique(),
+  platform: varchar("platform", { length: 20 }).notNull().default("web"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const supportMessagesTable = pgTable("support_messages", {
+  id: serial("id").primaryKey(),
+  sessionId: varchar("session_id", { length: 64 }).notNull(),
+  clerkId: varchar("clerk_id", { length: 255 }).notNull(),
+  clerkName: text("clerk_name").notNull().default("Joueur"),
+  message: text("message").notNull(),
+  fromAdmin: boolean("from_admin").notNull().default(false),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const insertVendorSchema = createInsertSchema(vendorsTable).omit({ id: true, createdAt: true });
 export const insertDrawSchema = createInsertSchema(drawsTable).omit({ id: true, createdAt: true, drawnAt: true, winningTicketCode: true, winningNumbers: true, prizePool: true });
 export const insertTicketSchema = createInsertSchema(ticketsTable).omit({ id: true, createdAt: true });

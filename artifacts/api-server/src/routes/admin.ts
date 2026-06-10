@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { eq, desc, or, sql, count, sum, and, isNotNull, isNull } from "drizzle-orm";
-import { db, usersTable, ticketsTable, drawsTable, vendorsTable, withdrawalsTable, playerProfilesTable, creditAdjustmentsTable } from "@workspace/db";
+import { db, usersTable, ticketsTable, drawsTable, vendorsTable, withdrawalsTable, playerProfilesTable, creditAdjustmentsTable, kycTable, supportMessagesTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { getOnlineUsers } from "../lib/presence";
 
@@ -739,6 +739,61 @@ router.get("/admin/withdrawals", requireAdmin, async (_req: Request, res: Respon
   );
 
   res.json(results);
+});
+
+// ── KYC Admin ──────────────────────────────────────────────────────────────
+
+router.get("/admin/kyc", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const { status } = req.query as { status?: string };
+  const rows = await db.select().from(kycTable)
+    .where(status && status !== "all" ? eq(kycTable.status, status) : undefined)
+    .orderBy(desc(kycTable.submittedAt));
+  res.json(rows.map(r => ({ ...r, submittedAt: r.submittedAt.toISOString(), reviewedAt: r.reviewedAt?.toISOString() ?? null })));
+});
+
+router.patch("/admin/kyc/:id", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(String(req.params.id ?? "0"), 10);
+  if (!id) { res.status(400).json({ error: "ID invalide" }); return; }
+  const { status, adminNote } = req.body as { status?: string; adminNote?: string };
+  if (!status || !["approved", "rejected"].includes(status)) { res.status(400).json({ error: "Statut invalide" }); return; }
+  const [updated] = await db.update(kycTable).set({ status, adminNote: adminNote ?? null, reviewedAt: new Date() }).where(eq(kycTable.id, id)).returning();
+  if (!updated) { res.status(404).json({ error: "Dossier introuvable" }); return; }
+  res.json({ ok: true, status: updated.status });
+});
+
+// ── Support Admin ──────────────────────────────────────────────────────────
+
+router.get("/admin/support", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const rows = await db.select().from(supportMessagesTable).orderBy(desc(supportMessagesTable.createdAt));
+  const sessionsMap = new Map<string, { sessionId: string; clerkId: string; clerkName: string; lastMessage: string; lastAt: string; unread: number }>();
+  for (const row of rows) {
+    if (!sessionsMap.has(row.sessionId)) {
+      sessionsMap.set(row.sessionId, { sessionId: row.sessionId, clerkId: row.clerkId, clerkName: row.clerkName, lastMessage: row.message, lastAt: row.createdAt.toISOString(), unread: 0 });
+    }
+    if (!row.fromAdmin && !row.isRead) {
+      sessionsMap.get(row.sessionId)!.unread++;
+    }
+  }
+  res.json(Array.from(sessionsMap.values()));
+});
+
+router.get("/admin/support/:sessionId", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const sessionId = String(req.params.sessionId ?? "");
+  const msgs = await db.select().from(supportMessagesTable)
+    .where(eq(supportMessagesTable.sessionId, sessionId))
+    .orderBy(supportMessagesTable.createdAt);
+  await db.update(supportMessagesTable).set({ isRead: true }).where(and(eq(supportMessagesTable.sessionId, sessionId), eq(supportMessagesTable.fromAdmin, false)));
+  res.json(msgs.map(m => ({ ...m, createdAt: m.createdAt.toISOString() })));
+});
+
+router.post("/admin/support/reply/:sessionId", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const sessionId = String(req.params.sessionId ?? "");
+  const { message } = req.body as { message?: string };
+  if (!message?.trim()) { res.status(400).json({ error: "Message vide" }); return; }
+  const [first] = await db.select({ clerkId: supportMessagesTable.clerkId }).from(supportMessagesTable).where(eq(supportMessagesTable.sessionId, sessionId)).limit(1);
+  const clerkId = first?.clerkId ?? sessionId;
+  const [saved] = await db.insert(supportMessagesTable).values({ sessionId, clerkId, clerkName: "Admin", message: message.slice(0, 2000), fromAdmin: true, isRead: false }).returning();
+  res.status(201).json({ ...saved, createdAt: saved!.createdAt.toISOString() });
 });
 
 export default router;

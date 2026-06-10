@@ -488,4 +488,32 @@ router.get("/auth/history", async (req, res): Promise<void> => {
   })));
 });
 
+// GET /api/auth/tickets — same as history but includes price
+router.get("/auth/tickets", async (req, res): Promise<void> => {
+  const { userId: clerkUserId } = getAuth(req);
+  const sessionUserId = req.session.userId;
+  const effectiveUserId = clerkUserId ?? (sessionUserId ? `local:${sessionUserId}` : null);
+  if (!effectiveUserId) { res.json([]); return; }
+  const tickets = await db
+    .select({
+      id: ticketsTable.id,
+      code: ticketsTable.code,
+      series: ticketsTable.series,
+      price: ticketsTable.price,
+      isWinner: ticketsTable.isWinner,
+      prizeAmount: ticketsTable.prizeAmount,
+      registeredAt: ticketsTable.registeredAt,
+    })
+    .from(ticketsTable)
+    .where(eq(ticketsTable.registeredByClerkId, effectiveUserId))
+    .orderBy(desc(ticketsTable.registeredAt))
+    .limit(200);
+  res.json(tickets.map((t) => ({
+    ...t,
+    price: t.price ? parseFloat(t.price) : 0,
+    prizeAmount: t.prizeAmount ? parseFloat(t.prizeAmount) : null,
+    registeredAt: t.registeredAt?.toISOString() ?? null,
+  })));
+});
+
 export default router;

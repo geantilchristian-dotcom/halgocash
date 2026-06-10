@@ -12,6 +12,9 @@ import withdrawalsRouter from "./withdrawals";
 import vendorStatsRouter from "./vendor-stats";
 import bannersRouter from "./banners";
 import settingsRouter from "./settings";
+import kycRouter from "./kyc";
+import supportRouter from "./support";
+import pushNotificationsRouter from "./push-notifications";
 
 const router: IRouter = Router();
 
@@ -28,5 +31,8 @@ router.use(withdrawalsRouter);
 router.use(vendorStatsRouter);
 router.use(bannersRouter);
 router.use(settingsRouter);
+router.use(kycRouter);
+router.use(supportRouter);
+router.use(pushNotificationsRouter);
 
 export default router;

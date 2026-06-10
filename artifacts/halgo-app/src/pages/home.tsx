@@ -12,6 +12,7 @@ import { useUser, useAuth } from "@clerk/react";
 import { QRCodeSVG } from "qrcode.react";
 import { useLocation } from "wouter";
 import { QrScanner } from "@/components/qr-scanner";
+import { SupportChat } from "@/components/support-chat";
 
 function formatFC(amount: number): string {
   return new Intl.NumberFormat("fr-FR").format(Math.round(amount)).replace(/\s/g, ".");
@@ -1347,16 +1348,18 @@ export default function Home() {
         </div>
       )}
 
-      {/* ═══════════════ BOTTOM NAV (4 tabs) ═══════════════ */}
+      <SupportChat />
+
+      {/* ═══════════════ BOTTOM NAV ═══════════════ */}
       <nav
         className="fixed bottom-0 left-0 right-0 z-30 flex items-stretch"
         style={{ background: "#0a1a0e", borderTop: "1px solid rgba(255,255,255,0.06)", height: 68 }}
       >
         {[
-          { icon: HomeIcon, label: "ACCUEIL",   path: "/",         active: true  },
-          { icon: Ticket,   label: "COUPON",    path: "/coupons",  active: false },
-          { icon: User,     label: "PROFIL",    path: "/profile",  active: false },
-          { icon: Settings, label: "PARAMÈTRE", path: "/settings", active: false },
+          { icon: HomeIcon, label: "ACCUEIL",  path: "/app",          active: true  },
+          { icon: Ticket,   label: "TICKETS",  path: "/app/tickets",  active: false },
+          { icon: UserPlus, label: "PARRAIN",  path: "/app/parrainage", active: false },
+          { icon: User,     label: "PROFIL",   path: "/app/profile",  active: false },
         ].map(({ icon: Icon, label, path, active }) => (
           <button key={label} onClick={() => navigate(path)}
             className="flex-1 flex flex-col items-center justify-center gap-0.5 transition-all active:scale-90">

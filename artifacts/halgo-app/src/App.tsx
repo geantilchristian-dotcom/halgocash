@@ -11,9 +11,12 @@ import Home from "@/pages/home";
 import Profile from "@/pages/profile";
 import Settings from "@/pages/settings";
 import Coupons from "@/pages/coupons";
+import TicketsPage from "@/pages/tickets";
+import ParrainagePage from "@/pages/parrainage";
 import NotFound from "@/pages/not-found";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
+import { AgeGate } from "@/components/age-gate";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -89,15 +92,19 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 const AppContent = (
-  <Layout>
-    <Switch>
-      <Route path="/app" component={Home} />
-      <Route path="/app/coupons" component={Coupons} />
-      <Route path="/app/profile" component={Profile} />
-      <Route path="/app/settings" component={Settings} />
-      <Route path="/app/*?" component={NotFound} />
-    </Switch>
-  </Layout>
+  <AgeGate>
+    <Layout>
+      <Switch>
+        <Route path="/app" component={Home} />
+        <Route path="/app/coupons" component={Coupons} />
+        <Route path="/app/profile" component={Profile} />
+        <Route path="/app/settings" component={Settings} />
+        <Route path="/app/tickets" component={TicketsPage} />
+        <Route path="/app/parrainage" component={ParrainagePage} />
+        <Route path="/app/*?" component={NotFound} />
+      </Switch>
+    </Layout>
+  </AgeGate>
 );
 
 function AppRoutes() {

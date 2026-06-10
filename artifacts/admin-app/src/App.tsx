@@ -15,6 +15,8 @@ import Rapport from "@/pages/rapport";
 import Publicite from "@/pages/publicite";
 import PlayersPage from "@/pages/players";
 import WinnersPage from "@/pages/winners";
+import KycAdmin from "@/pages/kyc-admin";
+import SupportAdmin from "@/pages/support-admin";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Loader2 } from "lucide-react";
 
@@ -62,6 +64,8 @@ function ProtectedRouter() {
         <Route path="/publicite" component={Publicite} />
         <Route path="/players" component={PlayersPage} />
         <Route path="/winners" component={WinnersPage} />
+        <Route path="/kyc" component={KycAdmin} />
+        <Route path="/support" component={SupportAdmin} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>
