@@ -39,7 +39,10 @@ export default function Settings() {
     onSuccess: (data: { deletedTickets: number; deletedWithdrawals: number }) => {
       setShowResetModal(false);
       setResetConfirmText("");
-      void queryClient.invalidateQueries();
+      // Invalidate only data queries — not auth/me (would trigger logout redirect)
+      void queryClient.invalidateQueries({ queryKey: ["/api/admin"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/draws"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       toast({
         title: "Stock vidé avec succès",
         description: `${data.deletedTickets} billets et ${data.deletedWithdrawals} retraits supprimés.`,
