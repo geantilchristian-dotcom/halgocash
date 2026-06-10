@@ -703,34 +703,34 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ── Paris Sportifs ── */}
-        <div
-          onClick={() => navigate("/app/sport")}
-          className="rounded-2xl overflow-hidden relative cursor-pointer active:scale-[0.98] transition-transform"
+        {/* ══════════════ ACTIVER MON TICKET CTA ══════════════ */}
+        <button
+          onClick={() => setShowTicketInput(true)}
+          className="w-full rounded-2xl transition-all active:scale-[0.97]"
           style={{
-            background: "linear-gradient(135deg,#0a1f10 0%,#0d2a16 50%,#061209 100%)",
-            border: "1px solid rgba(39,174,96,0.35)",
-            boxShadow: "0 6px 24px rgba(39,174,96,0.15)",
+            background: "linear-gradient(135deg,#F5C518 0%,#f59e0b 100%)",
+            boxShadow: "0 6px 28px rgba(245,197,24,0.45)",
           }}
         >
-          <div className="px-4 py-4 flex items-center gap-4">
+          <div className="flex items-center gap-3 px-4 py-3.5">
             <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 text-3xl"
-              style={{ background: "linear-gradient(135deg,#1e5c2e,#27ae60)", boxShadow: "0 4px 16px rgba(39,174,96,0.4)" }}
+              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: "rgba(0,0,0,0.18)" }}
             >
-              ⚽
+              <Ticket style={{ width: 21, height: 21, color: "#fff" }} strokeWidth={2.5} />
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="text-white font-black text-sm">Paris Sportifs</span>
-                <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ background: "#27ae60", color: "#fff" }}>LIVE</span>
-              </div>
-              <p className="text-white/50 text-[11px]">CL · Ligue 1 · Premier League · Bundesliga…</p>
-              <p className="text-[#27ae60] text-[11px] font-bold mt-1">Misez sur les matchs en direct →</p>
+            <div className="flex-1 text-left">
+              <p className="font-black text-[14px] tracking-wide uppercase" style={{ color: "#0a1f0e" }}>ACTIVER MON TICKET</p>
+              <p className="text-[10px] font-semibold" style={{ color: "rgba(0,0,0,0.5)" }}>Saisir un code ou scanner le QR</p>
             </div>
-            <ChevronRight className="w-5 h-5 text-white/30 flex-shrink-0" />
+            <div
+              className="flex items-center gap-1 px-3 py-2 rounded-xl font-black text-[11px] uppercase tracking-wide shrink-0"
+              style={{ background: "rgba(0,0,0,0.18)", color: "#0a1f0e" }}
+            >
+              JOUER <ChevronRight style={{ width: 13, height: 13 }} />
+            </div>
           </div>
-        </div>
+        </button>
 
         {/* ── Télécharger l'application ── */}
         <button
@@ -874,34 +874,34 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ══════════════ ACTIVER MON TICKET CTA ══════════════ */}
-        <button
-          onClick={() => setShowTicketInput(true)}
-          className="w-full rounded-2xl transition-all active:scale-[0.97]"
+        {/* ── Paris Sportifs ── */}
+        <div
+          onClick={() => navigate("/app/sport")}
+          className="rounded-2xl overflow-hidden relative cursor-pointer active:scale-[0.98] transition-transform"
           style={{
-            background: "linear-gradient(135deg,#F5C518 0%,#f59e0b 100%)",
-            boxShadow: "0 6px 28px rgba(245,197,24,0.45)",
+            background: "linear-gradient(135deg,#0a1f10 0%,#0d2a16 50%,#061209 100%)",
+            border: "1px solid rgba(39,174,96,0.35)",
+            boxShadow: "0 6px 24px rgba(39,174,96,0.15)",
           }}
         >
-          <div className="flex items-center gap-3 px-4 py-3.5">
+          <div className="px-4 py-4 flex items-center gap-4">
             <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-              style={{ background: "rgba(0,0,0,0.18)" }}
+              className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 text-3xl"
+              style={{ background: "linear-gradient(135deg,#1e5c2e,#27ae60)", boxShadow: "0 4px 16px rgba(39,174,96,0.4)" }}
             >
-              <Ticket style={{ width: 21, height: 21, color: "#fff" }} strokeWidth={2.5} />
+              ⚽
             </div>
-            <div className="flex-1 text-left">
-              <p className="font-black text-[14px] tracking-wide uppercase" style={{ color: "#0a1f0e" }}>ACTIVER MON TICKET</p>
-              <p className="text-[10px] font-semibold" style={{ color: "rgba(0,0,0,0.5)" }}>Saisir un code ou scanner le QR</p>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-white font-black text-sm">Paris Sportifs</span>
+                <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ background: "#27ae60", color: "#fff" }}>LIVE</span>
+              </div>
+              <p className="text-white/50 text-[11px]">CL · Ligue 1 · Premier League · Bundesliga…</p>
+              <p className="text-[#27ae60] text-[11px] font-bold mt-1">Misez sur les matchs en direct →</p>
             </div>
-            <div
-              className="flex items-center gap-1 px-3 py-2 rounded-xl font-black text-[11px] uppercase tracking-wide shrink-0"
-              style={{ background: "rgba(0,0,0,0.18)", color: "#0a1f0e" }}
-            >
-              JOUER <ChevronRight style={{ width: 13, height: 13 }} />
-            </div>
+            <ChevronRight className="w-5 h-5 text-white/30 flex-shrink-0" />
           </div>
-        </button>
+        </div>
 
       </div>
 
