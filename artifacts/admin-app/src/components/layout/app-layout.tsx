@@ -16,6 +16,7 @@ import {
   Trophy,
   Shield,
   MessageSquare,
+  ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -35,6 +36,7 @@ const navItems = [
   { href: "/withdrawals",    label: "Retraits joueurs",    icon: ArrowDownLeft   },
   { href: "/rapport",        label: "Rapport",             icon: BarChart2       },
   { href: "/publicite",      label: "Publicité",           icon: Megaphone       },
+  { href: "/game-covers",    label: "Pochettes jeux",      icon: ImageIcon       },
   { href: "/kyc",            label: "Vérification KYC",    icon: Shield          },
   { href: "/support",        label: "Support joueurs",     icon: MessageSquare   },
   { href: "/settings",       label: "Paramètres",          icon: Settings        },

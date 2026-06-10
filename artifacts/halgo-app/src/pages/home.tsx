@@ -59,6 +59,7 @@ function useJackpotCountdown() {
 
 interface GameDef {
   name: string;
+  coverKey: string;
   badge: string;
   badgeColor: string;
   bg: string;
@@ -72,9 +73,14 @@ interface GameDef {
   route?: string;
 }
 
+function readGameCover(key: string): string | null {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+
 const GAMES: GameDef[] = [
   {
     name: "Halgo Crash",
+    coverKey: "halgo_cover_crash",
     badge: "TOP",
     badgeColor: "#e74c3c",
     bg: "linear-gradient(160deg,#1a0505 0%,#3a0a0a 50%,#110303 100%)",
@@ -89,6 +95,7 @@ const GAMES: GameDef[] = [
   },
   {
     name: "Roulette Halgo",
+    coverKey: "halgo_cover_roulette",
     badge: "TOP",
     badgeColor: "#92400e",
     bg: "linear-gradient(160deg,#160d00 0%,#2e1a00 50%,#0d0800 100%)",
@@ -103,6 +110,7 @@ const GAMES: GameDef[] = [
   },
   {
     name: "Mines",
+    coverKey: "halgo_cover_mines",
     badge: "NOUVEAU",
     badgeColor: "#22a84a",
     bg: "linear-gradient(160deg,#081418 0%,#0d2a3a 50%,#050e12 100%)",
@@ -601,29 +609,40 @@ export default function Home() {
                 }}
               >
                 {/* Preview zone — top 60% */}
+                {(() => {
+                  const cover = readGameCover(g.coverKey);
+                  return (
                 <div
                   className="relative flex-1 flex items-center justify-center overflow-hidden"
-                  style={{ background: g.previewBg }}
+                  style={{ background: cover ? undefined : g.previewBg }}
                 >
+                  {/* Custom cover image */}
+                  {cover && (
+                    <img
+                      src={cover}
+                      alt={g.name}
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  )}
                   {/* Subtle grid lines for depth */}
-                  <div
+                  {!cover && <div
                     className="absolute inset-0 opacity-10"
                     style={{
                       backgroundImage: `linear-gradient(${g.accent}60 1px, transparent 1px), linear-gradient(90deg, ${g.accent}60 1px, transparent 1px)`,
                       backgroundSize: "18px 18px",
                     }}
-                  />
+                  />}
                   {/* Glow orb behind icon */}
-                  <div
+                  {!cover && <div
                     className="absolute rounded-full"
                     style={{
                       width: 60, height: 60,
                       background: `radial-gradient(circle, ${g.glow}55 0%, transparent 70%)`,
                       filter: "blur(8px)",
                     }}
-                  />
-                  {/* Multiplier or icon */}
-                  {g.multiplier ? (
+                  />}
+                  {/* Multiplier or icon — hidden when cover is set */}
+                  {!cover && (g.multiplier ? (
                     <div className="flex flex-col items-center gap-1 relative z-10">
                       <g.Icon
                         style={{
@@ -650,7 +669,7 @@ export default function Home() {
                       }}
                       strokeWidth={1.8}
                     />
-                  )}
+                  ))}
                   {/* Badge top-left */}
                   <div
                     className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wide"
@@ -664,6 +683,8 @@ export default function Home() {
                     {g.badge}
                   </div>
                 </div>
+                  );
+                })()}
 
                 {/* Bottom info zone */}
                 <div
