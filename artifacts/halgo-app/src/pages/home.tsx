@@ -4,11 +4,12 @@ import {
   ChevronRight, Eye, EyeOff,
   Ticket, AlertCircle, CheckCircle, Scan,
   Home as HomeIcon, User, Settings,
-  Bell, CheckCheck, Clock,
+  Bell, CheckCheck, Clock, Shield, Lock, Camera, Tag,
 } from "lucide-react";
 import { useUser, useAuth } from "@clerk/react";
 import { QRCodeSVG } from "qrcode.react";
 import { useLocation } from "wouter";
+import { QrScanner } from "@/components/qr-scanner";
 
 function formatFC(amount: number): string {
   return new Intl.NumberFormat("fr-FR").format(Math.round(amount)).replace(/\s/g, ".");
@@ -104,6 +105,9 @@ export default function Home() {
     code: string; isWinner: boolean; prizeAmount: number | null; prizeLabel: string;
   } | null>(null);
   const [activationError, setActivationError] = useState<string | null>(null);
+
+  // QR Scanner
+  const [showQrScanner, setShowQrScanner] = useState(false);
 
   // Retrait
   const [retraitAmount,  setRetraitAmount]  = useState("");
@@ -471,144 +475,237 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ══════════════ ACTIVER UN TICKET ══════════════ */}
-        {!showTicketInput ? (
-          /* Compact row — golden amber card */
-          <button
-            onClick={() => setShowTicketInput(true)}
-            className="w-full rounded-2xl overflow-hidden transition-all active:scale-[0.98]"
-            style={{
-              background: "linear-gradient(135deg,#1a1200 0%,#2a1f00 50%,#1a1200 100%)",
-              border: "1.5px solid rgba(245,197,24,0.5)",
-              boxShadow: "0 4px 20px rgba(245,197,24,0.15)",
-            }}
-          >
-            <div className="flex items-center gap-3 px-4 py-4">
-              {/* Icon */}
-              <div
-                className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: "linear-gradient(135deg,#c8960a,#F5C518)", boxShadow: "0 3px 10px rgba(245,197,24,0.4)" }}
-              >
-                <Ticket style={{ width: 22, height: 22, color: "#0a1f0e" }} strokeWidth={2.5} />
-              </div>
-              {/* Text */}
-              <div className="flex-1 text-left min-w-0">
-                <p className="font-black text-[14px] text-white tracking-wide">ACTIVER UN TICKET</p>
-                <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>Entrez le code pour tenter votre chance</p>
-              </div>
-              {/* Inline input preview + button */}
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="h-9 w-24 rounded-xl flex items-center justify-center px-2"
-                  style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)" }}>
-                  <span className="text-[10px] font-mono" style={{ color: "rgba(255,255,255,0.3)" }}>Entrez votre</span>
-                </div>
-                <div
-                  className="flex items-center gap-1 px-4 py-2.5 rounded-xl font-black text-[12px] uppercase tracking-wide"
-                  style={{ background: "linear-gradient(135deg,#F5C518,#d4a017)", color: "#0a1f0e", boxShadow: "0 3px 10px rgba(245,197,24,0.35)" }}
-                >
-                  <Sparkles style={{ width: 13, height: 13 }} />
-                  ACTIVER
-                </div>
-              </div>
+        {/* ══════════════ ACTIVER MON TICKET CTA ══════════════ */}
+        <button
+          onClick={() => setShowTicketInput(true)}
+          className="w-full rounded-2xl overflow-hidden transition-all active:scale-[0.97]"
+          style={{
+            background: "linear-gradient(135deg,#0f3d1c 0%,#1a5c2a 100%)",
+            border: "1.5px solid rgba(141,198,63,0.4)",
+            boxShadow: "0 6px 24px rgba(22,92,42,0.45)",
+          }}
+        >
+          <div className="flex items-center gap-4 px-5 py-4">
+            <div
+              className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+              style={{ background: "linear-gradient(135deg,#1a6b2f,#22a84a)", boxShadow: "0 4px 14px rgba(34,168,74,0.45)" }}
+            >
+              <Ticket style={{ width: 24, height: 24, color: "#fff" }} strokeWidth={2.5} />
             </div>
-          </button>
-        ) : (
-          /* Expanded input card */
-          <div
-            className="rounded-2xl overflow-hidden"
-            style={{
-              background: "linear-gradient(135deg,#1a1200,#2a1f00)",
-              border: "1.5px solid rgba(245,197,24,0.4)",
-              boxShadow: "0 6px 24px rgba(245,197,24,0.12)",
-            }}
-          >
-            <div className="flex items-center justify-between px-4 py-3"
-              style={{ borderBottom: "1px solid rgba(245,197,24,0.15)" }}>
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-                  style={{ background: "linear-gradient(135deg,#c8960a,#F5C518)" }}>
-                  <Ticket style={{ width: 16, height: 16, color: "#0a1f0e" }} strokeWidth={2.5} />
-                </div>
-                <span className="font-black text-[14px] uppercase tracking-wide text-white">Activer un ticket</span>
-              </div>
-              <button onClick={resetActivation}
-                className="w-7 h-7 rounded-lg flex items-center justify-center"
-                style={{ background: "rgba(255,255,255,0.07)" }}>
-                <X style={{ width: 14, height: 14, color: "rgba(255,255,255,0.5)" }} />
-              </button>
+            <div className="flex-1 text-left">
+              <p className="font-black text-[15px] text-white tracking-wide uppercase">ACTIVER MON TICKET</p>
+              <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.55)" }}>Entrez votre code et tentez votre chance</p>
             </div>
-
-            <div className="px-4 py-4">
-              {activationResult ? (
-                <div className="rounded-xl p-4 flex flex-col items-center gap-2.5 animate-in fade-in duration-300"
-                  style={{
-                    background: activationResult.isWinner ? "rgba(22,163,74,0.12)" : "rgba(255,255,255,0.04)",
-                    border: `1.5px solid ${activationResult.isWinner ? "rgba(22,163,74,0.4)" : "rgba(255,255,255,0.08)"}`,
-                  }}>
-                  <span className="text-[10px] font-bold uppercase tracking-widest font-mono" style={{ color: "rgba(255,255,255,0.4)" }}>{activationResult.code}</span>
-                  {activationResult.isWinner ? (
-                    <>
-                      <CheckCircle style={{ width: 40, height: 40, color: "#22c55e" }} />
-                      <p className="font-black text-sm uppercase text-center text-white">{activationResult.prizeLabel}</p>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-3xl font-black font-mono text-[#F5C518]"
-                          style={{ textShadow: isAnimating ? "0 0 20px rgba(245,197,24,0.5)" : "none" }}>
-                          +{formatFC(rollingAmount)}
-                        </span>
-                        <span className="font-bold text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>FC</span>
-                      </div>
-                      {isAnimating
-                        ? <p className="text-[10px] font-black tracking-widest animate-pulse" style={{ color: "rgba(255,255,255,0.5)" }}>CALCUL EN COURS…</p>
-                        : <p className="text-[10px] font-black tracking-widest" style={{ color: "#22c55e" }}>✓ CRÉDITÉ SUR VOTRE SOLDE</p>}
-                    </>
-                  ) : (
-                    <>
-                      <X style={{ width: 32, height: 32, color: "rgba(255,255,255,0.3)" }} />
-                      <p className="font-black text-sm uppercase" style={{ color: "rgba(255,255,255,0.5)" }}>Ticket perdant</p>
-                      <p className="text-[11px] text-center" style={{ color: "rgba(255,255,255,0.35)" }}>Tentez votre chance avec un autre ticket</p>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <div className="relative mb-3">
-                    <input
-                      type="text"
-                      inputMode="text"
-                      maxLength={10}
-                      placeholder="KHF79HF5V2"
-                      value={ticketCode}
-                      onChange={(e) => { setActivationError(null); setTicketCode(e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 10)); }}
-                      onKeyDown={(e) => { if (e.key === "Enter") void activateTicket(); }}
-                      className="w-full px-4 py-3.5 rounded-xl text-center font-mono font-black text-[22px] tracking-[0.3em] outline-none border-2 transition-all"
-                      style={{ background: "rgba(255,255,255,0.06)", borderColor: activationError ? "#ef4444" : "rgba(245,197,24,0.4)", color: "#F5C518", caretColor: "#F5C518" }}
-                      autoFocus
-                    />
-                    <button className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center"
-                      style={{ background: "rgba(255,255,255,0.08)" }}>
-                      <Scan style={{ width: 15, height: 15, color: "rgba(255,255,255,0.4)" }} />
-                    </button>
-                  </div>
-                  {activationError && (
-                    <p className="text-red-400 text-[11px] text-center mb-3 flex items-center justify-center gap-1 font-semibold">
-                      <AlertCircle style={{ width: 12, height: 12 }} />{activationError}
-                    </p>
-                  )}
-                  {(ticketCode.length > 0 || activating) && (
-                    <button onClick={() => void activateTicket()} disabled={activating || ticketCode.length === 0}
-                      className="w-full py-3 rounded-xl font-black text-[13px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 animate-in fade-in slide-in-from-bottom-2 duration-200"
-                      style={{ background: "linear-gradient(135deg,#F5C518,#d4a017)", color: "#0a1f0e", boxShadow: "0 4px 16px rgba(245,197,24,0.4)" }}>
-                      {activating ? <Loader2 style={{ width: 16, height: 16 }} className="animate-spin" /> : <Sparkles style={{ width: 16, height: 16 }} />}
-                      {activating ? "Vérification…" : "ACTIVER"}
-                    </button>
-                  )}
-                </>
-              )}
+            <div
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[12px] uppercase tracking-wide shrink-0"
+              style={{ background: "rgba(141,198,63,0.2)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.35)" }}
+            >
+              JOUER <ChevronRight style={{ width: 14, height: 14 }} />
             </div>
           </div>
-        )}
+        </button>
 
       </div>
+
+      {/* ═══════════════ QR SCANNER OVERLAY ═══════════════ */}
+      {showQrScanner && (
+        <QrScanner
+          onResult={(raw) => {
+            setShowQrScanner(false);
+            let code = raw.trim();
+            try { const url = new URL(raw); const p = url.searchParams.get("code"); if (p) code = p; } catch { /* raw */ }
+            code = code.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 10);
+            setTicketCode(code);
+            setActivationError(null);
+            // Use autoSubmitRef pattern so activateTicket sees the updated ticketCode state
+            if (code.length === 10) autoSubmitRef.current = true;
+          }}
+          onClose={() => setShowQrScanner(false)}
+        />
+      )}
+
+      {/* ═══════════════ ACTIVATION BOTTOM SHEET ═══════════════ */}
+      {showTicketInput && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={resetActivation} />
+          <div
+            className="relative w-full max-w-sm rounded-t-3xl overflow-hidden"
+            style={{ background: "#0d1f14", boxShadow: "0 -12px 60px rgba(0,0,0,0.6)" }}
+          >
+            {/* Drag handle */}
+            <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mt-3" />
+
+            {/* Trust badge */}
+            <div className="mx-5 mt-4 mb-3 flex items-center gap-2.5 px-4 py-2.5 rounded-2xl"
+              style={{ background: "rgba(141,198,63,0.1)", border: "1px solid rgba(141,198,63,0.2)" }}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                style={{ background: "rgba(141,198,63,0.15)" }}>
+                <Shield style={{ width: 16, height: 16, color: "#8DC63F" }} />
+              </div>
+              <p className="text-[11px] leading-snug font-semibold" style={{ color: "rgba(255,255,255,0.7)" }}>
+                Code valide uniquement pour les tickets officiels{" "}
+                <span className="font-black" style={{ color: "#8DC63F" }}>HALGO CASH</span>
+              </p>
+              {/* Decorative coin */}
+              <div className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center ml-auto"
+                style={{
+                  background: "radial-gradient(circle at 35% 35%, #2ecb6e, #0f8c3a)",
+                  boxShadow: "0 0 14px rgba(34,197,94,0.5), inset 0 2px 4px rgba(255,255,255,0.25)",
+                }}>
+                <span style={{ fontSize: "1.25rem" }}>🍀</span>
+              </div>
+            </div>
+
+            {/* ── If result is showing ── */}
+            {activationResult ? (
+              <div className="mx-5 mb-6 rounded-2xl p-6 flex flex-col items-center gap-3 animate-in fade-in duration-300"
+                style={{
+                  background: activationResult.isWinner ? "rgba(22,163,74,0.12)" : "rgba(255,255,255,0.04)",
+                  border: `1.5px solid ${activationResult.isWinner ? "rgba(22,163,74,0.4)" : "rgba(255,255,255,0.08)"}`,
+                }}>
+                <span className="text-[10px] font-bold uppercase tracking-widest font-mono" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  {activationResult.code}
+                </span>
+                {activationResult.isWinner ? (
+                  <>
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center"
+                      style={{ background: "linear-gradient(135deg,#22c55e,#16a34a)", boxShadow: "0 0 32px rgba(34,197,94,0.4)" }}>
+                      <CheckCircle style={{ width: 32, height: 32, color: "#fff" }} />
+                    </div>
+                    <p className="font-black text-base uppercase text-center text-white">{activationResult.prizeLabel}</p>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-4xl font-black font-mono text-[#F5C518]"
+                        style={{ textShadow: isAnimating ? "0 0 20px rgba(245,197,24,0.5)" : "none" }}>
+                        +{formatFC(rollingAmount)}
+                      </span>
+                      <span className="font-bold text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>FC</span>
+                    </div>
+                    {isAnimating
+                      ? <p className="text-[10px] font-black tracking-widest animate-pulse" style={{ color: "rgba(255,255,255,0.5)" }}>CALCUL EN COURS…</p>
+                      : <p className="text-[10px] font-black tracking-widest" style={{ color: "#22c55e" }}>✓ CRÉDITÉ SUR VOTRE SOLDE</p>}
+                  </>
+                ) : (
+                  <>
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center"
+                      style={{ background: "rgba(255,255,255,0.07)" }}>
+                      <X style={{ width: 28, height: 28, color: "rgba(255,255,255,0.4)" }} />
+                    </div>
+                    <p className="font-black text-base uppercase" style={{ color: "rgba(255,255,255,0.6)" }}>Ticket perdant</p>
+                    <p className="text-[12px] text-center" style={{ color: "rgba(255,255,255,0.4)" }}>Tentez votre chance avec un autre ticket</p>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="px-5 pb-6 space-y-4">
+                {/* CODE DU TICKET label */}
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+                    style={{ background: "rgba(141,198,63,0.15)" }}>
+                    <Tag style={{ width: 14, height: 14, color: "#8DC63F" }} />
+                  </div>
+                  <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: "#8DC63F" }}>
+                    CODE DU TICKET
+                  </span>
+                </div>
+
+                {/* Input field */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="text"
+                    maxLength={10}
+                    placeholder="XXXXXXXXXX"
+                    value={ticketCode}
+                    onChange={(e) => { setActivationError(null); setTicketCode(e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 10)); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") void activateTicket(); }}
+                    className="w-full px-5 py-4 rounded-2xl font-mono font-black text-[22px] tracking-[0.35em] outline-none border-2 transition-all pr-14"
+                    style={{
+                      background: "rgba(255,255,255,0.06)",
+                      borderColor: activationError ? "#ef4444" : ticketCode.length === 10 ? "#8DC63F" : "rgba(255,255,255,0.12)",
+                      color: ticketCode.length > 0 ? "#ffffff" : "rgba(255,255,255,0.2)",
+                      caretColor: "#8DC63F",
+                    }}
+                    autoFocus
+                  />
+                  {/* QR scan icon inside input */}
+                  <button
+                    onClick={() => setShowQrScanner(true)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-90"
+                    style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)" }}
+                  >
+                    <Scan style={{ width: 17, height: 17, color: "rgba(255,255,255,0.5)" }} />
+                  </button>
+                </div>
+
+                {activationError && (
+                  <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl"
+                    style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)" }}>
+                    <AlertCircle style={{ width: 13, height: 13, color: "#f87171" }} />
+                    <p className="text-red-400 text-[11px] font-semibold">{activationError}</p>
+                  </div>
+                )}
+
+                {/* ACTIVER LE TICKET button — always visible */}
+                <button
+                  onClick={() => void activateTicket()}
+                  disabled={activating || ticketCode.length === 0}
+                  className="w-full py-4 rounded-2xl font-black text-[14px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40"
+                  style={{
+                    background: "linear-gradient(135deg,#1a6b2f,#22a84a)",
+                    color: "#fff",
+                    boxShadow: ticketCode.length > 0 ? "0 6px 24px rgba(34,168,74,0.45)" : "none",
+                  }}
+                >
+                  {activating
+                    ? <Loader2 style={{ width: 18, height: 18 }} className="animate-spin" />
+                    : <Sparkles style={{ width: 18, height: 18 }} />}
+                  {activating ? "Vérification en cours…" : "ACTIVER LE TICKET"}
+                  {!activating && <ChevronRight style={{ width: 18, height: 18 }} />}
+                </button>
+
+                {/* OU divider */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
+                  <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)" }}>OU</span>
+                  <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
+                </div>
+
+                {/* Scanner un code QR row */}
+                <button
+                  onClick={() => setShowQrScanner(true)}
+                  className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all active:scale-[0.98]"
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)" }}
+                >
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: "rgba(141,198,63,0.12)", border: "1px solid rgba(141,198,63,0.2)" }}>
+                    <Camera style={{ width: 18, height: 18, color: "#8DC63F" }} />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-black text-[13px] text-white">Scanner un code QR</p>
+                    <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>Utilisez votre caméra pour scanner le code</p>
+                  </div>
+                  <ChevronRight style={{ width: 16, height: 16, color: "rgba(255,255,255,0.3)" }} />
+                </button>
+
+                {/* Security footer */}
+                <div className="flex items-center justify-between px-2 pt-1 pb-1">
+                  <div className="flex items-center gap-2">
+                    <Lock style={{ width: 13, height: 13, color: "rgba(255,255,255,0.3)" }} />
+                    <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>
+                      Vos informations sont sécurisées
+                      <span className="block" style={{ color: "rgba(255,255,255,0.2)" }}>et 100% confidentielles</span>
+                    </span>
+                  </div>
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+                    style={{ background: "rgba(141,198,63,0.1)", border: "1px solid rgba(141,198,63,0.2)" }}>
+                    <Shield style={{ width: 16, height: 16, color: "#8DC63F" }} />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ═══════════════ NOTIFICATION PANEL ═══════════════ */}
       {showNotifPanel && (
