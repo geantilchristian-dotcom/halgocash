@@ -202,6 +202,23 @@ export default function Home() {
 
   const resetActivation = () => { setTicketCode(""); setActivationResult(null); setActivationError(null); setShowTicketInput(false); };
 
+  // Auto-reset input after showing result (keep card open, just clear result + code)
+  const autoResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!activationResult) return;
+    if (autoResetRef.current) clearTimeout(autoResetRef.current);
+    // Winners: wait for rolling animation (1.4s) + 2s to read → 3.5s total
+    // Losers: 2s then ready for next ticket
+    const delay = activationResult.isWinner ? 3500 : 2000;
+    autoResetRef.current = setTimeout(() => {
+      setActivationResult(null);
+      setTicketCode("");
+      setActivationError(null);
+      // Keep showTicketInput = true so card stays expanded, ready for next code
+    }, delay);
+    return () => { if (autoResetRef.current) clearTimeout(autoResetRef.current); };
+  }, [activationResult?.code]);
+
   // Retrait polling
   useEffect(() => {
     if (!retraitQR || retraitPaid) { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } return; }
