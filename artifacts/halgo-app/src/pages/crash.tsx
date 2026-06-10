@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, CheckCircle } from "lucide-react";
 
 type Phase = "waiting" | "flying" | "crashed";
 
@@ -554,7 +554,7 @@ export default function CrashGame() {
                   className="text-[11px] font-black px-3 py-1 rounded-full mt-1"
                   style={{ background: "rgba(141,198,63,0.15)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.3)" }}
                 >
-                  ✅ MISE · {fFC(betRef.current.amount)} FC
+                  MISE · {fFC(betRef.current.amount)} FC
                 </span>
               )}
             </div>
@@ -665,7 +665,10 @@ export default function CrashGame() {
           className="mx-4 mt-2 px-4 py-3 rounded-2xl flex items-center justify-between shrink-0"
           style={{ background: "linear-gradient(135deg,rgba(141,198,63,0.15),rgba(141,198,63,0.05))", border: "1px solid rgba(141,198,63,0.3)" }}
         >
-          <span className="text-[12px] font-black text-white">🎉 VOUS AVEZ GAGNÉ</span>
+          <span className="text-[12px] font-black text-white flex items-center gap-1.5">
+            <CheckCircle style={{ width: 14, height: 14, color: "#8DC63F" }} />
+            VOUS AVEZ GAGNÉ
+          </span>
           <span className="font-black" style={{ color: "#8DC63F", fontSize: "1.1rem" }}>+{fFC(winAmount)} FC</span>
         </div>
       )}
@@ -783,7 +786,7 @@ export default function CrashGame() {
               className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[13px] transition-all active:scale-[0.97] disabled:opacity-40"
               style={{ background: "linear-gradient(135deg,#1a6b2f,#22a84a)", color: "#fff", boxShadow: "0 4px 20px rgba(34,168,74,0.35)" }}
             >
-              ✅ PLACER LA MISE · {fFC(betAmt)} FC
+              PLACER LA MISE · {fFC(betAmt)} FC
             </button>
           )}
 
@@ -840,8 +843,9 @@ export default function CrashGame() {
         >
           {feed.slice(0, 5).map((entry) => (
             <div key={entry.ts} className="flex items-center justify-between gap-2 animate-slide-in">
-              <span className="text-[10px] font-bold truncate" style={{ color: "rgba(255,255,255,0.45)" }}>
-                🟢 {entry.id}
+              <span className="text-[10px] font-bold truncate flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.45)" }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", flexShrink: 0, display: "inline-block" }} />
+                {entry.id}
               </span>
               <span className="text-[10px] font-black shrink-0" style={{ color: multColor(entry.mult) }}>
                 encaissé à {fMult(entry.mult)}

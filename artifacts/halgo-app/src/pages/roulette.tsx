@@ -292,10 +292,10 @@ export default function RouletteGame() {
           setWinAmount(wonAmount);
           setBalanceFlash(true);
           setTimeout(() => setBalanceFlash(false), 600);
-          setMsg(`🎉 ${finalSeg.label} — Vous gagnez +${fFC(wonAmount)} !`);
+          setMsg(`${finalSeg.label} — Vous gagnez +${fFC(wonAmount)} !`);
         } else {
           setWinAmount(0);
-          setMsg(`💸 ${finalSeg.label} — Perdu`);
+          setMsg(`${finalSeg.label} — Perdu`);
         }
 
         const c = segmentColor(finalSeg.label);
@@ -465,8 +465,9 @@ export default function RouletteGame() {
         >
           {liveEntries.slice(0, 4).map((e) => (
             <div key={e.ts} className="flex items-center justify-between gap-2 animate-slide-in">
-              <span className="text-[10px] font-bold truncate" style={{ color: "rgba(255,255,255,0.4)" }}>
-                🟡 {e.id}
+              <span className="text-[10px] font-bold truncate flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#facc15", flexShrink: 0, display: "inline-block" }} />
+                {e.id}
               </span>
               <span className="text-[10px] font-bold shrink-0" style={{
                 color: e.bet === "rouge" ? "#dc2626" : e.bet === "vert" ? "#16a34a" : "#aaa"
