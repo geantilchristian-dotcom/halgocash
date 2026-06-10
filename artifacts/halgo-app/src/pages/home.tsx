@@ -769,7 +769,7 @@ export default function Home() {
                     <img
                       src={coverUrl}
                       alt={g.name}
-                      className="absolute inset-0 w-full h-full object-cover"
+                      className="absolute inset-0 w-full h-full object-contain"
                       onError={() => setCoverErrors(prev => ({ ...prev, [g.coverKey]: true }))}
                     />
                   )}

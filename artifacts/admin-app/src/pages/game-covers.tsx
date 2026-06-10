@@ -125,7 +125,7 @@ export default function GameCovers() {
               <CardContent className="space-y-3">
                 <div className="w-full rounded-xl overflow-hidden relative" style={{ height: 180, background: "#111" }}>
                   {hasCustom ? (
-                    <img key={imgSrc} src={imgSrc} alt={game.label} className="w-full h-full object-cover" />
+                    <img key={imgSrc} src={imgSrc} alt={game.label} className="w-full h-full object-contain" />
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center gap-2">
                       <ImagePlus className="w-8 h-8 text-zinc-600" />
