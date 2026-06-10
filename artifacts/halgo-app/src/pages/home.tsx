@@ -5,8 +5,9 @@ import {
   Ticket, AlertCircle, CheckCircle, Scan,
   Home as HomeIcon, User, Settings,
   Bell, CheckCheck, Clock, Shield, Lock, Camera, Tag,
-  Users, Copy,
+  Users, Copy, Plane, Zap, Gem, TrendingUp, Gift, Trophy, UserPlus,
 } from "lucide-react";
+import type { LucideProps } from "lucide-react";
 import { useUser, useAuth } from "@clerk/react";
 import { QRCodeSVG } from "qrcode.react";
 import { useLocation } from "wouter";
@@ -54,15 +55,29 @@ function useJackpotCountdown() {
   return `${String(d).padStart(2, "0")}j ${String(h).padStart(2, "0")}h ${String(m).padStart(2, "0")}m`;
 }
 
-const GAMES = [
+interface GameDef {
+  name: string;
+  badge: string;
+  badgeColor: string;
+  bg: string;
+  previewBg: string;
+  Icon: React.FC<LucideProps>;
+  iconSize: number;
+  glow: string;
+  players: string;
+  multiplier: string | null;
+  accent: string;
+}
+
+const GAMES: GameDef[] = [
   {
     name: "Aviator",
     badge: "TOP",
     badgeColor: "#e74c3c",
     bg: "linear-gradient(160deg,#2a0808 0%,#5a1010 50%,#1a0505 100%)",
     previewBg: "radial-gradient(ellipse at 50% 80%, #c0392b44 0%, transparent 70%)",
-    icon: "✈️",
-    iconSize: "2.8rem",
+    Icon: Plane,
+    iconSize: 34,
     glow: "#c0392b",
     players: "2 841",
     multiplier: null,
@@ -74,8 +89,8 @@ const GAMES = [
     badgeColor: "#e74c3c",
     bg: "linear-gradient(160deg,#08081a 0%,#101840 50%,#050512 100%)",
     previewBg: "radial-gradient(ellipse at 50% 80%, #2980b955 0%, transparent 70%)",
-    icon: "🚀",
-    iconSize: "2.8rem",
+    Icon: Zap,
+    iconSize: 34,
     glow: "#3498db",
     players: "1 623",
     multiplier: null,
@@ -87,8 +102,8 @@ const GAMES = [
     badgeColor: "#22a84a",
     bg: "linear-gradient(160deg,#081418 0%,#0d2a3a 50%,#050e12 100%)",
     previewBg: "radial-gradient(ellipse at 50% 80%, #1abc9c55 0%, transparent 70%)",
-    icon: "💎",
-    iconSize: "2.8rem",
+    Icon: Gem,
+    iconSize: 34,
     glow: "#1abc9c",
     players: "987",
     multiplier: null,
@@ -100,8 +115,8 @@ const GAMES = [
     badgeColor: "#e74c3c",
     bg: "linear-gradient(160deg,#0a1008 0%,#162a10 50%,#070f05 100%)",
     previewBg: "radial-gradient(ellipse at 50% 80%, #27ae6055 0%, transparent 70%)",
-    icon: "📈",
-    iconSize: "2.4rem",
+    Icon: TrendingUp,
+    iconSize: 30,
     glow: "#2ecc71",
     players: "3 210",
     multiplier: "12.45×",
@@ -549,10 +564,10 @@ export default function Home() {
             boxShadow: "0 8px 32px rgba(22,92,40,0.5)",
           }}
         >
-          <div
+          <Trophy
             className="absolute right-4 top-1/2 -translate-y-1/2 select-none pointer-events-none"
-            style={{ fontSize: 72, lineHeight: 1, filter: "drop-shadow(0 4px 16px rgba(245,197,24,0.6))" }}
-          >🏆</div>
+            style={{ width: 68, height: 68, color: "#F5C518", filter: "drop-shadow(0 4px 20px rgba(245,197,24,0.65))" }}
+          />
           <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-1" style={{ color: "rgba(255,255,255,0.6)" }}>
             JACKPOT HEBDOMADAIRE
           </p>
@@ -619,31 +634,32 @@ export default function Home() {
                   />
                   {/* Multiplier or icon */}
                   {g.multiplier ? (
-                    <div className="flex flex-col items-center gap-0.5 relative z-10">
-                      <span style={{ fontSize: g.iconSize, filter: `drop-shadow(0 0 10px ${g.glow})` }}>{g.icon}</span>
+                    <div className="flex flex-col items-center gap-1 relative z-10">
+                      <g.Icon
+                        style={{
+                          width: g.iconSize, height: g.iconSize,
+                          color: g.accent,
+                          filter: `drop-shadow(0 0 10px ${g.glow})`,
+                        }}
+                        strokeWidth={1.8}
+                      />
                       <span
                         className="font-black"
-                        style={{
-                          fontSize: "1.15rem",
-                          color: g.accent,
-                          textShadow: `0 0 14px ${g.glow}`,
-                          lineHeight: 1,
-                        }}
+                        style={{ fontSize: "1.1rem", color: g.accent, textShadow: `0 0 14px ${g.glow}`, lineHeight: 1 }}
                       >
                         {g.multiplier}
                       </span>
                     </div>
                   ) : (
-                    <span
+                    <g.Icon
                       className="relative z-10"
                       style={{
-                        fontSize: g.iconSize,
-                        filter: `drop-shadow(0 0 12px ${g.glow}) drop-shadow(0 4px 8px rgba(0,0,0,0.6))`,
-                        lineHeight: 1,
+                        width: g.iconSize, height: g.iconSize,
+                        color: g.accent,
+                        filter: `drop-shadow(0 0 12px ${g.glow}) drop-shadow(0 4px 8px rgba(0,0,0,0.5))`,
                       }}
-                    >
-                      {g.icon}
-                    </span>
+                      strokeWidth={1.8}
+                    />
                   )}
                   {/* Badge top-left */}
                   <div
@@ -676,9 +692,10 @@ export default function Home() {
                     </div>
                   </div>
                   {/* Player count */}
-                  <p className="text-[8px] font-semibold" style={{ color: "rgba(255,255,255,0.38)" }}>
-                    👥 {g.players} joueurs
-                  </p>
+                  <div className="flex items-center gap-1">
+                    <Users style={{ width: 8, height: 8, color: "rgba(255,255,255,0.38)" }} />
+                    <p className="text-[8px] font-semibold" style={{ color: "rgba(255,255,255,0.38)" }}>{g.players}</p>
+                  </div>
                   {/* JOUER button */}
                   <button
                     className="w-full py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wide"
@@ -723,7 +740,7 @@ export default function Home() {
                   border: "1.5px solid rgba(34,197,94,0.55)",
                 }}
               >
-                <span style={{ fontSize: "1.75rem", filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.6))" }}>🎁</span>
+                <Gift style={{ width: 28, height: 28, color: "#fff", filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.5))" }} strokeWidth={1.8} />
               </div>
               <p className="text-[9.5px] font-black text-white text-center leading-tight tracking-wide uppercase">BONUS DE<br/>BIENVENUE</p>
               <p className="text-[8px] text-center leading-tight" style={{ color: "rgba(255,255,255,0.5)" }}>100% jusqu'à<br/>50 000 FC</p>
@@ -794,7 +811,7 @@ export default function Home() {
                   border: "1.5px solid rgba(245,197,24,0.6)",
                 }}
               >
-                <span style={{ fontSize: "1.75rem", filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.6))" }}>🏆</span>
+                <Trophy style={{ width: 28, height: 28, color: "#3a1f00", filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.4))" }} strokeWidth={2} />
               </div>
               <p className="text-[9.5px] font-black text-white text-center leading-tight tracking-wide uppercase">JACKPOT<br/>DU SAMEDI</p>
               <p className="text-[8px] text-center leading-tight" style={{ color: "rgba(255,255,255,0.5)" }}>5 000 000 FC<br/>à gagner</p>
@@ -833,7 +850,7 @@ export default function Home() {
             {referralTickets > 0 && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
                 style={{ background: "rgba(141,198,63,0.1)", border: "1px solid rgba(141,198,63,0.2)" }}>
-                <span className="text-sm">🎟️</span>
+                <Ticket style={{ width: 16, height: 16, color: "#8DC63F" }} />
                 <p className="text-[12px] font-black text-white">Billets reçus : <span style={{ color: "#8DC63F" }}>{referralTickets}</span> — Voir dans les notifications</p>
               </div>
             )}
@@ -873,7 +890,8 @@ export default function Home() {
               }}
               className="w-full py-3 rounded-xl font-black text-[13px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
               style={{ background: "linear-gradient(135deg,#3aab3a,#4dc44d)", color: "#0a2e14", boxShadow: "0 4px 16px rgba(58,171,58,0.3)" }}>
-              🤝 INVITER UN AMI
+              <UserPlus style={{ width: 16, height: 16 }} />
+              INVITER UN AMI
             </button>
 
             <p className="text-[9px] text-center" style={{ color: "rgba(255,255,255,0.25)" }}>
@@ -885,29 +903,28 @@ export default function Home() {
         {/* ══════════════ ACTIVER MON TICKET CTA ══════════════ */}
         <button
           onClick={() => setShowTicketInput(true)}
-          className="w-full rounded-2xl overflow-hidden transition-all active:scale-[0.97]"
+          className="w-full rounded-2xl transition-all active:scale-[0.97]"
           style={{
-            background: "linear-gradient(135deg,#0f3d1c 0%,#1a5c2a 100%)",
-            border: "1.5px solid rgba(141,198,63,0.4)",
-            boxShadow: "0 6px 24px rgba(22,92,42,0.45)",
+            background: "linear-gradient(135deg,#F5C518 0%,#f59e0b 100%)",
+            boxShadow: "0 6px 28px rgba(245,197,24,0.45)",
           }}
         >
-          <div className="flex items-center gap-4 px-5 py-4">
+          <div className="flex items-center gap-3 px-4 py-3.5">
             <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
-              style={{ background: "linear-gradient(135deg,#1a6b2f,#22a84a)", boxShadow: "0 4px 14px rgba(34,168,74,0.45)" }}
+              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: "rgba(0,0,0,0.18)" }}
             >
-              <Ticket style={{ width: 24, height: 24, color: "#fff" }} strokeWidth={2.5} />
+              <Ticket style={{ width: 21, height: 21, color: "#fff" }} strokeWidth={2.5} />
             </div>
             <div className="flex-1 text-left">
-              <p className="font-black text-[15px] text-white tracking-wide uppercase">ACTIVER MON TICKET</p>
-              <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.55)" }}>Entrez votre code et tentez votre chance</p>
+              <p className="font-black text-[14px] tracking-wide uppercase" style={{ color: "#0a1f0e" }}>ACTIVER MON TICKET</p>
+              <p className="text-[10px] font-semibold" style={{ color: "rgba(0,0,0,0.5)" }}>Saisir un code ou scanner le QR</p>
             </div>
             <div
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[12px] uppercase tracking-wide shrink-0"
-              style={{ background: "rgba(141,198,63,0.2)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.35)" }}
+              className="flex items-center gap-1 px-3 py-2 rounded-xl font-black text-[11px] uppercase tracking-wide shrink-0"
+              style={{ background: "rgba(0,0,0,0.18)", color: "#0a1f0e" }}
             >
-              JOUER <ChevronRight style={{ width: 14, height: 14 }} />
+              JOUER <ChevronRight style={{ width: 13, height: 13 }} />
             </div>
           </div>
         </button>
@@ -937,36 +954,38 @@ export default function Home() {
         />
       )}
 
-      {/* ═══════════════ ACTIVATION BOTTOM SHEET ═══════════════ */}
+      {/* ═══════════════ ACTIVATION MODAL (centré) ═══════════════ */}
       {showTicketInput && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={resetActivation} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={resetActivation} />
           <div
-            className="relative w-full max-w-sm rounded-t-3xl overflow-hidden"
-            style={{ background: "#0d1f14", boxShadow: "0 -12px 60px rgba(0,0,0,0.6)" }}
+            className="relative w-full max-w-sm rounded-3xl overflow-hidden"
+            style={{ background: "#0d1f14", boxShadow: "0 8px 60px rgba(0,0,0,0.8)", maxHeight: "88vh", overflowY: "auto" }}
           >
-            {/* Drag handle */}
-            <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mt-3" />
+            {/* Header row */}
+            <div className="flex items-center justify-between px-5 pt-4 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(141,198,63,0.15)" }}>
+                  <Ticket style={{ width: 16, height: 16, color: "#8DC63F" }} />
+                </div>
+                <span className="font-black text-[13px] uppercase tracking-wide text-white">Activer mon ticket</span>
+              </div>
+              <button
+                onClick={resetActivation}
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90"
+                style={{ background: "rgba(255,255,255,0.08)" }}
+              >
+                <X style={{ width: 15, height: 15, color: "rgba(255,255,255,0.6)" }} />
+              </button>
+            </div>
 
             {/* Trust badge */}
-            <div className="mx-5 mt-4 mb-3 flex items-center gap-2.5 px-4 py-2.5 rounded-2xl"
-              style={{ background: "rgba(141,198,63,0.1)", border: "1px solid rgba(141,198,63,0.2)" }}>
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: "rgba(141,198,63,0.15)" }}>
-                <Shield style={{ width: 16, height: 16, color: "#8DC63F" }} />
-              </div>
-              <p className="text-[11px] leading-snug font-semibold" style={{ color: "rgba(255,255,255,0.7)" }}>
-                Code valide uniquement pour les tickets officiels{" "}
-                <span className="font-black" style={{ color: "#8DC63F" }}>HALGO CASH</span>
+            <div className="mx-5 mt-3 mb-2 flex items-center gap-2.5 px-3 py-2 rounded-xl"
+              style={{ background: "rgba(141,198,63,0.08)", border: "1px solid rgba(141,198,63,0.18)" }}>
+              <Shield style={{ width: 14, height: 14, color: "#8DC63F", flexShrink: 0 }} />
+              <p className="text-[10px] font-semibold" style={{ color: "rgba(255,255,255,0.6)" }}>
+                Tickets officiels <span className="font-black" style={{ color: "#8DC63F" }}>HALGO CASH</span> uniquement
               </p>
-              {/* Decorative coin */}
-              <div className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center ml-auto"
-                style={{
-                  background: "radial-gradient(circle at 35% 35%, #2ecb6e, #0f8c3a)",
-                  boxShadow: "0 0 14px rgba(34,197,94,0.5), inset 0 2px 4px rgba(255,255,255,0.25)",
-                }}>
-                <span style={{ fontSize: "1.25rem" }}>🍀</span>
-              </div>
             </div>
 
             {/* ── If result is showing ── */}
