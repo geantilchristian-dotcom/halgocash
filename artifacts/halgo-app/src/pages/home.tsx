@@ -453,24 +453,106 @@ export default function Home() {
               Voir tout <ChevronRight style={{ width: 12, height: 12 }} />
             </button>
           </div>
-          <div className="grid grid-cols-3 gap-2.5">
-            <div className="rounded-2xl p-3 flex flex-col gap-1.5" style={{ background: "linear-gradient(135deg,#1a1a0e,#2a2a14)", border: "1px solid rgba(245,197,24,0.2)" }}>
-              <span style={{ fontSize: "1.5rem" }}>🎁</span>
-              <p className="text-[10px] font-black text-white leading-tight">BONUS DE BIENVENUE</p>
-              <p className="text-[9px] leading-tight" style={{ color: "rgba(255,255,255,0.5)" }}>100% jusqu'à 50 000 FC</p>
-              <button className="w-full py-1.5 rounded-lg text-[9px] font-black uppercase" style={{ background: "linear-gradient(135deg,#1a6b2f,#22a84a)", color: "#fff" }}>EN PROFITER</button>
+          <div className="grid grid-cols-3 gap-2">
+            {/* ── Bonus de Bienvenue ── */}
+            <div
+              className="rounded-2xl flex flex-col items-center pt-3 pb-3 px-2 gap-1.5"
+              style={{
+                background: "linear-gradient(160deg,#0e2a12 0%,#163d1c 60%,#0a1f0e 100%)",
+                border: "1px solid rgba(34,197,94,0.25)",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+              }}
+            >
+              {/* 3D medal */}
+              <div
+                className="relative w-14 h-14 rounded-full flex items-center justify-center mb-0.5"
+                style={{
+                  background: "radial-gradient(circle at 38% 32%, #3ecf6a, #1a7a36 55%, #0b4a1f)",
+                  boxShadow: "0 0 18px rgba(34,197,94,0.55), 0 0 36px rgba(34,197,94,0.2), inset 0 2px 5px rgba(255,255,255,0.18), inset 0 -3px 6px rgba(0,0,0,0.35)",
+                  border: "1.5px solid rgba(34,197,94,0.55)",
+                }}
+              >
+                <span style={{ fontSize: "1.75rem", filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.6))" }}>🎁</span>
+              </div>
+              <p className="text-[9.5px] font-black text-white text-center leading-tight tracking-wide uppercase">BONUS DE<br/>BIENVENUE</p>
+              <p className="text-[8px] text-center leading-tight" style={{ color: "rgba(255,255,255,0.5)" }}>100% jusqu'à<br/>50 000 FC</p>
+              <button
+                className="w-full py-2 rounded-xl text-[8.5px] font-black uppercase tracking-wide mt-auto"
+                style={{ background: "linear-gradient(135deg,#1a6b2f,#22a84a)", color: "#fff", boxShadow: "0 3px 10px rgba(22,107,47,0.5)" }}
+              >
+                EN PROFITER
+              </button>
             </div>
-            <div className="rounded-2xl p-3 flex flex-col gap-1.5" style={{ background: "linear-gradient(135deg,#1a0e08,#2a2010)", border: "1px solid rgba(245,197,24,0.35)" }}>
-              <span style={{ fontSize: "1.5rem" }}>💰</span>
-              <p className="text-[10px] font-black uppercase leading-tight" style={{ color: "#F5C518" }}>CASHBACK 10%</p>
-              <p className="text-[9px] leading-tight" style={{ color: "rgba(255,255,255,0.5)" }}>chaque semaine sur vos pertes</p>
-              <button className="w-full py-1.5 rounded-lg text-[9px] font-black uppercase" style={{ background: "linear-gradient(135deg,#c8960a,#F5C518)", color: "#0a1f0e" }}>EN PROFITER</button>
+
+            {/* ── Cashback 10% ── */}
+            <div
+              className="rounded-2xl flex flex-col items-center pt-3 pb-3 px-2 gap-1.5"
+              style={{
+                background: "linear-gradient(160deg,#1e1400 0%,#2e1e00 60%,#1a1000 100%)",
+                border: "1px solid rgba(245,197,24,0.35)",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+              }}
+            >
+              {/* 3D gold coin */}
+              <div
+                className="relative w-14 h-14 rounded-full flex items-center justify-center mb-0.5"
+                style={{
+                  background: "radial-gradient(circle at 38% 32%, #f5d060, #d4a017 55%, #8a6500)",
+                  boxShadow: "0 0 18px rgba(245,197,24,0.6), 0 0 36px rgba(245,197,24,0.25), inset 0 2px 5px rgba(255,255,255,0.3), inset 0 -3px 6px rgba(0,0,0,0.4)",
+                  border: "1.5px solid rgba(245,197,24,0.7)",
+                }}
+              >
+                {/* % symbol in gold coin style */}
+                <span
+                  className="font-black select-none"
+                  style={{
+                    fontSize: "1.4rem",
+                    color: "#7a4800",
+                    textShadow: "0 1px 3px rgba(0,0,0,0.4), 0 -1px 0 rgba(255,255,255,0.25)",
+                    lineHeight: 1,
+                  }}
+                >
+                  %
+                </span>
+              </div>
+              <p className="text-[9.5px] font-black text-center leading-tight tracking-wide uppercase" style={{ color: "#F5C518" }}>CASHBACK<br/>10%</p>
+              <p className="text-[8px] text-center leading-tight" style={{ color: "rgba(255,255,255,0.5)" }}>chaque semaine<br/>sur vos pertes</p>
+              <button
+                className="w-full py-2 rounded-xl text-[8.5px] font-black uppercase tracking-wide mt-auto"
+                style={{ background: "linear-gradient(135deg,#c8960a,#F5C518)", color: "#3a1f00", boxShadow: "0 3px 10px rgba(200,150,10,0.5)" }}
+              >
+                EN PROFITER
+              </button>
             </div>
-            <div className="rounded-2xl p-3 flex flex-col gap-1.5" style={{ background: "linear-gradient(135deg,#0d1a0e,#132a16)", border: "1px solid rgba(141,198,63,0.2)" }}>
-              <span style={{ fontSize: "1.5rem" }}>🏆</span>
-              <p className="text-[10px] font-black text-white leading-tight">JACKPOT DU SAMEDI</p>
-              <p className="text-[9px] leading-tight" style={{ color: "rgba(255,255,255,0.5)" }}>5 000 000 FC à gagner</p>
-              <button className="w-full py-1.5 rounded-lg text-[9px] font-black uppercase" style={{ background: "rgba(141,198,63,0.15)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.3)" }}>EN SAVOIR +</button>
+
+            {/* ── Jackpot du Samedi ── */}
+            <div
+              className="rounded-2xl flex flex-col items-center pt-3 pb-3 px-2 gap-1.5"
+              style={{
+                background: "linear-gradient(160deg,#0e2a12 0%,#163d1c 60%,#0a1f0e 100%)",
+                border: "1px solid rgba(245,197,24,0.3)",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+              }}
+            >
+              {/* 3D gold trophy */}
+              <div
+                className="relative w-14 h-14 rounded-full flex items-center justify-center mb-0.5"
+                style={{
+                  background: "radial-gradient(circle at 38% 32%, #f5d060, #c8960a 55%, #7a5800)",
+                  boxShadow: "0 0 18px rgba(245,197,24,0.55), 0 0 36px rgba(245,197,24,0.2), inset 0 2px 5px rgba(255,255,255,0.25), inset 0 -3px 6px rgba(0,0,0,0.4)",
+                  border: "1.5px solid rgba(245,197,24,0.6)",
+                }}
+              >
+                <span style={{ fontSize: "1.75rem", filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.6))" }}>🏆</span>
+              </div>
+              <p className="text-[9.5px] font-black text-white text-center leading-tight tracking-wide uppercase">JACKPOT<br/>DU SAMEDI</p>
+              <p className="text-[8px] text-center leading-tight" style={{ color: "rgba(255,255,255,0.5)" }}>5 000 000 FC<br/>à gagner</p>
+              <button
+                className="w-full py-2 rounded-xl text-[8.5px] font-black uppercase tracking-wide mt-auto"
+                style={{ background: "rgba(141,198,63,0.15)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.35)", boxShadow: "0 2px 8px rgba(141,198,63,0.2)" }}
+              >
+                EN SAVOIR +
+              </button>
             </div>
           </div>
         </div>
