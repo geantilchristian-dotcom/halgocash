@@ -212,6 +212,9 @@ router.get("/auth/me", async (req, res): Promise<void> => {
 
 // GET /api/auth/balance — rate-limited (anti-enumeration)
 router.get("/auth/balance", balanceCheckRateLimit, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+
   const { userId: clerkUserId } = getAuth(req);
   const sessionUserId = req.session.userId;
   const effectiveUserId = clerkUserId ?? (sessionUserId ? `local:${sessionUserId}` : null);

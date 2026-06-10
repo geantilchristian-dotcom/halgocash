@@ -172,17 +172,22 @@ export default function Home() {
       if (res.ok) {
         const d = await res.json() as { balance: number };
         if (d.balance > 0) {
-          // Server returned a real balance — it can authenticate us, clear local tracking
-          localWinsRef.current = 0;
+          // Server returned a real balance — use it and persist it
           setBalance(d.balance);
           try { localStorage.setItem("halgo_balance", String(d.balance)); } catch { /* ignore */ }
-        } else if (localWinsRef.current > 0) {
-          // Server returned 0 but we have locally tracked wins (server auth failure on Render)
-          // Do NOT overwrite — keep the locally computed balance
         } else {
-          // Server returned 0 with no pending local wins — trust it (e.g. after full withdrawal)
-          setBalance(0);
-          try { localStorage.setItem("halgo_balance", "0"); } catch { /* ignore */ }
+          // Server returned 0 — check localStorage for a locally-tracked positive balance
+          // (guards against Clerk auth failures on production wiping real wins)
+          const stored = (() => {
+            try { const v = localStorage.getItem("halgo_balance"); return v ? parseFloat(v) : 0; }
+            catch { return 0; }
+          })();
+          if (stored > 0) {
+            // Keep the locally-stored positive balance; don't overwrite with 0
+            setBalance(stored);
+          } else {
+            setBalance(0);
+          }
         }
       }
     } catch { /* silent */ }
