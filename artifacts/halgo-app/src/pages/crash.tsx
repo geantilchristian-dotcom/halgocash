@@ -659,28 +659,6 @@ export default function CrashGame() {
         </div>
       </div>
 
-      {/* ── Live cashout feed ── */}
-      {feed.length > 0 && (
-        <div
-          className="mx-4 mt-2 px-3 py-2 rounded-xl shrink-0 space-y-1 overflow-hidden"
-          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", maxHeight: 110 }}
-        >
-          {feed.slice(0, 5).map((entry) => (
-            <div key={entry.ts} className="flex items-center justify-between gap-2 animate-slide-in">
-              <span className="text-[10px] font-bold truncate" style={{ color: "rgba(255,255,255,0.45)" }}>
-                🟢 {entry.id}
-              </span>
-              <span className="text-[10px] font-black shrink-0" style={{ color: multColor(entry.mult) }}>
-                encaissé à {fMult(entry.mult)}
-              </span>
-              <span className="text-[10px] font-bold shrink-0 text-white">
-                +{fFC(entry.amount)} FC
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* ── Win / Loss banner ── */}
       {phase === "crashed" && betPlaced && cashedOut && winAmount !== null && (
         <div
@@ -853,6 +831,28 @@ export default function CrashGame() {
           )}
         </div>
       </div>
+
+      {/* ── Live cashout feed — bottom of page so it never pushes controls ── */}
+      {feed.length > 0 && (
+        <div
+          className="mx-4 mt-2 mb-2 px-3 py-2 rounded-xl shrink-0 space-y-1 overflow-hidden"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+        >
+          {feed.slice(0, 5).map((entry) => (
+            <div key={entry.ts} className="flex items-center justify-between gap-2 animate-slide-in">
+              <span className="text-[10px] font-bold truncate" style={{ color: "rgba(255,255,255,0.45)" }}>
+                🟢 {entry.id}
+              </span>
+              <span className="text-[10px] font-black shrink-0" style={{ color: multColor(entry.mult) }}>
+                encaissé à {fMult(entry.mult)}
+              </span>
+              <span className="text-[10px] font-bold shrink-0 text-white">
+                +{fFC(entry.amount)} FC
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <style>{`
         @keyframes crashPulse {
