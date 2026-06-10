@@ -173,30 +173,6 @@ router.post("/tickets/activate", async (req, res): Promise<void> => {
     .set({ registeredByClerkId: effectiveUserId ?? null, registeredAt: new Date() })
     .where(eq(ticketsTable.id, ticket.id));
 
-  // Referral bonus — fire & forget (non-blocking)
-  if (effectiveUserId && !effectiveUserId.startsWith("local:")) {
-    void (async () => {
-      try {
-        const [ticketCountRow] = await db
-          .select({ total: count() })
-          .from(ticketsTable)
-          .where(and(eq(ticketsTable.registeredByClerkId, effectiveUserId), isNotNull(ticketsTable.registeredAt)));
-        if ((ticketCountRow?.total ?? 0) === 1) {
-          const [myProfile] = await db.select().from(playerProfilesTable).where(eq(playerProfilesTable.clerkId, effectiveUserId)).limit(1);
-          if (myProfile?.referredByCode) {
-            const [referrerProfile] = await db.select().from(playerProfilesTable).where(eq(playerProfilesTable.referralCode, myProfile.referredByCode)).limit(1);
-            if (referrerProfile) {
-              const [already] = await db.select({ id: creditAdjustmentsTable.id }).from(creditAdjustmentsTable)
-                .where(and(eq(creditAdjustmentsTable.clerkId, referrerProfile.clerkId), eq(creditAdjustmentsTable.reason, "referral_bonus"), eq(creditAdjustmentsTable.refId, effectiveUserId))).limit(1);
-              if (!already) {
-                await db.insert(creditAdjustmentsTable).values({ clerkId: referrerProfile.clerkId, amount: "500", reason: "referral_bonus", refId: effectiveUserId });
-              }
-            }
-          }
-        }
-      } catch { /* non-blocking */ }
-    })();
-  }
 
   // Compute authoritative new balance in the same request so the client
   // never needs a separate fetchBalance() call after activation.

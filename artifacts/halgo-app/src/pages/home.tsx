@@ -111,7 +111,7 @@ const GAMES = [
 
 interface Notif {
   id: string;
-  type: "ticket_win" | "withdrawal_paid" | "withdrawal_pending" | "withdrawal_cancelled" | "referral_bonus";
+  type: "ticket_win" | "withdrawal_paid" | "withdrawal_pending" | "withdrawal_cancelled" | "referral_ticket";
   message: string;
   amount: number;
   date: string;
@@ -159,10 +159,10 @@ export default function Home() {
   const [showQrScanner, setShowQrScanner] = useState(false);
 
   // Parrainage
-  const [referralCode,     setReferralCode]     = useState<string | null>(null);
-  const [referralCount,    setReferralCount]    = useState(0);
-  const [referralEarnings, setReferralEarnings] = useState(0);
-  const [referralCopied,   setReferralCopied]   = useState(false);
+  const [referralCode,    setReferralCode]    = useState<string | null>(null);
+  const [referralCount,   setReferralCount]   = useState(0);
+  const [referralTickets, setReferralTickets] = useState(0);
+  const [referralCopied,  setReferralCopied]  = useState(false);
 
   // Retrait
   const [retraitAmount,  setRetraitAmount]  = useState("");
@@ -204,10 +204,10 @@ export default function Home() {
     try {
       const res = await authFetch("/api/auth/profile");
       if (!res.ok) return;
-      const data = await res.json() as { referralCode: string; referralCount: number; referralEarnings: number };
+      const data = await res.json() as { referralCode: string; referralCount: number; referralTickets: number };
       setReferralCode(data.referralCode);
       setReferralCount(data.referralCount);
-      setReferralEarnings(data.referralEarnings);
+      setReferralTickets(data.referralTickets);
     } catch { /* silent */ }
   }, [authFetch]);
 
@@ -386,6 +386,7 @@ export default function Home() {
         return;
       }
       setRetraitQR({ token: data.token!, amount: amt, qrValue: data.token! });
+      void fetchBalance();
     } catch { setRetraitError("Erreur de connexion"); }
     finally { setRetraitLoading(false); }
   };
@@ -786,7 +787,7 @@ export default function Home() {
               </div>
               <div>
                 <p className="text-white font-black text-[13px] uppercase tracking-wide leading-none">Parrainage</p>
-                <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>Invitez vos amis · gagnez 500 FC chacun</p>
+                <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>1 ami inscrit = 1 billet gratuit à gratter</p>
               </div>
             </div>
             <div className="text-right">
@@ -796,12 +797,12 @@ export default function Home() {
           </div>
 
           <div className="px-4 pb-4 space-y-3">
-            {/* Stat gains */}
-            {referralEarnings > 0 && (
+            {/* Stat billets */}
+            {referralTickets > 0 && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
                 style={{ background: "rgba(141,198,63,0.1)", border: "1px solid rgba(141,198,63,0.2)" }}>
-                <span className="text-sm">💰</span>
-                <p className="text-[12px] font-black text-white">Gains parrainage : <span style={{ color: "#8DC63F" }}>{formatFC(referralEarnings)} FC</span></p>
+                <span className="text-sm">🎟️</span>
+                <p className="text-[12px] font-black text-white">Billets reçus : <span style={{ color: "#8DC63F" }}>{referralTickets}</span> — Voir dans les notifications</p>
               </div>
             )}
 
@@ -1116,8 +1117,8 @@ export default function Home() {
                         ? { bg: "rgba(34,197,94,0.08)", border: "rgba(34,197,94,0.25)", iconBg: "rgba(34,197,94,0.15)", iconColor: "#22c55e", Icon: CheckCircle }
                         : n.type === "withdrawal_pending"
                         ? { bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.25)", iconBg: "rgba(251,191,36,0.15)", iconColor: "#fbbf24", Icon: Clock }
-                        : n.type === "referral_bonus"
-                        ? { bg: "rgba(141,198,63,0.08)", border: "rgba(141,198,63,0.25)", iconBg: "rgba(141,198,63,0.15)", iconColor: "#8DC63F", Icon: Users }
+                        : n.type === "referral_ticket"
+                        ? { bg: "rgba(141,198,63,0.08)", border: "rgba(141,198,63,0.25)", iconBg: "rgba(141,198,63,0.15)", iconColor: "#8DC63F", Icon: Ticket }
                         : { bg: "rgba(239,68,68,0.06)", border: "rgba(239,68,68,0.2)",  iconBg: "rgba(239,68,68,0.12)",  iconColor: "#ef4444", Icon: X };
                     return (
                       <div key={n.id} className="rounded-xl px-4 py-3 flex items-center gap-3"
@@ -1156,12 +1157,17 @@ export default function Home() {
                                 ANNULÉ
                               </span>
                             )}
-                            {n.type === "referral_bonus" && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
-                                style={{ background: "rgba(141,198,63,0.2)", color: "#8DC63F" }}>
-                                +{formatFC(n.amount)} FC
-                              </span>
-                            )}
+                            {n.type === "referral_ticket" && (() => {
+                              const code = n.message.match(/Code : (\d{10})/)?.[1];
+                              return code ? (
+                                <button
+                                  onClick={() => { setShowNotifPanel(false); setTicketCode(code); setShowTicketInput(true); }}
+                                  className="text-[9px] font-black px-2 py-1 rounded-full uppercase tracking-wide transition-all active:scale-95"
+                                  style={{ background: "rgba(141,198,63,0.25)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.4)" }}>
+                                  GRATTER →
+                                </button>
+                              ) : null;
+                            })()}
                           </div>
                         </div>
                       </div>

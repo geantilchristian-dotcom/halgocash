@@ -16,6 +16,18 @@ function generateReferralCode(): string {
   return code;
 }
 
+function generateReferralTicket(): { code: string; isWinner: boolean; prizeAmount: string | null } {
+  const digits = "0123456789";
+  let code = "";
+  for (let i = 0; i < 10; i++) code += digits[Math.floor(Math.random() * 10)];
+  const roll = Math.floor(Math.random() * 100);
+  if (roll < 30)       return { code, isWinner: true,  prizeAmount: "100" };
+  else if (roll < 50)  return { code, isWinner: true,  prizeAmount: "200" };
+  else if (roll < 57)  return { code, isWinner: true,  prizeAmount: "300" };
+  else if (roll < 60)  return { code, isWinner: true,  prizeAmount: "500" };
+  else                 return { code, isWinner: false, prizeAmount: null  };
+}
+
 async function getOrCreateProfile(clerkId: string) {
   const [existing] = await db.select().from(playerProfilesTable).where(eq(playerProfilesTable.clerkId, clerkId)).limit(1);
   if (existing) return existing;
@@ -293,7 +305,7 @@ router.get("/auth/notifications", async (req, res): Promise<void> => {
 
   type NotifItem = {
     id: string;
-    type: "ticket_win" | "withdrawal_paid" | "withdrawal_pending" | "withdrawal_cancelled" | "referral_bonus";
+    type: "ticket_win" | "withdrawal_paid" | "withdrawal_pending" | "withdrawal_cancelled" | "referral_ticket";
     message: string;
     amount: number;
     date: string;
@@ -352,17 +364,17 @@ router.get("/auth/notifications", async (req, res): Promise<void> => {
     }
   }
 
-  // 3. Referral bonuses earned
-  const referralBonuses = await db
+  // 3. Referral tickets received (code to scratch)
+  const referralTickets = await db
     .select()
     .from(creditAdjustmentsTable)
-    .where(and(eq(creditAdjustmentsTable.clerkId, effectiveUserId), eq(creditAdjustmentsTable.reason, "referral_bonus")))
+    .where(and(eq(creditAdjustmentsTable.clerkId, effectiveUserId), eq(creditAdjustmentsTable.reason, "referral_ticket")))
     .orderBy(desc(creditAdjustmentsTable.createdAt))
     .limit(20);
 
-  for (const b of referralBonuses) {
-    const amt = parseFloat(b.amount);
-    items.push({ id: `rb-${b.id}`, type: "referral_bonus", message: `Bonus parrainage : +${amt.toLocaleString("fr-FR")} FC 🤝`, amount: amt, date: b.createdAt.toISOString() });
+  for (const b of referralTickets) {
+    const code = b.refId ?? "?";
+    items.push({ id: `rt-${b.id}`, type: "referral_ticket", message: `🎟️ Billet de parrainage reçu ! Code : ${code} — Grattez-le dans la barre de tickets`, amount: 0, date: b.createdAt.toISOString() });
   }
 
   // Sort newest first
@@ -384,16 +396,16 @@ router.get("/auth/profile", async (req, res): Promise<void> => {
     .from(playerProfilesTable)
     .where(eq(playerProfilesTable.referredByCode, profile.referralCode));
 
-  const [earningsRow] = await db
-    .select({ total: sum(creditAdjustmentsTable.amount) })
+  const [ticketsCountRow] = await db
+    .select({ total: count() })
     .from(creditAdjustmentsTable)
-    .where(and(eq(creditAdjustmentsTable.clerkId, clerkUserId), eq(creditAdjustmentsTable.reason, "referral_bonus")));
+    .where(and(eq(creditAdjustmentsTable.clerkId, clerkUserId), eq(creditAdjustmentsTable.reason, "referral_ticket")));
 
   res.json({
     referralCode: profile.referralCode,
     referredByCode: profile.referredByCode ?? null,
     referralCount: referralCountRow?.total ?? 0,
-    referralEarnings: parseFloat(earningsRow?.total ?? "0"),
+    referralTickets: ticketsCountRow?.total ?? 0,
   });
 });
 
@@ -417,11 +429,31 @@ router.post("/auth/referral/use", async (req, res): Promise<void> => {
 
   await db.update(playerProfilesTable).set({ referredByCode: normalizedCode }).where(eq(playerProfilesTable.clerkId, clerkUserId));
 
-  // Welcome bonus 200 FC for the new player
-  await db.insert(creditAdjustmentsTable).values({ clerkId: clerkUserId, amount: "200", reason: "welcome_bonus", refId: normalizedCode });
+  // Generate a free referral ticket for the referrer
+  let ticketInfo = generateReferralTicket();
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const [clash] = await db.select({ id: ticketsTable.id }).from(ticketsTable).where(eq(ticketsTable.code, ticketInfo.code)).limit(1);
+    if (!clash) break;
+    ticketInfo = generateReferralTicket();
+  }
+  await db.insert(ticketsTable).values({
+    code: ticketInfo.code,
+    series: "REF",
+    status: "available",
+    price: "0",
+    isWinner: ticketInfo.isWinner,
+    prizeAmount: ticketInfo.prizeAmount,
+  });
+  // Notification record for referrer (amount = 0, ticket prize counted on activation)
+  await db.insert(creditAdjustmentsTable).values({
+    clerkId: referrer.clerkId,
+    amount: "0",
+    reason: "referral_ticket",
+    refId: ticketInfo.code,
+  });
 
-  req.log.info({ clerkUserId, normalizedCode }, "Referral code claimed");
-  res.json({ ok: true, welcomeBonus: 200 });
+  req.log.info({ clerkUserId, normalizedCode, ticketCode: ticketInfo.code }, "Referral code claimed");
+  res.json({ ok: true });
 });
 
 // GET /api/auth/history — activated tickets for the current user
