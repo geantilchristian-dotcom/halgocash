@@ -606,6 +606,33 @@ export default function CrashGame() {
             </span>
           </div>
         )}
+
+        {/* ── ARRÊTER button — overlaid at bottom of canvas, above history ── */}
+        {phase === "flying" && betPlaced && !cashedOut && (
+          <button
+            onClick={cashOut}
+            className="absolute bottom-3 left-3 right-3 py-3 rounded-2xl font-black uppercase tracking-wide text-[14px] transition-all active:scale-[0.97] flex items-center justify-center gap-3"
+            style={{
+              background: `linear-gradient(135deg,${color}dd,${color}99)`,
+              color: "#fff",
+              boxShadow: `0 4px 20px ${hexToRgba(color, 0.55)}`,
+              animation: "crashPulse 0.7s ease-in-out infinite",
+            }}
+          >
+            <span>🛑 ARRÊTER — {fMult(multiplier)}</span>
+            <span className="text-[12px] font-bold opacity-90">· +{fFC(Math.floor(betAmt * multiplier))} FC</span>
+          </button>
+        )}
+
+        {/* Cashed-out badge in canvas */}
+        {phase === "flying" && betPlaced && cashedOut && cashoutMult !== null && (
+          <div
+            className="absolute bottom-3 left-3 right-3 py-2.5 rounded-2xl font-black uppercase tracking-wide text-[13px] flex items-center justify-center gap-2"
+            style={{ background: "rgba(141,198,63,0.18)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.35)" }}
+          >
+            ✓ ENCAISSÉ À {fMult(cashoutMult)} · +{fFC(Math.floor(betRef.current.amount * cashoutMult))} FC
+          </div>
+        )}
       </div>
 
       {/* ── Match history row (moved here so players see it before deciding) ── */}
@@ -801,25 +828,12 @@ export default function CrashGame() {
             </button>
           )}
 
-          {/* FLYING + bet + not cashed out → ARRÊTER button */}
+          {/* FLYING + bet + not cashed out → ARRÊTER button is in the canvas above */}
           {phase === "flying" && betPlaced && !cashedOut && (
-            <button
-              onClick={cashOut}
-              className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[14px] transition-all active:scale-[0.95]"
-              style={{
-                background: `linear-gradient(135deg,${color}cc,${color}88)`,
-                color: "#fff",
-                boxShadow: `0 4px 24px ${hexToRgba(color, 0.5)}`,
-                animation: "crashPulse 0.7s ease-in-out infinite",
-              }}
-            >
-              <div className="flex flex-col items-center gap-0.5">
-                <span>🛑 ARRÊTER — {fMult(multiplier)}</span>
-                <span className="text-[11px] font-bold opacity-90">
-                  +{fFC(Math.floor(betAmt * multiplier))} FC
-                </span>
-              </div>
-            </button>
+            <div className="w-full py-3 rounded-2xl text-center text-[12px] font-bold"
+              style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.35)" }}>
+              ↑ Appuyez sur ARRÊTER pour encaisser
+            </div>
           )}
 
           {/* FLYING + bet + cashed out */}
