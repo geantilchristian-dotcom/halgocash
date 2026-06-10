@@ -190,6 +190,64 @@ interface Notif {
   date: string;
 }
 
+// ── Age gate modal ──────────────────────────────────────────────────────
+function AgeGateModal({ onConfirm, onDeny }: { onConfirm: () => void; onDeny: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex items-end justify-center pb-6 px-4"
+      style={{ background: "rgba(0,0,0,0.88)", backdropFilter: "blur(8px)" }}
+    >
+      <div
+        className="w-full max-w-sm rounded-3xl p-6 flex flex-col items-center gap-5"
+        style={{ background: "#0f1f12", border: "1px solid rgba(141,198,63,0.2)", boxShadow: "0 0 60px rgba(141,198,63,0.08)" }}
+      >
+        {/* Icon */}
+        <div
+          className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl"
+          style={{ background: "rgba(141,198,63,0.1)", border: "1px solid rgba(141,198,63,0.25)" }}
+        >
+          🔞
+        </div>
+
+        {/* Title */}
+        <div className="text-center">
+          <p className="text-white font-black text-[18px] mb-1">Vérification d'âge</p>
+          <p className="text-zinc-400 text-[12px] leading-relaxed">
+            Halgo Cash est une plateforme de divertissement réservée aux personnes majeures.
+            Confirmez que vous avez au moins <strong className="text-white">18 ans</strong> pour continuer.
+          </p>
+        </div>
+
+        {/* Legal note */}
+        <div
+          className="w-full px-3 py-2 rounded-xl text-center text-[10px] text-zinc-500 leading-relaxed"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+        >
+          En accédant à cette plateforme, vous acceptez que vous êtes majeur(e) selon la législation de la RDC (≥ 18 ans).
+        </div>
+
+        {/* Buttons */}
+        <div className="w-full flex flex-col gap-2.5">
+          <button
+            onClick={onConfirm}
+            className="w-full py-3.5 rounded-2xl font-black text-[14px] uppercase tracking-wide"
+            style={{ background: "linear-gradient(135deg,#8DC63F,#6baa2a)", color: "#0a1f0e" }}
+          >
+            ✓  J'ai 18 ans ou plus
+          </button>
+          <button
+            onClick={onDeny}
+            className="w-full py-3 rounded-2xl font-black text-[13px] uppercase tracking-wide"
+            style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}
+          >
+            J'ai moins de 18 ans
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const { user, isLoaded } = useUser();
   const { getToken } = useAuth();
@@ -202,6 +260,21 @@ export default function Home() {
     if (token) headers["Authorization"] = `Bearer ${token}`;
     return fetch(url, { ...options, headers, credentials: "include" });
   }, [getToken]);
+
+  // ── Age gate ──
+  const [ageConfirmed, setAgeConfirmed] = useState(() => {
+    try { return localStorage.getItem("halgo_age_confirmed") === "1"; } catch { return false; }
+  });
+  const [ageDenied, setAgeDenied] = useState(false);
+
+  const handleAgeConfirm = useCallback(() => {
+    try { localStorage.setItem("halgo_age_confirmed", "1"); } catch { /* ignore */ }
+    setAgeConfirmed(true);
+  }, []);
+
+  const handleAgeDeny = useCallback(() => {
+    setAgeDenied(true);
+  }, []);
 
   // ── State ──
   const [showRetrait,       setShowRetrait]       = useState(false);
@@ -495,8 +568,29 @@ export default function Home() {
 
   const quickAmounts = balance && balance > 0 ? [0.25, 0.5, 0.75, 1].map((f) => Math.floor(balance * f)) : [];
 
+  // ── Blocked (under 18) ──
+  if (ageDenied) {
+    return (
+      <div className="min-h-dvh flex flex-col items-center justify-center px-6 gap-6" style={{ background: "#0b1612" }}>
+        <div className="text-5xl">🚫</div>
+        <div className="text-center">
+          <p className="text-white font-black text-[18px] mb-2">Accès refusé</p>
+          <p className="text-zinc-400 text-[13px] leading-relaxed">
+            Vous devez avoir au moins <strong className="text-white">18 ans</strong> pour accéder à Halgo Cash.
+          </p>
+        </div>
+        <p className="text-zinc-600 text-[11px] text-center">
+          Si vous pensez qu'il s'agit d'une erreur, contactez notre support.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-dvh flex flex-col" style={{ background: "#0b1612" }}>
+
+      {/* ── Age gate overlay (first visit only) ── */}
+      {!ageConfirmed && <AgeGateModal onConfirm={handleAgeConfirm} onDeny={handleAgeDeny} />}
 
       {/* ═══════════════ HEADER — style betPawa ═══════════════ */}
       <header

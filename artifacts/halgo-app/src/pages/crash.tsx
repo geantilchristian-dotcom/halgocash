@@ -20,11 +20,129 @@ function hexToRgba(hex: string, alpha: number) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-function multColor(m: number) {
-  if (m < 2) return "#4ade80";
-  if (m < 5) return "#facc15";
-  if (m < 10) return "#f97316";
-  return "#ef4444";
+// Smooth colour interpolation across the full flight arc
+function lerpHex(c0: [number,number,number], c1: [number,number,number], t: number): string {
+  const r = Math.round(c0[0] + t * (c1[0] - c0[0]));
+  const g = Math.round(c0[1] + t * (c1[1] - c0[1]));
+  const b = Math.round(c0[2] + t * (c1[2] - c0[2]));
+  return `rgb(${r},${g},${b})`;
+}
+const COLOR_STOPS: Array<[number, [number,number,number]]> = [
+  [1.0,  [74,  222, 128]],   // green
+  [2.0,  [163, 230,  53]],   // yellow-green
+  [4.0,  [250, 204,  21]],   // yellow
+  [7.0,  [251, 146,  60]],   // orange
+  [12.0, [239,  68,  68]],   // red
+  [25.0, [168,  85, 247]],   // purple
+  [60.0, [236,  72, 153]],   // pink/magenta
+];
+function multColor(m: number): string {
+  for (let i = 0; i < COLOR_STOPS.length - 1; i++) {
+    const [m0, c0] = COLOR_STOPS[i];
+    const [m1, c1] = COLOR_STOPS[i + 1];
+    if (m <= m1) return lerpHex(c0, c1, Math.max(0, (m - m0) / (m1 - m0)));
+  }
+  return `rgb(${COLOR_STOPS[COLOR_STOPS.length - 1][1].join(",")})`;
+}
+
+// History badge colour — distinct tiers
+function histColor(cp: number): string {
+  if (cp < 1.5) return "#ef4444";       // red  — very low
+  if (cp < 2.0) return "#f97316";       // orange
+  if (cp < 4.0) return "#facc15";       // yellow
+  if (cp < 8.0) return "#4ade80";       // green
+  if (cp < 20.0) return "#38bdf8";      // sky-blue
+  if (cp < 50.0) return "#a855f7";      // purple
+  return "#ec4899";                      // pink/legendary
+}
+
+// ── Canvas-drawn rocket ─────────────────────────────────────────────────
+function drawRocket(ctx: CanvasRenderingContext2D, accentColor: string, m: number, now: number) {
+  const s = 11;  // base size
+
+  // Flame length scales with multiplier (more intense at higher altitude)
+  const flameIntensity = Math.min(1 + m / 8, 4.5);
+  const flameLen = s * flameIntensity;
+  const flicker = Math.sin(now / 60) * 0.15 + Math.cos(now / 43) * 0.1;
+
+  // Outer flame (wide, fading)
+  const outerFlame = ctx.createLinearGradient(-s * 0.3, 0, -s * 0.3 - flameLen * 1.4, 0);
+  outerFlame.addColorStop(0, "rgba(255,180,30,0.0)");
+  outerFlame.addColorStop(0.05, "rgba(255,180,30,0.5)");
+  outerFlame.addColorStop(0.5, "rgba(255,80,10,0.25)");
+  outerFlame.addColorStop(1, "rgba(255,40,0,0)");
+  ctx.beginPath();
+  ctx.moveTo(-s * 0.25, s * 0.5 * (1 + flicker));
+  ctx.quadraticCurveTo(-s * 0.3 - flameLen * 0.7, s * 0.18 * (1 + flicker), -s * 0.3 - flameLen * 1.4, 0);
+  ctx.quadraticCurveTo(-s * 0.3 - flameLen * 0.7, -s * 0.18 * (1 + flicker), -s * 0.25, -s * 0.5 * (1 + flicker));
+  ctx.fillStyle = outerFlame;
+  ctx.fill();
+
+  // Inner flame (bright core)
+  const innerFlame = ctx.createLinearGradient(-s * 0.2, 0, -s * 0.2 - flameLen, 0);
+  innerFlame.addColorStop(0, "rgba(255,240,120,0.95)");
+  innerFlame.addColorStop(0.2, "rgba(255,150,30,0.85)");
+  innerFlame.addColorStop(0.6, "rgba(255,60,10,0.4)");
+  innerFlame.addColorStop(1, "rgba(255,30,0,0)");
+  ctx.beginPath();
+  ctx.moveTo(-s * 0.2, s * 0.28 * (1 + flicker * 0.5));
+  ctx.quadraticCurveTo(-s * 0.2 - flameLen * 0.5, s * 0.08, -s * 0.2 - flameLen, 0);
+  ctx.quadraticCurveTo(-s * 0.2 - flameLen * 0.5, -s * 0.08, -s * 0.2, -s * 0.28 * (1 + flicker * 0.5));
+  ctx.fillStyle = innerFlame;
+  ctx.fill();
+
+  // Fins (bottom and top)
+  ctx.fillStyle = accentColor;
+  for (const sign of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.05, sign * s * 0.32);
+    ctx.lineTo(-s * 0.38, sign * s * 0.72);
+    ctx.lineTo(-s * 0.22, sign * s * 0.32);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Body (main capsule)
+  const bodyGrd = ctx.createLinearGradient(0, -s * 0.38, 0, s * 0.38);
+  bodyGrd.addColorStop(0, "rgba(230,248,255,1)");
+  bodyGrd.addColorStop(0.4, "rgba(185,220,245,0.95)");
+  bodyGrd.addColorStop(1, "rgba(130,175,215,0.88)");
+  ctx.beginPath();
+  ctx.moveTo(s * 0.9, 0);
+  ctx.bezierCurveTo(s * 0.65, -s * 0.32, s * 0.1, -s * 0.38, -s * 0.18, -s * 0.33);
+  ctx.lineTo(-s * 0.22, -s * 0.33);
+  ctx.lineTo(-s * 0.22, s * 0.33);
+  ctx.lineTo(-s * 0.18, s * 0.33);
+  ctx.bezierCurveTo(s * 0.1, s * 0.38, s * 0.65, s * 0.32, s * 0.9, 0);
+  ctx.closePath();
+  ctx.fillStyle = bodyGrd;
+  ctx.fill();
+  // Edge highlight
+  ctx.strokeStyle = "rgba(255,255,255,0.4)";
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+  // Porthole
+  ctx.beginPath();
+  ctx.arc(s * 0.38, 0, s * 0.16, 0, Math.PI * 2);
+  const winGrd = ctx.createRadialGradient(s * 0.34, -s * 0.05, 0, s * 0.38, 0, s * 0.16);
+  winGrd.addColorStop(0, "rgba(200,240,255,1)");
+  winGrd.addColorStop(0.6, "rgba(80,180,230,0.9)");
+  winGrd.addColorStop(1, "rgba(30,120,200,0.7)");
+  ctx.fillStyle = winGrd;
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.6)";
+  ctx.lineWidth = 0.7;
+  ctx.stroke();
+}
+
+// Particle type
+interface Particle {
+  x: number; y: number;
+  vx: number; vy: number;
+  life: number; maxLife: number;
+  r: number;
+  color: [number,number,number];
 }
 
 // ── Shared deterministic crash point ─────────────────────────────────────
@@ -99,7 +217,14 @@ const FAKE_IDS = [
 ];
 
 // ── Canvas drawing ──────────────────────────────────────────────────────
-function drawCurve(canvas: HTMLCanvasElement, elapsed: number, phase: Phase, crashPoint: number) {
+function drawCurve(
+  canvas: HTMLCanvasElement,
+  elapsed: number,
+  phase: Phase,
+  crashPoint: number,
+  particles: Particle[],
+  now: number,
+) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   const W = canvas.width;
@@ -109,18 +234,36 @@ function drawCurve(canvas: HTMLCanvasElement, elapsed: number, phase: Phase, cra
   ctx.fillStyle = "#080f0a";
   ctx.fillRect(0, 0, W, H);
 
-  ctx.strokeStyle = "rgba(141,198,63,0.06)";
-  ctx.lineWidth = 1;
-  for (let i = 1; i < 7; i++) {
-    const x = (W * i) / 7;
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-  }
-  for (let i = 1; i < 5; i++) {
-    const y = (H * i) / 5;
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  if (elapsed <= 0 && phase !== "crashed") {
+    // just grid
+    ctx.strokeStyle = "rgba(141,198,63,0.06)";
+    ctx.lineWidth = 1;
+    for (let i = 1; i < 7; i++) { const x = (W*i)/7; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for (let i = 1; i < 5; i++) { const y = (H*i)/5; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+    return;
   }
 
-  if (elapsed <= 0 && phase !== "crashed") return;
+  const curM = phase === "crashed" ? crashPoint : tToM(elapsed);
+  const color = phase === "crashed" ? "#ef4444" : multColor(curM);
+  const glowIntensity = Math.min(1 + (curM - 1) / 9, 5); // 1× at 1×, up to 5× at 37×
+
+  // ── Screen-edge aura at high multipliers ──────────────────────────────
+  if (curM >= 4 && phase === "flying") {
+    const edgeAlpha = Math.min((curM - 4) / 30, 0.18);
+    const edge = ctx.createRadialGradient(W/2, H, 0, W/2, H, W * 0.9);
+    edge.addColorStop(0, `rgba(0,0,0,0)`);
+    edge.addColorStop(0.7, `rgba(0,0,0,0)`);
+    edge.addColorStop(1, color.replace("rgb", "rgba").replace(")", `,${edgeAlpha})`));
+    ctx.fillStyle = edge;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // ── Grid ──────────────────────────────────────────────────────────────
+  const gridAlpha = phase === "flying" ? Math.max(0.03, 0.08 - (curM - 1) * 0.003) : 0.06;
+  ctx.strokeStyle = `rgba(141,198,63,${gridAlpha})`;
+  ctx.lineWidth = 1;
+  for (let i = 1; i < 7; i++) { const x = (W*i)/7; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let i = 1; i < 5; i++) { const y = (H*i)/5; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
 
   const maxElapsed = phase === "crashed" ? mToT(crashPoint) : elapsed;
   const windowSec = Math.max(18, maxElapsed * 1.25);
@@ -136,7 +279,7 @@ function drawCurve(canvas: HTMLCanvasElement, elapsed: number, phase: Phase, cra
     return usableH - logScale * (usableH - 16);
   };
 
-  const STEPS = 100;
+  const STEPS = 120;
   const pts: [number, number][] = [];
   for (let i = 0; i <= STEPS; i++) {
     const t = (i / STEPS) * maxElapsed;
@@ -145,49 +288,81 @@ function drawCurve(canvas: HTMLCanvasElement, elapsed: number, phase: Phase, cra
   if (pts.length < 2) return;
 
   const [lx, ly] = pts[pts.length - 1];
-  const color = phase === "crashed" ? "#ef4444" : multColor(tToM(elapsed));
 
+  // ── Curve fill (gradient under the line) ─────────────────────────────
   ctx.beginPath();
   ctx.moveTo(pts[0][0], usableH);
   for (const [x, y] of pts) ctx.lineTo(x, y);
   ctx.lineTo(lx, usableH);
   ctx.closePath();
   const fill = ctx.createLinearGradient(0, 0, 0, usableH);
-  fill.addColorStop(0, hexToRgba(color, 0.22));
-  fill.addColorStop(1, hexToRgba(color, 0.02));
+  const fillAlpha = Math.min(0.12 + glowIntensity * 0.04, 0.32);
+  fill.addColorStop(0, color.replace("rgb", "rgba").replace(")", `,${fillAlpha})`));
+  fill.addColorStop(1, color.replace("rgb", "rgba").replace(")", ",0.01)"));
   ctx.fillStyle = fill;
   ctx.fill();
 
+  // ── Curve line with colour-segmented gradient ─────────────────────────
+  // Draw each segment with its own colour for smooth progression
+  ctx.lineWidth = 2.5 + glowIntensity * 0.4;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  const shadowBlur = Math.min(8 + glowIntensity * 6, 40);
+  ctx.shadowColor = color;
+  ctx.shadowBlur = shadowBlur;
   ctx.beginPath();
   ctx.moveTo(pts[0][0], pts[0][1]);
   for (const [x, y] of pts) ctx.lineTo(x, y);
   ctx.strokeStyle = color;
-  ctx.lineWidth = 3;
-  ctx.lineJoin = "round";
-  ctx.lineCap = "round";
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 14;
   ctx.stroke();
   ctx.shadowBlur = 0;
 
+  // ── Particles (exhaust trail) ─────────────────────────────────────────
+  for (const p of particles) {
+    const ratio = p.life / p.maxLife;
+    const alpha = ratio * 0.7;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * ratio, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${p.color[0]},${p.color[1]},${p.color[2]},${alpha})`;
+    ctx.fill();
+  }
+
+  // ── Rocket or explosion ───────────────────────────────────────────────
   ctx.save();
   ctx.translate(lx, ly);
   if (phase === "flying" && pts.length >= 2) {
     const [px, py] = pts[pts.length - 2];
     const angle = Math.atan2(ly - py, lx - px);
     ctx.rotate(angle);
-    ctx.font = "22px serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("🚀", 0, 0);
+    // Rocket glow halo
+    if (curM >= 3) {
+      const haloR = 22 + glowIntensity * 8;
+      const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, haloR);
+      halo.addColorStop(0, color.replace("rgb", "rgba").replace(")", `,${Math.min(0.35, glowIntensity * 0.06)})`));
+      halo.addColorStop(1, color.replace("rgb", "rgba").replace(")", ",0)"));
+      ctx.beginPath(); ctx.arc(0, 0, haloR, 0, Math.PI * 2);
+      ctx.fillStyle = halo; ctx.fill();
+    }
+    drawRocket(ctx, color, curM, now);
   } else if (phase === "crashed") {
-    ctx.font = "26px serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("💥", 0, -10);
+    // Explosion rings
+    const rings = [0.9, 0.65, 0.4];
+    for (const s of rings) {
+      const rr = 28 * s;
+      const expl = ctx.createRadialGradient(0, -8, 0, 0, -8, rr);
+      expl.addColorStop(0, `rgba(255,200,50,${s * 0.8})`);
+      expl.addColorStop(0.4, `rgba(255,80,10,${s * 0.5})`);
+      expl.addColorStop(1, `rgba(200,20,0,0)`);
+      ctx.beginPath(); ctx.arc(0, -8, rr, 0, Math.PI * 2);
+      ctx.fillStyle = expl; ctx.fill();
+    }
+    // Centre flash
+    ctx.beginPath(); ctx.arc(0, -8, 7, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,200,0.95)"; ctx.fill();
   }
   ctx.restore();
 
+  // ── Axis labels ───────────────────────────────────────────────────────
   const labels = [2, 5, 10, 20, 50].filter((l) => l <= maxM * 0.95);
   ctx.font = "9px monospace";
   ctx.fillStyle = "rgba(255,255,255,0.25)";
@@ -196,7 +371,7 @@ function drawCurve(canvas: HTMLCanvasElement, elapsed: number, phase: Phase, cra
     const y = my(label);
     if (y > 10 && y < H - 5) {
       ctx.fillText(label + "×", 2, y + 3);
-      ctx.strokeStyle = "rgba(255,255,255,0.06)";
+      ctx.strokeStyle = "rgba(255,255,255,0.05)";
       ctx.lineWidth = 0.5;
       ctx.setLineDash([3, 4]);
       ctx.beginPath(); ctx.moveTo(marginL - 4, y); ctx.lineTo(W, y); ctx.stroke();
@@ -252,6 +427,8 @@ export default function CrashGame() {
   const betRef = useRef({ placed: false, amount: 0, cashedOut: false, autoCashout: 0 });
   const feedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const currentRoundRef = useRef<number>(currentRoundId());
+  const particlesRef = useRef<Particle[]>([]);
+  const lastParticleRef = useRef<number>(0);
 
   useEffect(() => { betRef.current.autoCashout = parseFloat(autoCashoutInput) || 0; }, [autoCashoutInput]);
 
@@ -362,7 +539,7 @@ export default function CrashGame() {
     setFeed([]);
 
     const canvas = canvasRef.current;
-    if (canvas) drawCurve(canvas, 0, "waiting", cp);
+    if (canvas) drawCurve(canvas, 0, "waiting", cp, [], performance.now());
 
     // ── Determine current phase based on global round clock ────────────────
     // Round layout: [0-5s] prochain match | [5-15s] décollage | [15-30s] vol
@@ -402,7 +579,7 @@ export default function CrashGame() {
           phaseRef.current = "waiting";
           setPhase("waiting");
           setMultiplier(1.0);
-          if (canvas) drawCurve(canvas, 0, "waiting", cp);
+          if (canvas) drawCurve(canvas, 0, "waiting", cp, [], performance.now());
           let waitRemaining = WAIT;
           setCountdown(waitRemaining);
           const cdWait = setInterval(() => {
@@ -430,7 +607,55 @@ export default function CrashGame() {
         setMultiplier(m);
 
         const c = canvasRef.current;
-        if (c) drawCurve(c, elapsed, "flying", crashPointRef.current);
+
+        // ── Particle spawn (exhaust trail) ────────────────────────────
+        if (c && now - lastParticleRef.current > 28) {
+          lastParticleRef.current = now;
+          const spawnCount = m > 10 ? 4 : m > 4 ? 3 : 2;
+          for (let k = 0; k < spawnCount; k++) {
+            // Pick a colour near orange/red for the exhaust
+            const palette: Array<[number,number,number]> = [
+              [255, 200, 60], [255, 130, 30], [255, 80, 10], [255, 240, 120],
+            ];
+            const col = palette[Math.floor(Math.random() * palette.length)];
+            particlesRef.current.push({
+              x: 0, y: 0, // will be overridden in drawCurve — placeholder; particles follow rocket tip
+              vx: -(1.5 + Math.random() * 2.5),
+              vy: (Math.random() - 0.5) * 1.2,
+              life: 1, maxLife: 1,
+              r: 2.5 + Math.random() * 3,
+              color: col,
+            });
+          }
+        }
+        // Tick existing particles
+        const pts: [number, number][] = (() => {
+          if (!c) return [];
+          const maxE = elapsed;
+          const windowSec = Math.max(18, maxE * 1.25);
+          const startT2 = Math.max(0, maxE - windowSec);
+          const marginL = 24;
+          const usableW = c.width - marginL - 16;
+          const usableH = c.height - 40;
+          const maxM = Math.max(crashPointRef.current * 1.3, 2.5);
+          const tx2 = (t: number) => marginL + ((t - startT2) / windowSec) * usableW;
+          const my2 = (mm: number) => {
+            const ls = Math.log(Math.max(1.001, mm)) / Math.log(Math.max(1.001, maxM));
+            return usableH - ls * (usableH - 16);
+          };
+          return [[tx2(maxE), my2(m)]];
+        })();
+        const tipX = pts.length ? pts[0][0] : 0;
+        const tipY = pts.length ? pts[0][1] : 0;
+        // Anchor new particles at rocket tip
+        for (const p of particlesRef.current) {
+          if (p.life >= p.maxLife) { p.x = tipX; p.y = tipY; }
+        }
+        particlesRef.current = particlesRef.current
+          .map(p => ({ ...p, x: p.x + p.vx, y: p.y + p.vy, life: p.life - 0.04 }))
+          .filter(p => p.life > 0);
+
+        if (c) drawCurve(c, elapsed, "flying", crashPointRef.current, particlesRef.current, now);
 
         // Auto cash out
         const autoAt = betRef.current.autoCashout;
@@ -445,7 +670,8 @@ export default function CrashGame() {
           phaseRef.current = "crashed";
           setPhase("crashed");
           stopFeed();
-          if (c) drawCurve(c, mToT(finalM), "crashed", finalM);
+          particlesRef.current = [];
+          if (c) drawCurve(c, mToT(finalM), "crashed", finalM, [], now);
           setHistory((h) => [{ cp: finalM }, ...h].slice(0, 12));
 
           // 5s countdown → next round
@@ -706,7 +932,7 @@ export default function CrashGame() {
         </span>
         <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
           {history.map((h, i) => {
-            const c = h.cp < 2 ? "#ef4444" : h.cp < 5 ? "#facc15" : "#4ade80";
+            const c = histColor(h.cp);
             return (
               <span
                 key={i}
