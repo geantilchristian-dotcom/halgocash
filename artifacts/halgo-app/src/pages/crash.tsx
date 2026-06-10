@@ -28,9 +28,15 @@ function multColor(m: number) {
 
 // ── Shared deterministic crash point ─────────────────────────────────────
 // All users get the same crash point for the same round.
-// Round = every ROUND_MS milliseconds (10s wait + flight duration capped).
-const ROUND_MS = 22000; // 22s per round slot
-const WAIT = 10;        // 10s waiting phase
+// Round layout (30s total):
+//   [0 – POST_CRASH_S*1000)  → "prochain match" display (5s)
+//   [POST_CRASH_MS – FLIGHT_START_MS) → décollage countdown (10s)
+//   [FLIGHT_START_MS – 30000)         → vol / flight
+const ROUND_MS = 30000;       // 30s per round slot
+const POST_CRASH_S = 5;       // 5s "prochain match" after crash
+const WAIT = 10;              // 10s décollage countdown
+const POST_CRASH_MS = POST_CRASH_S * 1000;          // 5 000 ms
+const FLIGHT_START_MS = POST_CRASH_MS + WAIT * 1000; // 15 000 ms
 
 function seededCrashPoint(roundId: number): number {
   let x = roundId ^ 0xdeadbeef;
@@ -317,25 +323,64 @@ export default function CrashGame() {
     const canvas = canvasRef.current;
     if (canvas) drawCurve(canvas, 0, "waiting", cp);
 
-    // Calculate how much time is left in the waiting phase
+    // ── Determine current phase based on global round clock ────────────────
+    // Round layout: [0-5s] prochain match | [5-15s] décollage | [15-30s] vol
     const msInto = msIntoRound();
-    const waitRemaining = Math.max(0, WAIT * 1000 - msInto);
-    let remaining = Math.ceil(waitRemaining / 1000);
-    setCountdown(remaining);
 
-    const cdInterval = setInterval(() => {
-      remaining -= 1;
-      setCountdown(Math.max(0, remaining));
-      if (remaining <= 0) {
-        clearInterval(cdInterval);
-        launchFlight();
-      }
-    }, 1000);
+    if (msInto >= FLIGHT_START_MS) {
+      // Already in flight — fast-forward to current position
+      launchFlight(msInto - FLIGHT_START_MS);
+    } else if (msInto >= POST_CRASH_MS) {
+      // In décollage / waiting phase — show remaining countdown
+      const waitElapsedMs = msInto - POST_CRASH_MS;
+      const waitLeft = Math.ceil((WAIT * 1000 - waitElapsedMs) / 1000);
+      setCountdown(Math.max(1, waitLeft));
+      let remaining = waitLeft;
+      const cdInterval = setInterval(() => {
+        remaining -= 1;
+        setCountdown(Math.max(0, remaining));
+        if (remaining <= 0) {
+          clearInterval(cdInterval);
+          launchFlight(0);
+        }
+      }, 1000);
+    } else {
+      // In post-crash phase (0-5s of round) — show "prochain match" countdown
+      // then transition to décollage
+      phaseRef.current = "crashed";
+      setPhase("crashed");
+      const postLeft = Math.ceil((POST_CRASH_MS - msInto) / 1000);
+      setCrashCountdown(Math.max(1, postLeft));
+      let postRemaining = postLeft;
+      const cdPost = setInterval(() => {
+        postRemaining -= 1;
+        setCrashCountdown(Math.max(0, postRemaining));
+        if (postRemaining <= 0) {
+          clearInterval(cdPost);
+          // Begin décollage
+          phaseRef.current = "waiting";
+          setPhase("waiting");
+          setMultiplier(1.0);
+          if (canvas) drawCurve(canvas, 0, "waiting", cp);
+          let waitRemaining = WAIT;
+          setCountdown(waitRemaining);
+          const cdWait = setInterval(() => {
+            waitRemaining -= 1;
+            setCountdown(Math.max(0, waitRemaining));
+            if (waitRemaining <= 0) {
+              clearInterval(cdWait);
+              launchFlight(0);
+            }
+          }, 1000);
+        }
+      }, 1000);
+    }
 
-    function launchFlight() {
+    function launchFlight(skipMs: number) {
       phaseRef.current = "flying";
       setPhase("flying");
-      startTimeRef.current = performance.now();
+      // Fast-forward: subtract already-elapsed flight time so multiplier is correct on refresh
+      startTimeRef.current = performance.now() - skipMs;
       startFeed(cp);
 
       function tick(now: number) {
@@ -362,17 +407,15 @@ export default function CrashGame() {
           if (c) drawCurve(c, mToT(finalM), "crashed", finalM);
           setHistory((h) => [{ cp: finalM }, ...h].slice(0, 12));
 
-          // 10s countdown before next round
-          const POST_CRASH_WAIT = 10;
-          setCrashCountdown(POST_CRASH_WAIT);
-          let remaining = POST_CRASH_WAIT;
+          // 5s countdown → next round
+          setCrashCountdown(POST_CRASH_S);
+          let remaining = POST_CRASH_S;
           const cdPostCrash = setInterval(() => {
             remaining -= 1;
             setCrashCountdown(Math.max(0, remaining));
             if (remaining <= 0) {
               clearInterval(cdPostCrash);
-              const nextRound = currentRoundId();
-              startRound(nextRound);
+              startRound(currentRoundId());
             }
           }, 1000);
           return;
@@ -386,20 +429,9 @@ export default function CrashGame() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doCashOut, startFeed, stopFeed]);
 
-  // Start on mount — sync to global round
+  // Start on mount — sync to global round clock (startRound handles all 3 phases)
   useEffect(() => {
-    const roundId = currentRoundId();
-    const msInto = msIntoRound();
-
-    if (msInto < WAIT * 1000) {
-      // We're in the waiting phase — start waiting
-      startRound(roundId);
-    } else {
-      // We're in the flying phase — fast-forward
-      startRound(roundId);
-      // The launchFlight will trigger on countdown reaching 0 with 0 delay
-    }
-
+    startRound(currentRoundId());
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       stopFeed();
