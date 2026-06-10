@@ -80,10 +80,6 @@ export default function Home() {
   const [balance, setBalance] = useState<number | null>(null);
   const [balanceFlash, setBalanceFlash] = useState(false);
 
-  const [chipsWiggling, setChipsWiggling] = useState(false);
-  const [fallingChips, setFallingChips] = useState<Array<{
-    id: number; x: number; delay: number; duration: number; rotation: number; size: number;
-  }>>([]);
 
   const [retraitAmount, setRetraitAmount] = useState("");
   const [retraitLoading, setRetraitLoading] = useState(false);
@@ -143,28 +139,6 @@ export default function Home() {
     return undefined;
   }, [activationResult?.code, activationResult?.isWinner]);
 
-  useEffect(() => {
-    if (!balanceFlash) return;
-    const chips = Array.from({ length: 22 }, (_, i) => ({
-      id: i,
-      x: 2 + Math.random() * 96,
-      delay: Math.random() * 1.0,
-      duration: 1.6 + Math.random() * 1.4,
-      rotation: Math.random() * 720 - 360,
-      size: 44 + Math.floor(Math.random() * 32),
-    }));
-    setFallingChips(chips);
-    const t = setTimeout(() => setFallingChips([]), 4500);
-    return () => clearTimeout(t);
-  }, [balanceFlash]);
-
-  const handleChipsTouch = () => {
-    setChipsWiggling(false);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => setChipsWiggling(true));
-    });
-    setTimeout(() => setChipsWiggling(false), 750);
-  };
 
   // No auto-dismiss — user closes manually so they have time to read the result
 
@@ -275,68 +249,25 @@ export default function Home() {
   return (
     <div className={`min-h-dvh flex flex-col transition-colors ${bg}`}>
 
-      {/* ── Falling chips rain overlay ── */}
-      {fallingChips.length > 0 && (
-        <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 9999 }}>
-          {fallingChips.map((chip) => (
-            <img
-              key={chip.id}
-              src="/chips.webp"
-              alt=""
-              className="chip-falling absolute"
-              style={{
-                left: `${chip.x}%`,
-                width: chip.size,
-                "--chip-dur": `${chip.duration}s`,
-                "--chip-delay": `${chip.delay}s`,
-                "--chip-rot": `${chip.rotation}deg`,
-              } as React.CSSProperties}
-            />
-          ))}
-        </div>
-      )}
 
       {/* ── Header ── */}
       <header
         className="relative flex items-center justify-center px-4 pt-5 pb-4"
         style={{ background: "linear-gradient(135deg, #0a1f0e 0%, #0f3d1c 45%, #1a5c2a 80%, #0f3d1c 100%)" }}
       >
-        {/* Logo + chips group — shifted right */}
-        <div className="flex items-center gap-0 ml-10">
-          <img
-            src="/logo-halgo-cash-nobg.webp"
-            alt="Halgo Cash"
-            className="w-44 object-contain"
-          />
-          {/* Duplicated chips, overlapping slightly */}
+        {/* ── Logo placeholder — logo à uploader ici ── */}
+        <div className="flex items-center justify-center">
           <div
-            className="relative cursor-pointer select-none"
-            style={{ width: 130, height: 88 }}
-            onClick={handleChipsTouch}
+            className="flex items-center justify-center rounded-2xl px-6 py-2"
+            style={{
+              border: "2px dashed rgba(255,255,255,0.18)",
+              minWidth: 170,
+              minHeight: 52,
+            }}
           >
-            <img
-              src="/chips.webp"
-              alt=""
-              className={`absolute object-contain ${chipsWiggling ? "chips-wiggle" : ""}`}
-              style={{
-                width: 118, height: 80,
-                top: 4, left: 0,
-                filter: "drop-shadow(0 5px 16px rgba(0,0,0,0.7))",
-                opacity: 0.65,
-                transform: "scaleX(-1) rotate(-6deg)",
-              }}
-              onAnimationEnd={() => setChipsWiggling(false)}
-            />
-            <img
-              src="/chips.webp"
-              alt="jetons"
-              className={`absolute object-contain ${chipsWiggling ? "chips-wiggle" : ""}`}
-              style={{
-                width: 124, height: 84,
-                top: 0, left: 10,
-                filter: "drop-shadow(0 6px 18px rgba(0,0,0,0.8))",
-              }}
-            />
+            <span className="text-white/30 font-black text-sm uppercase tracking-[0.25em] select-none">
+              Logo ici
+            </span>
           </div>
         </div>
 
@@ -461,37 +392,50 @@ export default function Home() {
 
             {/* ── Amount row ── */}
             <div className="mb-2 flex flex-col items-center">
-              <div className="transition-all duration-300" style={{ transform: balanceFlash ? "scale(1.04)" : "scale(1)" }}>
+              <div className="transition-all duration-300 w-full" style={{ transform: balanceFlash ? "scale(1.04)" : "scale(1)" }}>
                 {balance === null ? (
-                  <div className="h-20 w-56 rounded-lg animate-pulse mx-auto" style={{ background: "rgba(255,255,255,0.08)" }} />
+                  <div className="h-16 w-48 rounded-lg animate-pulse mx-auto" style={{ background: "rgba(255,255,255,0.08)" }} />
                 ) : (
-                  <div className="flex items-center justify-center gap-3">
-                    <span
-                      className="leading-none"
-                      style={{
-                        fontFamily: "'Oswald', sans-serif",
-                        fontWeight: 700,
-                        fontSize: balance >= 100000 ? "4.2rem" : "5.4rem",
-                        color: balanceFlash ? "#8DC63F" : "#ffffff",
-                        transition: "color 0.5s",
-                        letterSpacing: "0.01em",
-                      }}
-                    >
-                      {formatFC(balance)}
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: "'Oswald', sans-serif",
-                        fontWeight: 700,
-                        fontSize: balance >= 100000 ? "4.2rem" : "5.4rem",
-                        color: balanceFlash ? "#8DC63F" : "#ffffff",
-                        transition: "color 0.5s",
-                        lineHeight: 1,
-                      }}
-                    >
-                      FC
-                    </span>
-                  </div>
+                  (() => {
+                    const fmt = formatFC(balance);
+                    const fs = fmt.length <= 5 ? "4.6rem"
+                      : fmt.length <= 7 ? "3.8rem"
+                      : fmt.length <= 10 ? "3.0rem"
+                      : "2.3rem";
+                    const fcSize = fmt.length <= 5 ? "2.0rem"
+                      : fmt.length <= 7 ? "1.7rem"
+                      : "1.4rem";
+                    return (
+                      <div className="flex items-baseline justify-center gap-2 flex-wrap px-2">
+                        <span
+                          className="leading-none"
+                          style={{
+                            fontFamily: "'Oswald', sans-serif",
+                            fontWeight: 700,
+                            fontSize: fs,
+                            color: balanceFlash ? "#8DC63F" : "#ffffff",
+                            transition: "color 0.5s",
+                            letterSpacing: "0.01em",
+                            wordBreak: "break-all",
+                          }}
+                        >
+                          {fmt}
+                        </span>
+                        <span
+                          style={{
+                            fontFamily: "'Oswald', sans-serif",
+                            fontWeight: 700,
+                            fontSize: fcSize,
+                            color: balanceFlash ? "#8DC63F" : "rgba(255,255,255,0.65)",
+                            transition: "color 0.5s",
+                            lineHeight: 1,
+                          }}
+                        >
+                          FC
+                        </span>
+                      </div>
+                    );
+                  })()
                 )}
               </div>
               {/* USD pill */}

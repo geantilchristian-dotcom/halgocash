@@ -80,6 +80,8 @@ export default function Coupons() {
     queryFn: () => apiFetch("/api/coupons"),
     enabled: isLoaded && isSignedIn,
     retry: false,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const registerMutation = useMutation({
