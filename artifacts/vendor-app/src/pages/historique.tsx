@@ -20,14 +20,16 @@ export default function Historique() {
   const { user } = useAuth();
 
   const { data: withdrawals = [], isLoading, error } = useQuery<Withdrawal[]>({
-    queryKey: ["/api/vendor/withdrawals/all"],
+    queryKey: ["/api/vendor/withdrawals"],
     queryFn: async () => {
       const res = await fetch("/api/vendor/withdrawals", { credentials: "include" });
       if (!res.ok) return [];
-      return res.json();
+      return res.json() as Promise<Withdrawal[]>;
     },
     refetchInterval: 30_000,
-    enabled: !!user?.vendorId,
+    enabled: !!user,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   return (

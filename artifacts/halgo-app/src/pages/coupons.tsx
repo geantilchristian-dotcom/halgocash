@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useUser } from "@clerk/react";
+import { useUser, useAuth } from "@clerk/react";
 import { CheckCircle, XCircle, Clock, Ticket, Trophy, Plus, X, Loader2, ScanLine } from "lucide-react";
 import { useTheme } from "@/lib/theme-context";
 import { QrScanner } from "@/components/qr-scanner";
@@ -32,21 +32,22 @@ function formatFC(n: number) {
   return new Intl.NumberFormat("fr-FR").format(n).replace(/\s/g, ".");
 }
 
-async function apiFetch(path: string, options?: RequestInit) {
-  const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    ...options,
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error ?? "Erreur reseau");
-  return body;
-}
-
 export default function Coupons() {
   const { isLoaded, isSignedIn } = useUser();
+  const { getToken } = useAuth();
   const { isDark } = useTheme();
   const queryClient = useQueryClient();
+
+  // Auth-aware fetch — sends Clerk Bearer token required by /api/coupons routes
+  const authFetch = async (path: string, options?: RequestInit) => {
+    const token = await getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(path, { headers, credentials: "include", ...options });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((body as { error?: string }).error ?? "Erreur reseau");
+    return body;
+  };
   const [filter, setFilter] = useState<Filter>("tous");
   const [showAdd, setShowAdd] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
@@ -77,7 +78,7 @@ export default function Coupons() {
 
   const { data: tickets = [], isLoading } = useQuery<CouponItem[]>({
     queryKey: ["/api/coupons"],
-    queryFn: () => apiFetch("/api/coupons"),
+    queryFn: () => authFetch("/api/coupons") as Promise<CouponItem[]>,
     enabled: isLoaded && isSignedIn,
     retry: false,
     staleTime: 0,
@@ -86,7 +87,7 @@ export default function Coupons() {
 
   const registerMutation = useMutation({
     mutationFn: (code: string) =>
-      apiFetch("/api/coupons/register", { method: "POST", body: JSON.stringify({ code }) }),
+      authFetch("/api/coupons/register", { method: "POST", body: JSON.stringify({ code }) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/coupons"] });
       setNewCode("");
