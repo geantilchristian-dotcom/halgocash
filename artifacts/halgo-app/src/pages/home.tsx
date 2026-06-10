@@ -68,7 +68,7 @@ interface Notif {
 }
 
 export default function Home() {
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const { getToken } = useAuth();
   const [, navigate] = useLocation();
   const countdown = useJackpotCountdown();
@@ -138,8 +138,9 @@ export default function Home() {
     } catch { /* silent */ }
   }, [authFetch]);
 
-  useEffect(() => { void fetchBalance(); void fetchNotifications(); }, []);
-  useEffect(() => { if (user?.id) { void fetchBalance(); void fetchNotifications(); } }, [user?.id]);
+  // Only fetch once Clerk has finished loading — avoids a race where the
+  // unauthenticated first fetch (no token) returns 0 and overwrites the real balance.
+  useEffect(() => { if (isLoaded) { void fetchBalance(); void fetchNotifications(); } }, [isLoaded]);
 
   // QR scan auto-fill
   const autoSubmitRef = useRef(false);

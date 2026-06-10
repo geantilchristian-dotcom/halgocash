@@ -57,11 +57,13 @@ function buildPrizeDistribution(count: number, price: number): { prizeAmount: st
   const grandCount     = Math.max(0, Math.round(10 * r));
   const gagnantCount   = Math.max(0, Math.round(10 * r));
 
-  // Variable "Remboursé" tier: fills up to 70% total payout
-  // petitCount = N × max(0, 0.70 − FIXED_PRIZE_PER_TICKET / price)
-  // where FIXED_PRIZE_PER_TICKET = 250 (i.e. 250 000 FC per 1000)
-  const FIXED_PER_TICKET = 250; // FC
-  const petitRatio = Math.max(0, 0.70 - FIXED_PER_TICKET / price);
+  // Variable "Remboursé" tier: fills up to 70% total payout.
+  // Compute how much the fixed tiers already consume per ticket,
+  // then fill the rest up to 70% with petit-gagnant (= ticket price) prizes.
+  // This handles small lots correctly (e.g. 10 tickets where fixed tiers are 0).
+  const actualFixedPrize = superCount * 50000 + tresGrandCount * 25000 + grandCount * 10000 + gagnantCount * 5000;
+  const actualFixedPerTicket = count > 0 ? actualFixedPrize / count : 0;
+  const petitRatio = Math.max(0, 0.70 - actualFixedPerTicket / price);
   const petitCount = Math.round(count * petitRatio);
 
   const totalWinners = superCount + tresGrandCount + grandCount + gagnantCount + petitCount;

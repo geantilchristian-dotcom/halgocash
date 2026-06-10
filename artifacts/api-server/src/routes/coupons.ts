@@ -21,10 +21,13 @@ function formatTicket(t: typeof ticketsTable.$inferSelect, drawNumber?: number |
   };
 }
 
-// GET /api/coupons — list registered tickets for current Clerk user
+// GET /api/coupons — list registered tickets for current user (Clerk or session)
 router.get("/coupons", async (req, res): Promise<void> => {
-  const { userId } = getAuth(req);
-  if (!userId) {
+  const { userId: clerkUserId } = getAuth(req);
+  const sessionUserId = req.session.userId;
+  const effectiveUserId = clerkUserId ?? (sessionUserId ? `local:${sessionUserId}` : null);
+
+  if (!effectiveUserId) {
     res.status(401).json({ error: "Non authentifié" });
     return;
   }
@@ -32,7 +35,7 @@ router.get("/coupons", async (req, res): Promise<void> => {
   const tickets = await db
     .select()
     .from(ticketsTable)
-    .where(eq(ticketsTable.registeredByClerkId, userId))
+    .where(eq(ticketsTable.registeredByClerkId, effectiveUserId))
     .orderBy(desc(ticketsTable.registeredAt));
 
   const enriched = await Promise.all(
