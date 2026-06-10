@@ -6,9 +6,11 @@ import pinoHttp from "pino-http";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { clerkMiddleware } from "@clerk/express";
+import { publishableKeyFromHost } from "@clerk/shared/keys";
 import {
   CLERK_PROXY_PATH,
   clerkProxyMiddleware,
+  getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -29,12 +31,25 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://clerk.com", "*.clerk.accounts.dev", "*.halgocash.com"],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "https://clerk.com",
+          "*.clerk.accounts.dev",
+          "*.halgocash.com",
+          "https://challenges.cloudflare.com", // Clerk Turnstile bot-protection
+        ],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'", "https:", "wss:"],
+        connectSrc: [
+          "'self'",
+          "https:",
+          "wss:",
+          "https://challenges.cloudflare.com", // Clerk Turnstile
+        ],
         fontSrc: ["'self'", "data:", "https://fonts.gstatic.com", "https:"],
-        frameSrc: ["'none'"],
+        // Allow Cloudflare Turnstile iframe (Clerk CAPTCHA bot-protection)
+        frameSrc: ["https://challenges.cloudflare.com"],
       },
     },
   }),
@@ -129,11 +144,17 @@ app.use(
 );
 
 // ── Clerk middleware ───────────────────────────────────────────────────────
+// publishableKeyFromHost resolves the correct key for the requesting hostname
+// so the same server can serve multiple Clerk custom domains (e.g. halgocash.com
+// and halgocash.replit.app both work with the one deployed binary).
 app.use(
-  clerkMiddleware({
-    publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
+  clerkMiddleware((req) => ({
+    publishableKey: publishableKeyFromHost(
+      getClerkProxyHost(req) ?? "",
+      process.env.CLERK_PUBLISHABLE_KEY,
+    ),
     secretKey: process.env.CLERK_SECRET_KEY,
-  }),
+  })),
 );
 
 // ── API routes ────────────────────────────────────────────────────────────
