@@ -250,7 +250,7 @@ function AgeGateModal({ onConfirm, onDeny }: { onConfirm: () => void; onDeny: ()
 
 export default function Home() {
   const { user, isLoaded } = useUser();
-  const { getToken } = useAuth();
+  const { getToken, isSignedIn } = useAuth();
   const [, navigate] = useLocation();
   const countdown = useJackpotCountdown();
 
@@ -435,6 +435,21 @@ export default function Home() {
       void claimPendingReferral();
     }
   }, [isLoaded]);
+
+  // Secondary trigger: when Clerk marks the session as fully signed-in the JWT
+  // is guaranteed to be available.  Reset retry state and re-fetch balance so
+  // users who had a 0 due to a slow JWT get the real value immediately.
+  useEffect(() => {
+    if (isSignedIn) {
+      balanceRetryCountRef.current = 0;
+      if (balanceRetryTimerRef.current) {
+        clearTimeout(balanceRetryTimerRef.current);
+        balanceRetryTimerRef.current = null;
+      }
+      void fetchBalance();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn]);
 
   // QR scan auto-fill
   // Tracks locally-confirmed wins not yet reflected by server balance.

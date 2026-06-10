@@ -19,6 +19,7 @@ import KycAdmin from "@/pages/kyc-admin";
 import SupportAdmin from "@/pages/support-admin";
 import SportBetsAdmin from "@/pages/sport-bets-admin";
 import GameCovers from "@/pages/game-covers";
+import Vendors from "@/pages/vendors";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Loader2 } from "lucide-react";
 
@@ -70,6 +71,7 @@ function ProtectedRouter() {
         <Route path="/support" component={SupportAdmin} />
         <Route path="/sport-bets" component={SportBetsAdmin} />
         <Route path="/game-covers" component={GameCovers} />
+        <Route path="/vendors" component={Vendors} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>
