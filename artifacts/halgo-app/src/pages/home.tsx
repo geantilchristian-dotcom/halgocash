@@ -68,21 +68,23 @@ interface GameDef {
   players: string;
   multiplier: string | null;
   accent: string;
+  route?: string;
 }
 
 const GAMES: GameDef[] = [
   {
-    name: "Aviator",
+    name: "Halgo Crash",
     badge: "TOP",
     badgeColor: "#e74c3c",
-    bg: "linear-gradient(160deg,#2a0808 0%,#5a1010 50%,#1a0505 100%)",
-    previewBg: "radial-gradient(ellipse at 50% 80%, #c0392b44 0%, transparent 70%)",
-    Icon: Plane,
-    iconSize: 34,
-    glow: "#c0392b",
-    players: "2 841",
-    multiplier: null,
-    accent: "#e74c3c",
+    bg: "linear-gradient(160deg,#0a1008 0%,#162a10 50%,#070f05 100%)",
+    previewBg: "radial-gradient(ellipse at 50% 80%, #27ae6055 0%, transparent 70%)",
+    Icon: TrendingUp,
+    iconSize: 30,
+    glow: "#8DC63F",
+    players: "3 210",
+    multiplier: "12.45×",
+    accent: "#8DC63F",
+    route: "/app/crash",
   },
   {
     name: "JetX",
@@ -109,19 +111,6 @@ const GAMES: GameDef[] = [
     players: "987",
     multiplier: null,
     accent: "#1abc9c",
-  },
-  {
-    name: "Crash",
-    badge: "TOP",
-    badgeColor: "#e74c3c",
-    bg: "linear-gradient(160deg,#0a1008 0%,#162a10 50%,#070f05 100%)",
-    previewBg: "radial-gradient(ellipse at 50% 80%, #27ae6055 0%, transparent 70%)",
-    Icon: TrendingUp,
-    iconSize: 30,
-    glow: "#2ecc71",
-    players: "3 210",
-    multiplier: "12.45×",
-    accent: "#2ecc71",
   },
 ];
 
@@ -602,6 +591,7 @@ export default function Home() {
             {GAMES.map((g) => (
               <div
                 key={g.name}
+                onClick={() => g.route && navigate(g.route)}
                 className="shrink-0 rounded-2xl overflow-hidden relative transition-all active:scale-[0.96] cursor-pointer flex flex-col"
                 style={{
                   width: 120,

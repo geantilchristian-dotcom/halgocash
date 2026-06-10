@@ -13,6 +13,7 @@ import Settings from "@/pages/settings";
 import Coupons from "@/pages/coupons";
 import TicketsPage from "@/pages/tickets";
 import ParrainagePage from "@/pages/parrainage";
+import CrashGame from "@/pages/crash";
 import NotFound from "@/pages/not-found";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
@@ -101,6 +102,7 @@ const AppContent = (
         <Route path="/app/settings" component={Settings} />
         <Route path="/app/tickets" component={TicketsPage} />
         <Route path="/app/parrainage" component={ParrainagePage} />
+        <Route path="/app/crash" component={CrashGame} />
         <Route path="/app/*?" component={NotFound} />
       </Switch>
     </Layout>
