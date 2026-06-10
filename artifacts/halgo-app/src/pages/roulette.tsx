@@ -224,9 +224,12 @@ export default function RouletteGame() {
   const betAmt = parseInt(betInput.replace(/\D/g, ""), 10) || 0;
   const canSpin = spinState === "idle" && betType !== null && betAmt >= 100 && betAmt <= balance;
 
-  // Determine which segment is under the pointer (top = -PI/2)
+  // Determine which segment is under the pointer (top = -PI/2 in canvas coords).
+  // Segment i starts at: rot + i*SEG_ANGLE - PI/2.
+  // Pointer is at -PI/2, so pointer hits segment i when rot + i*SEG_ANGLE ≈ 0 (mod 2π).
+  // Therefore: normAngle = (-rot) mod 2π, and i = floor(normAngle / SEG_ANGLE).
   function getPointerSegIdx(rot: number): number {
-    const normAngle = (((-rot + Math.PI / 2) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    const normAngle = ((-rot % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
     return Math.floor(normAngle / SEG_ANGLE) % SEG_COUNT;
   }
 
