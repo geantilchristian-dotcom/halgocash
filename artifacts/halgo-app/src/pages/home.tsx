@@ -129,8 +129,10 @@ interface GameDef {
   route?: string;
 }
 
-function readGameCover(key: string): string | null {
-  try { return localStorage.getItem(key); } catch { return null; }
+// Covers are served from the API (stored in DB by admin) — not from localStorage.
+// We track per-key load failures so we can show the fallback illustration on 404.
+function getGameCoverUrl(key: string): string {
+  return `/api/game-covers/${key}/image`;
 }
 
 const GAMES: GameDef[] = [
@@ -236,6 +238,9 @@ export default function Home() {
 
   // QR Scanner
   const [showQrScanner, setShowQrScanner] = useState(false);
+
+  // Game cover image errors — tracks which cover URLs returned 404 so we show fallback
+  const [coverErrors, setCoverErrors] = useState<Record<string, boolean>>({});
 
   // Parrainage
   const [referralCode,    setReferralCode]    = useState<string | null>(null);
@@ -658,22 +663,24 @@ export default function Home() {
               >
                 {/* Preview zone — top 60% */}
                 {(() => {
-                  const cover = readGameCover(g.coverKey);
+                  const coverFailed = coverErrors[g.coverKey] ?? false;
+                  const coverUrl = getGameCoverUrl(g.coverKey);
                   return (
                 <div
                   className="relative flex-1 flex items-center justify-center overflow-hidden"
-                  style={{ background: cover ? undefined : g.previewBg }}
+                  style={{ background: coverFailed ? g.previewBg : undefined }}
                 >
-                  {/* Custom cover image */}
-                  {cover && (
+                  {/* Custom cover image — always attempt; hide on 404 */}
+                  {!coverFailed && (
                     <img
-                      src={cover}
+                      src={coverUrl}
                       alt={g.name}
                       className="absolute inset-0 w-full h-full object-cover"
+                      onError={() => setCoverErrors(prev => ({ ...prev, [g.coverKey]: true }))}
                     />
                   )}
                   {/* Subtle grid lines for depth */}
-                  {!cover && <div
+                  {coverFailed && <div
                     className="absolute inset-0 opacity-10"
                     style={{
                       backgroundImage: `linear-gradient(${g.accent}60 1px, transparent 1px), linear-gradient(90deg, ${g.accent}60 1px, transparent 1px)`,
@@ -681,7 +688,7 @@ export default function Home() {
                     }}
                   />}
                   {/* Glow orb behind icon */}
-                  {!cover && <div
+                  {coverFailed && <div
                     className="absolute rounded-full"
                     style={{
                       width: 60, height: 60,
@@ -690,7 +697,7 @@ export default function Home() {
                     }}
                   />}
                   {/* Multiplier or icon — hidden when cover is set */}
-                  {!cover && (g.multiplier ? (
+                  {coverFailed && (g.multiplier ? (
                     <div className="flex flex-col items-center gap-1 relative z-10">
                       <g.Icon
                         style={{

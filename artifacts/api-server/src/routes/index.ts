@@ -17,6 +17,7 @@ import supportRouter from "./support";
 import pushNotificationsRouter from "./push-notifications";
 import sportRouter from "./sport";
 import jackpotPosterRouter from "./jackpot-poster";
+import gameCoversRouter from "./game-covers";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(supportRouter);
 router.use(pushNotificationsRouter);
 router.use(sportRouter);
 router.use(jackpotPosterRouter);
+router.use(gameCoversRouter);
 
 export default router;
