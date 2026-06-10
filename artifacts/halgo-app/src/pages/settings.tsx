@@ -1,8 +1,11 @@
-import { Bell, Globe, Lock, HelpCircle, ChevronRight, Moon, Sun } from "lucide-react";
+import { Bell, Globe, Lock, HelpCircle, ChevronRight, Moon, Sun, Smartphone, X } from "lucide-react";
+import { useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { useTheme } from "@/lib/theme-context";
 
 export default function Settings() {
   const { isDark, toggle } = useTheme();
+  const [showDownload, setShowDownload] = useState(false);
 
   const card = isDark ? "bg-[#0f2418] border-white/10" : "bg-white border-gray-100";
   const cardText = isDark ? "text-gray-200" : "text-gray-900";
@@ -111,7 +114,103 @@ export default function Settings() {
           </div>
         </div>
 
+        {/* Application mobile */}
+        <div>
+          <p className={`text-xs font-bold uppercase tracking-wider mb-2 px-1 ${sectionLabel}`}>Application mobile</p>
+          <div className={`rounded-2xl shadow-sm border overflow-hidden transition-colors ${card}`}>
+            <button
+              onClick={() => setShowDownload(true)}
+              className={`w-full flex items-center gap-3 p-4 transition-colors text-left ${isDark ? "hover:bg-white/5" : "hover:bg-gray-50"}`}
+            >
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
+                <Smartphone className={`w-4 h-4 ${iconColor}`} />
+              </div>
+              <div className="flex-1">
+                <p className={`font-bold text-sm ${cardText}`}>Télécharger l'application</p>
+                <p className={`text-xs ${sub}`}>Disponible sur Android &amp; iOS</p>
+              </div>
+              <span
+                className="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-lg shrink-0"
+                style={{ background: "rgba(141,198,63,0.15)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.3)" }}
+              >
+                GRATUIT
+              </span>
+            </button>
+          </div>
+        </div>
+
       </div>
+
+      {/* ── Download modal ── */}
+      {showDownload && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowDownload(false)} />
+          <div
+            className="relative w-full max-w-sm rounded-t-3xl pb-10 px-5 pt-2"
+            style={{ background: "#0d1f12", boxShadow: "0 -8px 48px rgba(0,0,0,0.6)" }}
+          >
+            <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-5" />
+            <button
+              onClick={() => setShowDownload(false)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center"
+              style={{ background: "rgba(255,255,255,0.08)" }}
+            >
+              <X style={{ width: 15, height: 15, color: "rgba(255,255,255,0.5)" }} />
+            </button>
+            <div className="flex items-center gap-3 mb-5">
+              <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+                style={{ background: "linear-gradient(135deg,#1a5c2a,#8DC63F)", boxShadow: "0 4px 16px rgba(141,198,63,0.4)" }}
+              >
+                <Smartphone style={{ width: 22, height: 22, color: "#fff" }} strokeWidth={2} />
+              </div>
+              <div>
+                <p className="font-black text-white text-base">HALGO CASH</p>
+                <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.45)" }}>Application mobile officielle</p>
+              </div>
+            </div>
+            <div
+              className="flex flex-col items-center gap-2 rounded-2xl p-4 mb-5"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              <div className="p-3 rounded-xl bg-white">
+                <QRCodeSVG value="https://halgocash.com" size={140} />
+              </div>
+              <p className="text-[11px] text-center font-semibold" style={{ color: "rgba(255,255,255,0.4)" }}>
+                Scannez avec l'appareil photo de votre téléphone
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <a
+                href="https://play.google.com/store"
+                target="_blank"
+                rel="noreferrer"
+                className="flex-1 flex items-center gap-2.5 px-4 py-3 rounded-2xl active:scale-95 transition-transform"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+              >
+                <span className="text-xl leading-none">▶</span>
+                <div className="text-left min-w-0">
+                  <p className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.4)" }}>Disponible sur</p>
+                  <p className="text-[13px] font-black text-white leading-tight">Google Play</p>
+                </div>
+              </a>
+              <a
+                href="https://apps.apple.com"
+                target="_blank"
+                rel="noreferrer"
+                className="flex-1 flex items-center gap-2.5 px-4 py-3 rounded-2xl active:scale-95 transition-transform"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+              >
+                <span className="text-xl leading-none"></span>
+                <div className="text-left min-w-0">
+                  <p className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.4)" }}>Disponible sur</p>
+                  <p className="text-[13px] font-black text-white leading-tight">App Store</p>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

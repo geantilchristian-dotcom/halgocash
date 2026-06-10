@@ -6,7 +6,6 @@ import {
   Home as HomeIcon, User, Settings,
   Bell, CheckCheck, Clock, Shield, Lock, Camera, Tag,
   Users, Copy, Plane, Zap, Gem, TrendingUp, Gift, Trophy, UserPlus, CircleDot,
-  Smartphone,
 } from "lucide-react";
 import type { LucideProps } from "lucide-react";
 import { useUser, useAuth } from "@clerk/react";
@@ -150,7 +149,6 @@ export default function Home() {
   const [showTicketInput,   setShowTicketInput]   = useState(false);
   const [balanceHidden,     setBalanceHidden]     = useState(false);
   const [showNotifPanel,    setShowNotifPanel]    = useState(false);
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
 
   // Notifications
   const [notifs,      setNotifs]      = useState<Notif[]>([]);
@@ -753,35 +751,6 @@ export default function Home() {
           </div>
         </button>
 
-        {/* ── Télécharger l'application ── */}
-        <button
-          onClick={() => setShowDownloadModal(true)}
-          className="w-full rounded-2xl overflow-hidden active:scale-[0.98] transition-transform"
-          style={{
-            background: "linear-gradient(135deg,#0a1f10 0%,#0f2e17 50%,#0a1a0e 100%)",
-            border: "1px solid rgba(141,198,63,0.3)",
-            boxShadow: "0 4px 20px rgba(141,198,63,0.12)",
-          }}
-        >
-          <div className="flex items-center gap-3 px-4 py-3.5">
-            <div
-              className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-              style={{ background: "linear-gradient(135deg,#1a5c2a,#8DC63F)", boxShadow: "0 4px 14px rgba(141,198,63,0.35)" }}
-            >
-              <Smartphone style={{ width: 20, height: 20, color: "#fff" }} strokeWidth={2} />
-            </div>
-            <div className="flex-1 text-left">
-              <p className="font-black text-[13px] text-white tracking-wide">TÉLÉCHARGER L'APPLICATION</p>
-              <p className="text-[11px] font-medium mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>Disponible sur Android &amp; iOS</p>
-            </div>
-            <div
-              className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wide shrink-0"
-              style={{ background: "rgba(141,198,63,0.15)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.3)" }}
-            >
-              GRATUIT
-            </div>
-          </div>
-        </button>
 
         {/* ── Promotions ── */}
         <div>
@@ -1338,86 +1307,6 @@ export default function Home() {
                 </p>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* ═══════════════ DOWNLOAD APP MODAL ═══════════════ */}
-      {showDownloadModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowDownloadModal(false)} />
-          <div
-            className="relative w-full max-w-sm rounded-t-3xl pb-10 px-5 pt-2"
-            style={{ background: "#0d1f12", boxShadow: "0 -8px 48px rgba(0,0,0,0.6)" }}
-          >
-            {/* drag handle */}
-            <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-5" />
-
-            {/* close */}
-            <button
-              onClick={() => setShowDownloadModal(false)}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center"
-              style={{ background: "rgba(255,255,255,0.08)" }}
-            >
-              <X style={{ width: 15, height: 15, color: "rgba(255,255,255,0.5)" }} />
-            </button>
-
-            {/* header */}
-            <div className="flex items-center gap-3 mb-5">
-              <div
-                className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
-                style={{ background: "linear-gradient(135deg,#1a5c2a,#8DC63F)", boxShadow: "0 4px 16px rgba(141,198,63,0.4)" }}
-              >
-                <Smartphone style={{ width: 22, height: 22, color: "#fff" }} strokeWidth={2} />
-              </div>
-              <div>
-                <p className="font-black text-white text-base">HALGO CASH</p>
-                <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.45)" }}>Application mobile officielle</p>
-              </div>
-            </div>
-
-            {/* QR code */}
-            <div
-              className="flex flex-col items-center gap-2 rounded-2xl p-4 mb-5"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-            >
-              <div className="p-3 rounded-xl bg-white">
-                <QRCodeSVG value="https://halgocash.com" size={140} />
-              </div>
-              <p className="text-[11px] text-center font-semibold" style={{ color: "rgba(255,255,255,0.4)" }}>
-                Scannez avec l'appareil photo de votre téléphone
-              </p>
-            </div>
-
-            {/* store buttons */}
-            <div className="flex gap-3">
-              <a
-                href="https://play.google.com/store"
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 flex items-center gap-2.5 px-4 py-3 rounded-2xl active:scale-95 transition-transform"
-                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
-              >
-                <span className="text-xl leading-none">▶</span>
-                <div className="text-left min-w-0">
-                  <p className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.4)" }}>Disponible sur</p>
-                  <p className="text-[13px] font-black text-white leading-tight">Google Play</p>
-                </div>
-              </a>
-              <a
-                href="https://apps.apple.com"
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 flex items-center gap-2.5 px-4 py-3 rounded-2xl active:scale-95 transition-transform"
-                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
-              >
-                <span className="text-xl leading-none"></span>
-                <div className="text-left min-w-0">
-                  <p className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.4)" }}>Disponible sur</p>
-                  <p className="text-[13px] font-black text-white leading-tight">App Store</p>
-                </div>
-              </a>
-            </div>
           </div>
         </div>
       )}
