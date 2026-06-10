@@ -211,11 +211,9 @@ export default function Home() {
   const [notifs,      setNotifs]      = useState<Notif[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Balance
-  const [balance, setBalance] = useState<number | null>(() => {
-    try { const v = localStorage.getItem("halgo_balance"); return v !== null ? parseFloat(v) : null; }
-    catch { return null; }
-  });
+  // Balance — clé par utilisateur pour éviter les fuites entre comptes
+  const lsKey = user?.id ? `halgo_balance_${user.id}` : null;
+  const [balance, setBalance] = useState<number | null>(null);
   const [balanceFlash, setBalanceFlash] = useState(false);
 
   // Ticket activation
@@ -249,27 +247,24 @@ export default function Home() {
       const res = await authFetch("/api/auth/balance");
       if (res.ok) {
         const d = await res.json() as { balance: number };
+        const key = user?.id ? `halgo_balance_${user.id}` : null;
         if (d.balance > 0) {
-          // Server returned a real balance — use it and persist it
           setBalance(d.balance);
-          try { localStorage.setItem("halgo_balance", String(d.balance)); } catch { /* ignore */ }
+          if (key) { try { localStorage.setItem(key, String(d.balance)); } catch { /* ignore */ } }
         } else {
-          // Server returned 0 — check localStorage for a locally-tracked positive balance
-          // (guards against Clerk auth failures on production wiping real wins)
-          const stored = (() => {
-            try { const v = localStorage.getItem("halgo_balance"); return v ? parseFloat(v) : 0; }
-            catch { return 0; }
-          })();
-          if (stored > 0) {
-            // Keep the locally-stored positive balance; don't overwrite with 0
-            setBalance(stored);
+          // Server returned 0 — keep locally-tracked wins only if Clerk auth may be failing
+          const localWins = localWinsRef.current;
+          if (localWins > 0) {
+            setBalance(localWins);
           } else {
+            // User ID known + server says 0 → trust server, clear any stale key
             setBalance(0);
+            if (key) { try { localStorage.removeItem(key); } catch { /* ignore */ } }
           }
         }
       }
     } catch { /* silent */ }
-  }, [authFetch]);
+  }, [authFetch, user?.id]);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -318,13 +313,7 @@ export default function Home() {
 
   // QR scan auto-fill
   // Tracks locally-confirmed wins not yet reflected by server balance.
-  // Initialized from localStorage so wins survive page reloads when server auth fails.
-  const localWinsRef = useRef<number>(
-    (() => {
-      try { const v = localStorage.getItem("halgo_balance"); return v ? parseFloat(v) : 0; }
-      catch { return 0; }
-    })()
-  );
+  const localWinsRef = useRef<number>(0);
 
   const autoSubmitRef = useRef(false);
   useEffect(() => {
@@ -370,13 +359,19 @@ export default function Home() {
             // Server confirmed balance — reset local tracking and use server value
             localWinsRef.current = 0;
             setBalance(data.newBalance);
-            try { localStorage.setItem("halgo_balance", String(data.newBalance)); } catch { /* ignore */ }
+            const key = user?.id ? `halgo_balance_${user.id}` : null;
+            if (key) { try { localStorage.setItem(key, String(data.newBalance)); } catch { /* ignore */ } }
             setTimeout(() => { void fetchBalance(); }, 2000);
           } else {
             // Server couldn't compute balance (Clerk auth failing on server) —
             // increment locally and track so fetchBalance won't wipe it with 0
             localWinsRef.current += data.prizeAmount as number;
-            setBalance((prev) => { const nb = (prev ?? 0) + (data.prizeAmount as number); try { localStorage.setItem("halgo_balance", String(nb)); } catch { /* ignore */ } return nb; });
+            setBalance((prev) => {
+              const nb = (prev ?? 0) + (data.prizeAmount as number);
+              const key = user?.id ? `halgo_balance_${user.id}` : null;
+              if (key) { try { localStorage.setItem(key, String(nb)); } catch { /* ignore */ } }
+              return nb;
+            });
             // Still try to refetch — it will NOT overwrite thanks to localWinsRef guard
             setTimeout(() => { void fetchBalance(); }, 2000);
           }
