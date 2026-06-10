@@ -51,6 +51,10 @@ router.post("/withdrawals", withdrawalRateLimit, async (req, res): Promise<void>
     res.status(400).json({ error: "Montant invalide" });
     return;
   }
+  if (amount < 500) {
+    res.status(400).json({ error: "Retrait minimum : 500 FC" });
+    return;
+  }
 
   const available = await getAvailableBalance(userId);
   if (amount > available) {

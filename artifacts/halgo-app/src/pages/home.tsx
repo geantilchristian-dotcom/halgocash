@@ -336,6 +336,7 @@ export default function Home() {
   const submitRetrait = async () => {
     const amt = parseFloat(retraitAmount.replace(/\s/g, "").replace(",", "."));
     if (!amt || amt <= 0) { setRetraitError("Entrez un montant valide"); return; }
+    if (amt < 500) { setRetraitError("Retrait minimum : 500 FC"); return; }
     if (!balance || amt > balance) { setRetraitError("Montant supérieur à votre solde disponible"); return; }
     setRetraitError(null); setRetraitLoading(true);
     try {
@@ -1091,7 +1092,7 @@ export default function Home() {
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>Montant à retirer (FC)</p>
                   <div className="relative">
-                    <input type="number" min={1} max={balance ?? undefined} inputMode="numeric" placeholder="Ex: 5 000"
+                    <input type="number" min={500} max={balance ?? undefined} inputMode="numeric" placeholder="Min. 500 FC"
                       value={retraitAmount} onChange={(e) => { setRetraitAmount(e.target.value); setRetraitError(null); }}
                       className="w-full px-4 py-3.5 rounded-xl font-black text-2xl outline-none border-2 transition-all pr-16"
                       style={{ background: "rgba(255,255,255,0.05)", borderColor: retraitError ? "#ef4444" : "rgba(255,255,255,0.12)", color: "#fff" }}
@@ -1114,7 +1115,7 @@ export default function Home() {
                   {retraitLoading ? "GÉNÉRATION..." : "GÉNÉRER LE QR CODE"}
                 </button>
                 <p className="text-[10px] text-center pb-2" style={{ color: "rgba(255,255,255,0.3)" }}>
-                  Les retraits sont traités sous 24h ouvrées · Service Halgo Cash
+                  Minimum de retrait : 500 FC · Traitement sous 24h ouvrées
                 </p>
               </div>
             )}

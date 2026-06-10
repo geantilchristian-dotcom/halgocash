@@ -141,11 +141,15 @@ router.post("/tickets/activate", async (req, res): Promise<void> => {
   const amount = ticket.prizeAmount ? parseFloat(ticket.prizeAmount) : 0;
   let prizeLabel = "Perdu";
   if (ticket.isWinner) {
-    if (amount >= 50000)      prizeLabel = "Super Gagnant";
-    else if (amount >= 25000) prizeLabel = "Très Grand Gagnant";
-    else if (amount >= 10000) prizeLabel = "Grand Gagnant";
-    else if (amount >= 5000)  prizeLabel = "Gagnant";
-    else                      prizeLabel = "Petit Gagnant — Remboursé";
+    if (amount >= 50000)      prizeLabel = "🏆 Jackpot !";
+    else if (amount >= 25000) prizeLabel = "💎 Très Grand Gagnant";
+    else if (amount >= 10000) prizeLabel = "🥇 Grand Gagnant";
+    else if (amount >= 5000)  prizeLabel = "🎉 Gagnant";
+    else if (amount >= 2000)  prizeLabel = "✨ Bon Gagnant";
+    else if (amount >= 1000)  prizeLabel = "🌟 Petit Gagnant";
+    else if (amount >= 500)   prizeLabel = "👍 Micro Gagnant";
+    else if (amount >= 200)   prizeLabel = "🎁 Consolation";
+    else                      prizeLabel = "🔄 Remboursé";
   }
 
   // Already activated — block completely and reveal result

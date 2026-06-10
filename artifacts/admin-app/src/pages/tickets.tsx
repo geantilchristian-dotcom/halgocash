@@ -31,11 +31,15 @@ interface TicketRow {
 const PRIZE_LABEL: Record<string, string> = {};
 function prizeLabel(amount: number | null): string {
   if (!amount) return "Perdant";
-  if (amount >= 50000) return "Super Gagnant";
-  if (amount >= 25000) return "Très Grand Gagnant";
-  if (amount >= 10000) return "Grand Gagnant";
-  if (amount >= 5000)  return "Gagnant";
-  return "Petit Gagnant";
+  if (amount >= 50000) return "🏆 Jackpot";
+  if (amount >= 25000) return "💎 Très Grand Gagnant";
+  if (amount >= 10000) return "🥇 Grand Gagnant";
+  if (amount >= 5000)  return "🎉 Gagnant";
+  if (amount >= 2000)  return "✨ Bon Gagnant";
+  if (amount >= 1000)  return "🌟 Petit Gagnant";
+  if (amount >= 500)   return "👍 Micro Gagnant";
+  if (amount >= 200)   return "🎁 Consolation";
+  return "🔄 Remboursé";
 }
 
 function formatDate(iso: string) {
