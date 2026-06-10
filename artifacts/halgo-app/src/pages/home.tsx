@@ -167,10 +167,26 @@ export default function Home() {
       } else {
         setActivationResult(data);
         if (data.isWinner && data.prizeAmount) {
-          setBalance((prev) => (prev ?? 0) + data.prizeAmount);
+          // Use the authoritative balance returned by the server in the same
+          // response — avoids race conditions with a separate fetchBalance() call.
+          if (typeof data.newBalance === "number") {
+            setBalance(data.newBalance);
+            try { localStorage.setItem("halgo_balance", String(data.newBalance)); } catch { /* ignore */ }
+          } else {
+            // Fallback optimistic update if server didn't return newBalance
+            setBalance((prev) => {
+              const nb = (prev ?? 0) + data.prizeAmount;
+              try { localStorage.setItem("halgo_balance", String(nb)); } catch { /* ignore */ }
+              return nb;
+            });
+          }
           setBalanceFlash(true);
+          // Confirm with server after animation (2 s delay prevents overwrite)
+          setTimeout(() => { void fetchBalance(); }, 2000);
+        } else {
+          // Non-winning ticket: sync balance from server normally
+          void fetchBalance();
         }
-        void fetchBalance();
       }
     } catch { setActivationError("Erreur de connexion"); }
     finally { setActivating(false); }

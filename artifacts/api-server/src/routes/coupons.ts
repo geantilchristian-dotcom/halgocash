@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
-import { db, ticketsTable, drawsTable } from "@workspace/db";
+import { eq, desc, and, isNotNull, sum } from "drizzle-orm";
+import { db, ticketsTable, drawsTable, withdrawalsTable } from "@workspace/db";
 import { getAuth } from "@clerk/express";
 
 const router: IRouter = Router();
@@ -166,6 +166,29 @@ router.post("/tickets/activate", async (req, res): Promise<void> => {
     .set({ registeredByClerkId: effectiveUserId ?? null, registeredAt: new Date() })
     .where(eq(ticketsTable.id, ticket.id));
 
+  // Compute authoritative new balance in the same request so the client
+  // never needs a separate fetchBalance() call after activation.
+  let newBalance: number | null = null;
+  if (effectiveUserId) {
+    const [winsRow] = await db
+      .select({ total: sum(ticketsTable.prizeAmount) })
+      .from(ticketsTable)
+      .where(and(eq(ticketsTable.registeredByClerkId, effectiveUserId), eq(ticketsTable.isWinner, true), isNotNull(ticketsTable.prizeAmount)));
+    const [paidRow] = await db
+      .select({ total: sum(withdrawalsTable.amount) })
+      .from(withdrawalsTable)
+      .where(and(eq(withdrawalsTable.clerkId, effectiveUserId), eq(withdrawalsTable.status, "paid")));
+    const [pendingRow] = await db
+      .select({ total: sum(withdrawalsTable.amount) })
+      .from(withdrawalsTable)
+      .where(and(eq(withdrawalsTable.clerkId, effectiveUserId), eq(withdrawalsTable.status, "pending")));
+
+    const wins    = winsRow?.total    ? parseFloat(String(winsRow.total))    : 0;
+    const paid    = paidRow?.total    ? parseFloat(String(paidRow.total))    : 0;
+    const pending = pendingRow?.total ? parseFloat(String(pendingRow.total)) : 0;
+    newBalance = Math.max(0, wins - paid - pending);
+  }
+
   res.json({
     code: ticket.code,
     series: ticket.series,
@@ -173,6 +196,7 @@ router.post("/tickets/activate", async (req, res): Promise<void> => {
     prizeAmount: ticket.isWinner ? amount : null,
     prizeLabel,
     alreadyActivated: false,
+    newBalance,
   });
 });
 
