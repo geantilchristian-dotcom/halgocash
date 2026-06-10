@@ -3,7 +3,7 @@ import {
   X, QrCode, Sparkles, Send, Loader2,
   ChevronRight, Bell,
   Ticket, Clock, Home as HomeIcon,
-  AlertCircle, CheckCircle, MapPin, Scan,
+  AlertCircle, CheckCircle, Scan,
 } from "lucide-react";
 import { useUser, useAuth } from "@clerk/react";
 import { QRCodeSVG } from "qrcode.react";
@@ -255,29 +255,32 @@ export default function Home() {
         className="relative flex items-center justify-center px-4 pt-5 pb-4"
         style={{ background: "linear-gradient(135deg, #0a1f0e 0%, #0f3d1c 45%, #1a5c2a 80%, #0f3d1c 100%)" }}
       >
-        {/* ── Logo placeholder — logo à uploader ici ── */}
-        <div className="flex items-center justify-center">
+        {/* ── HALGO CASH title + logo upload placeholder ── */}
+        <div className="flex flex-col items-center gap-1">
+          {/* Logo upload zone — replace this div with <img src="/logo.webp"> when ready */}
           <div
-            className="flex items-center justify-center rounded-2xl px-6 py-2"
+            className="w-14 h-14 rounded-2xl flex items-center justify-center mb-0.5"
+            style={{ border: "2px dashed rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.04)" }}
+            title="Logo ici"
+          >
+            <span className="text-white/20 text-[9px] font-bold uppercase tracking-widest select-none">Logo</span>
+          </div>
+          <span
+            className="tracking-[0.18em] leading-none select-none"
             style={{
-              border: "2px dashed rgba(255,255,255,0.18)",
-              minWidth: 170,
-              minHeight: 52,
+              fontFamily: "'Oswald', sans-serif",
+              fontWeight: 800,
+              fontSize: "1.85rem",
+              background: "linear-gradient(135deg, #ffffff 0%, #d4e8c2 60%, #8DC63F 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              textShadow: "none",
+              filter: "drop-shadow(0 2px 8px rgba(141,198,63,0.35))",
             }}
           >
-            <span className="text-white/30 font-black text-sm uppercase tracking-[0.25em] select-none">
-              Logo ici
-            </span>
-          </div>
-        </div>
-
-        {/* KIVU pill — top right of header */}
-        <div
-          className="absolute right-4 top-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full"
-          style={{ background: "rgba(10,32,16,0.85)", border: "1.5px solid rgba(245,197,24,0.55)" }}
-        >
-          <MapPin className="w-3 h-3 text-[#F5C518]" />
-          <span className="text-[#F5C518] text-[11px] font-black tracking-widest">KIVU</span>
+            HALGO CASH
+          </span>
         </div>
 
         {/* Bell — bottom right of header */}

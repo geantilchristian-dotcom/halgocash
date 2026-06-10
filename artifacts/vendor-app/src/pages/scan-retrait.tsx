@@ -76,18 +76,23 @@ export default function ScanRetrait() {
 
   const handleScanResult = (value: string) => {
     setShowScanner(false);
-    const cleaned = value.trim();
-    setToken(cleaned);
+    // QR value may be raw UUID or a JSON object: {"type":"halgo-retrait","token":"uuid",…}
+    let extracted = value.trim();
+    try {
+      const parsed = JSON.parse(value) as Record<string, unknown>;
+      if (typeof parsed.token === "string" && parsed.token) extracted = parsed.token;
+    } catch { /* not JSON — use raw value */ }
+    setToken(extracted);
     setError(null);
     setWithdrawal(null);
     setPaid(false);
     // Auto-trigger lookup after scan
     setTimeout(async () => {
-      if (!cleaned) return;
+      if (!extracted) return;
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/withdrawals/${encodeURIComponent(cleaned)}`, { credentials: "include" });
+        const res = await fetch(`/api/withdrawals/${encodeURIComponent(extracted)}`, { credentials: "include" });
         const data = await res.json();
         if (!res.ok) { setError(data.error ?? "Introuvable"); return; }
         setWithdrawal(data as WithdrawalInfo);
