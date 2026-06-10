@@ -344,14 +344,20 @@ export default function Home() {
           setBalance(d.balance);
           if (key) { try { localStorage.setItem(key, String(d.balance)); } catch { /* ignore */ } }
         } else {
-          // Server returned 0 — keep locally-tracked wins only if Clerk auth may be failing
+          // Server returned 0 — only trust it if we have no locally-confirmed wins
+          // and the current displayed balance is already 0/null (avoids race where
+          // Clerk token is slow and overwrites a just-won balance).
           const localWins = localWinsRef.current;
           if (localWins > 0) {
             setBalance(localWins);
           } else {
-            // User ID known + server says 0 → trust server, clear any stale key
-            setBalance(0);
-            if (key) { try { localStorage.removeItem(key); } catch { /* ignore */ } }
+            // Only zero out if the current balance is null or already 0;
+            // keep any positive balance the user already sees.
+            setBalance(prev => {
+              if (prev !== null && prev > 0) return prev;
+              if (key) { try { localStorage.removeItem(key); } catch { /* ignore */ } }
+              return 0;
+            });
           }
         }
       } else {

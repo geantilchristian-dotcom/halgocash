@@ -149,7 +149,7 @@ export function QrScanner({ onResult, onClose }: QrScannerProps) {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+    <div className="fixed inset-0 z-[9999] bg-black flex flex-col">
 
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 shrink-0"
