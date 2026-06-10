@@ -216,7 +216,7 @@ const FAKE_IDS = [
   "Pro#8823","Player#6609","User#4411","Joueur#7756","Client#8834",
 ];
 
-// ── Canvas drawing ──────────────────────────────────────────────────────
+// ── Canvas drawing — returns rocket tip [x,y] or null ───────────────────
 function drawCurve(
   canvas: HTMLCanvasElement,
   elapsed: number,
@@ -224,9 +224,9 @@ function drawCurve(
   crashPoint: number,
   particles: Particle[],
   now: number,
-) {
+): [number, number] | null {
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  if (!ctx) return null;
   const W = canvas.width;
   const H = canvas.height;
 
@@ -240,7 +240,7 @@ function drawCurve(
     ctx.lineWidth = 1;
     for (let i = 1; i < 7; i++) { const x = (W*i)/7; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
     for (let i = 1; i < 5; i++) { const y = (H*i)/5; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
-    return;
+    return null;
   }
 
   const curM = phase === "crashed" ? crashPoint : tToM(elapsed);
@@ -285,7 +285,7 @@ function drawCurve(
     const t = (i / STEPS) * maxElapsed;
     pts.push([tx(t), my(tToM(t))]);
   }
-  if (pts.length < 2) return;
+  if (pts.length < 2) return null;
 
   const [lx, ly] = pts[pts.length - 1];
 
@@ -378,6 +378,8 @@ function drawCurve(
       ctx.setLineDash([]);
     }
   }
+
+  return [lx, ly];
 }
 
 export default function CrashGame() {
@@ -429,6 +431,7 @@ export default function CrashGame() {
   const currentRoundRef = useRef<number>(currentRoundId());
   const particlesRef = useRef<Particle[]>([]);
   const lastParticleRef = useRef<number>(0);
+  const lastTipRef = useRef<[number, number]>([0, 0]);
 
   useEffect(() => { betRef.current.autoCashout = parseFloat(autoCashoutInput) || 0; }, [autoCashoutInput]);
 
@@ -520,7 +523,7 @@ export default function CrashGame() {
   }, []);
 
   // ── Game loop ────────────────────────────────────────────────────────
-  const startRound = useCallback((roundId: number) => {
+  const startRound = useCallback((roundId: number, msIntoOverride?: number) => {
     if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     stopFeed();
 
@@ -543,7 +546,7 @@ export default function CrashGame() {
 
     // ── Determine current phase based on global round clock ────────────────
     // Round layout: [0-5s] prochain match | [5-15s] décollage | [15-30s] vol
-    const msInto = msIntoRound();
+    const msInto = msIntoOverride !== undefined ? msIntoOverride : msIntoRound();
 
     if (msInto >= FLIGHT_START_MS) {
       // Already in flight — fast-forward to current position
@@ -608,10 +611,11 @@ export default function CrashGame() {
 
         const c = canvasRef.current;
 
-        // ── Particle spawn (exhaust trail) ────────────────────────────
+        // ── Particle spawn (exhaust trail) — use last known tip ──────
         if (c && now - lastParticleRef.current > 28) {
           lastParticleRef.current = now;
           const spawnCount = m > 10 ? 4 : m > 4 ? 3 : 2;
+          const [tx0, ty0] = lastTipRef.current;
           for (let k = 0; k < spawnCount; k++) {
             // Pick a colour near orange/red for the exhaust
             const palette: Array<[number,number,number]> = [
@@ -619,7 +623,7 @@ export default function CrashGame() {
             ];
             const col = palette[Math.floor(Math.random() * palette.length)];
             particlesRef.current.push({
-              x: 0, y: 0, // will be overridden in drawCurve — placeholder; particles follow rocket tip
+              x: tx0, y: ty0,
               vx: -(1.5 + Math.random() * 2.5),
               vy: (Math.random() - 0.5) * 1.2,
               life: 1, maxLife: 1,
@@ -628,34 +632,14 @@ export default function CrashGame() {
             });
           }
         }
-        // Tick existing particles
-        const pts: [number, number][] = (() => {
-          if (!c) return [];
-          const maxE = elapsed;
-          const windowSec = Math.max(18, maxE * 1.25);
-          const startT2 = Math.max(0, maxE - windowSec);
-          const marginL = 24;
-          const usableW = c.width - marginL - 16;
-          const usableH = c.height - 40;
-          const maxM = Math.max(crashPointRef.current * 1.3, 2.5);
-          const tx2 = (t: number) => marginL + ((t - startT2) / windowSec) * usableW;
-          const my2 = (mm: number) => {
-            const ls = Math.log(Math.max(1.001, mm)) / Math.log(Math.max(1.001, maxM));
-            return usableH - ls * (usableH - 16);
-          };
-          return [[tx2(maxE), my2(m)]];
-        })();
-        const tipX = pts.length ? pts[0][0] : 0;
-        const tipY = pts.length ? pts[0][1] : 0;
-        // Anchor new particles at rocket tip
-        for (const p of particlesRef.current) {
-          if (p.life >= p.maxLife) { p.x = tipX; p.y = tipY; }
-        }
+        // Tick existing particles (move + age)
         particlesRef.current = particlesRef.current
           .map(p => ({ ...p, x: p.x + p.vx, y: p.y + p.vy, life: p.life - 0.04 }))
           .filter(p => p.life > 0);
 
-        if (c) drawCurve(c, elapsed, "flying", crashPointRef.current, particlesRef.current, now);
+        // Draw — store exact rocket tip for next frame's particle spawning
+        const tip = c ? drawCurve(c, elapsed, "flying", crashPointRef.current, particlesRef.current, now) : null;
+        if (tip) lastTipRef.current = tip;
 
         // Auto cash out
         const autoAt = betRef.current.autoCashout;
@@ -696,13 +680,34 @@ export default function CrashGame() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doCashOut, startFeed, stopFeed]);
 
-  // Start on mount — sync to global round clock (startRound handles all 3 phases)
+  // Start on mount — sync to server round clock for real-time sync across all accounts
   useEffect(() => {
-    startRound(currentRoundId());
-    return () => {
+    let cancelled = false;
+    const cleanup = () => {
+      cancelled = true;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       stopFeed();
     };
+
+    // Fetch authoritative round state from server, fall back to client clock
+    fetch("/api/crash/round")
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { roundId: number; crashPoint?: number; msIntoRound: number; serverMs: number } | null) => {
+        if (cancelled) return;
+        if (data) {
+          // Adjust for network round-trip latency (~half of elapsed since serverMs)
+          const networkOffset = (Date.now() - data.serverMs) / 2;
+          const adjustedMs = Math.min(ROUND_MS - 1, data.msIntoRound + networkOffset);
+          startRound(data.roundId, adjustedMs);
+        } else {
+          startRound(currentRoundId());
+        }
+      })
+      .catch(() => {
+        if (!cancelled) startRound(currentRoundId());
+      });
+
+    return cleanup;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

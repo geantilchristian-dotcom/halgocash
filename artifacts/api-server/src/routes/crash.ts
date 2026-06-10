@@ -6,6 +6,27 @@ import { z } from "zod";
 
 const router = Router();
 
+// ── Deterministic crash point (same algorithm as client) ──────────────────
+const ROUND_MS = 30_000;
+
+function seededCrashPoint(roundId: number): number {
+  let x = roundId ^ 0xdeadbeef;
+  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b5) | 0;
+  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b5) | 0;
+  const r = ((x ^ (x >>> 16)) >>> 0) / 0x100000000;
+  if (r < 0.04) return 1.0;
+  return Math.min(1000, Math.max(1.01, Math.round((1 / (1 - r)) * 100) / 100));
+}
+
+// GET /api/crash/round — authoritative round state (no auth required)
+router.get("/crash/round", (_req, res): void => {
+  const now = Date.now();
+  const roundId = Math.floor(now / ROUND_MS);
+  const msIntoRound = now % ROUND_MS;
+  const crashPoint = seededCrashPoint(roundId);
+  res.json({ roundId, crashPoint, msIntoRound, serverMs: now });
+});
+
 async function getBalance(clerkId: string): Promise<number> {
   const [[winsRow], [paidRow], [pendingRow], [creditsRow]] = await Promise.all([
     db.select({ total: sum(ticketsTable.prizeAmount) }).from(ticketsTable)

@@ -1,5 +1,5 @@
-import { Router, Request, Response } from "express";
-import { db, siteSettingsTable } from "@workspace/db";
+import { Router, Request, Response, NextFunction } from "express";
+import { db, siteSettingsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router = Router();
@@ -11,13 +11,12 @@ const VALID_KEYS = new Set([
   "halgo_cover_sport",
 ]);
 
-function requireAdmin(req: Request, res: Response): boolean {
-  const u = req.session as { userId?: number; role?: string };
-  if (!u.userId || u.role !== "admin") {
-    res.status(403).json({ error: "Accès admin requis" });
-    return false;
-  }
-  return true;
+async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const userId = req.session.userId;
+  if (!userId) { res.status(401).json({ error: "Non authentifié" }); return; }
+  const [user] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user || user.role !== "admin") { res.status(403).json({ error: "Accès admin requis" }); return; }
+  next();
 }
 
 async function getCover(key: string): Promise<{ imageData: string; mimeType: string } | null> {
@@ -60,9 +59,8 @@ router.get("/game-covers", async (_req, res): Promise<void> => {
 });
 
 // POST /api/admin/game-covers/:key — admin upload
-router.post("/admin/game-covers/:key", async (req, res): Promise<void> => {
-  if (!requireAdmin(req, res)) return;
-  const { key } = req.params;
+router.post("/admin/game-covers/:key", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const key = String(req.params["key"] ?? "");
   if (!VALID_KEYS.has(key)) { res.status(400).json({ error: "Clé invalide" }); return; }
 
   const { imageData, mimeType = "image/jpeg" } = req.body as { imageData?: string; mimeType?: string };
@@ -80,9 +78,8 @@ router.post("/admin/game-covers/:key", async (req, res): Promise<void> => {
 });
 
 // DELETE /api/admin/game-covers/:key — admin delete
-router.delete("/admin/game-covers/:key", async (req, res): Promise<void> => {
-  if (!requireAdmin(req, res)) return;
-  const { key } = req.params;
+router.delete("/admin/game-covers/:key", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const key = String(req.params["key"] ?? "");
   if (!VALID_KEYS.has(key)) { res.status(400).json({ error: "Clé invalide" }); return; }
   await db.delete(siteSettingsTable).where(eq(siteSettingsTable.key, key));
   res.json({ ok: true });
