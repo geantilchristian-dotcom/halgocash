@@ -18,6 +18,7 @@ import pushNotificationsRouter from "./push-notifications";
 import sportRouter from "./sport";
 import jackpotPosterRouter from "./jackpot-poster";
 import gameCoversRouter from "./game-covers";
+import crashRouter from "./crash";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(pushNotificationsRouter);
 router.use(sportRouter);
 router.use(jackpotPosterRouter);
 router.use(gameCoversRouter);
+router.use(crashRouter);
 
 export default router;

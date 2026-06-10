@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, CheckCircle } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, CheckCircle, Ticket } from "lucide-react";
+import { useUser, useAuth } from "@clerk/react";
 
 type Phase = "waiting" | "flying" | "crashed";
 
@@ -74,15 +75,13 @@ function getOrCreatePlayerId(): string {
   } catch { return "HG#????" }
 }
 
-// ── Balance from localStorage ──────────────────────────────────────────
-function readLocalBalance(): number {
-  try {
-    const v = localStorage.getItem("halgo_balance");
-    return v !== null ? Math.max(0, parseFloat(v)) : 50000;
-  } catch { return 50000; }
+// ── Per-user balance cache in localStorage ─────────────────────────────
+function readCachedBalance(userId: string): number {
+  try { const v = localStorage.getItem(`halgo_balance_${userId}`); return v !== null ? Math.max(0, parseFloat(v)) : 0; }
+  catch { return 0; }
 }
-function writeLocalBalance(n: number) {
-  try { localStorage.setItem("halgo_balance", String(Math.max(0, Math.round(n)))); } catch { /* ignore */ }
+function writeCachedBalance(userId: string, n: number) {
+  try { localStorage.setItem(`halgo_balance_${userId}`, String(Math.max(0, Math.round(n)))); } catch { /* ignore */ }
 }
 
 // ── Seeded history ──────────────────────────────────────────────────────
@@ -208,6 +207,16 @@ function drawCurve(canvas: HTMLCanvasElement, elapsed: number, phase: Phase, cra
 
 export default function CrashGame() {
   const [, setLocation] = useLocation();
+  const { user, isLoaded } = useUser();
+  const { getToken } = useAuth();
+
+  // ── Auth fetch helper ──────────────────────────────────────────────
+  const authFetch = useCallback(async (url: string, options: RequestInit = {}): Promise<Response> => {
+    const token = await getToken().catch(() => null);
+    const headers: Record<string, string> = { "Content-Type": "application/json", ...(options.headers as Record<string, string> | undefined ?? {}) };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    return fetch(url, { ...options, headers, credentials: "include" });
+  }, [getToken]);
 
   // ── Player ID (persistent) ─────────────────────────────────────────
   const [playerId] = useState<string>(() => getOrCreatePlayerId());
@@ -218,7 +227,8 @@ export default function CrashGame() {
   const [countdown, setCountdown] = useState(WAIT);
   const [crashCountdown, setCrashCountdown] = useState(0);
   const [history, setHistory] = useState<HistoryEntry[]>(SEED_HISTORY);
-  const [balance, setBalance] = useState<number>(readLocalBalance);
+  const [balance, setBalance] = useState<number>(0);
+  const [balanceLoaded, setBalanceLoaded] = useState(false);
   const [balanceFlash, setBalanceFlash] = useState(false);
 
   // Bet UI state
@@ -245,8 +255,27 @@ export default function CrashGame() {
 
   useEffect(() => { betRef.current.autoCashout = parseFloat(autoCashoutInput) || 0; }, [autoCashoutInput]);
 
-  // Sync balance to localStorage whenever it changes
-  useEffect(() => { writeLocalBalance(balance); }, [balance]);
+  // ── Load real balance from server once Clerk is ready ─────────────────
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (user?.id) {
+      // Pre-load from cache while the API call is in flight
+      const cached = readCachedBalance(user.id);
+      if (cached > 0) { setBalance(cached); }
+    }
+    authFetch("/api/auth/balance")
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { balance: number } | null) => {
+        if (d !== null) {
+          const bal = Math.max(0, d.balance);
+          setBalance(bal);
+          if (user?.id) writeCachedBalance(user.id, bal);
+        }
+        setBalanceLoaded(true);
+      })
+      .catch(() => { setBalanceLoaded(true); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded]);
 
   // Resize canvas
   useEffect(() => {
@@ -269,14 +298,25 @@ export default function CrashGame() {
     setCashedOut(true);
     setCashoutMult(atMult);
     setWinAmount(won);
+    // Optimistic local update
     setBalance((prev) => {
       const nb = prev + won;
-      writeLocalBalance(nb);
+      if (user?.id) writeCachedBalance(user.id, nb);
       return nb;
     });
     setBalanceFlash(true);
     setTimeout(() => setBalanceFlash(false), 600);
-  }, []);
+    // Sync win to server
+    authFetch("/api/crash/cashout", { method: "POST", body: JSON.stringify({ wonAmount: won }) })
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { newBalance: number } | null) => {
+        if (d?.newBalance !== undefined) {
+          setBalance(d.newBalance);
+          if (user?.id) writeCachedBalance(user.id, d.newBalance);
+        }
+      })
+      .catch(() => {});
+  }, [authFetch, user?.id]);
 
   // ── Fake live feed during flying phase ─────────────────────────────
   const startFeed = useCallback((cp: number) => {
@@ -441,33 +481,51 @@ export default function CrashGame() {
   }, []);
 
   // ── Bet actions ─────────────────────────────────────────────────────
-  const placeBet = () => {
-    if (phase !== "waiting") return;
+  const [betLoading, setBetLoading] = useState(false);
+
+  const placeBet = useCallback(async () => {
+    if (phase !== "waiting" || betLoading) return;
     const amt = parseInt(betInput.replace(/\D/g, ""), 10);
     if (!amt || amt < 100) return;
     if (amt > balance) return;
-    betRef.current.placed = true;
-    betRef.current.amount = amt;
-    betRef.current.cashedOut = false;
-    setBetPlaced(true);
-    setBalance((prev) => {
-      const nb = prev - amt;
-      writeLocalBalance(nb);
-      return nb;
-    });
-  };
+    setBetLoading(true);
+    try {
+      const res = await authFetch("/api/crash/bet", { method: "POST", body: JSON.stringify({ amount: amt }) });
+      const data = await res.json() as { ok?: boolean; error?: string; newBalance?: number };
+      if (!res.ok) { return; } // server rejected (e.g. insufficient balance race condition)
+      betRef.current.placed = true;
+      betRef.current.amount = amt;
+      betRef.current.cashedOut = false;
+      setBetPlaced(true);
+      const nb = data.newBalance !== undefined ? data.newBalance : Math.max(0, balance - amt);
+      setBalance(nb);
+      if (user?.id) writeCachedBalance(user.id, nb);
+    } catch { /* ignore */ } finally { setBetLoading(false); }
+  }, [phase, betLoading, betInput, balance, authFetch, user?.id]);
 
-  const cancelBet = () => {
+  const cancelBet = useCallback(async () => {
     if (phase !== "waiting" || !betRef.current.placed) return;
     const amt = betRef.current.amount;
     betRef.current.placed = false;
     betRef.current.amount = 0;
     setBetPlaced(false);
+    // Optimistic refund
     setBalance((prev) => {
-      writeLocalBalance(prev + amt);
-      return prev + amt;
+      const nb = prev + amt;
+      if (user?.id) writeCachedBalance(user.id, nb);
+      return nb;
     });
-  };
+    // Sync to server
+    authFetch("/api/crash/cancel-bet", { method: "POST", body: JSON.stringify({ amount: amt }) })
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { newBalance: number } | null) => {
+        if (d?.newBalance !== undefined) {
+          setBalance(d.newBalance);
+          if (user?.id) writeCachedBalance(user.id, d.newBalance);
+        }
+      })
+      .catch(() => {});
+  }, [phase, authFetch, user?.id]);
 
   const cashOut = () => {
     if (phase !== "flying" || !betRef.current.placed || betRef.current.cashedOut) return;
@@ -477,7 +535,9 @@ export default function CrashGame() {
   const color = phase === "crashed" ? "#ef4444" : multColor(multiplier);
   const quickAmounts = [500, 1000, 2000, 5000];
   const betAmt = parseInt(betInput) || 0;
-  const canBet = betAmt >= 100 && betAmt <= balance;
+  const canBet = betAmt >= 100 && betAmt <= balance && !betLoading;
+  // User has no real balance — must activate a ticket first
+  const isBlocked = balanceLoaded && balance === 0;
 
   return (
     <div
@@ -686,10 +746,31 @@ export default function CrashGame() {
         </div>
       )}
 
+      {/* ── Zero balance gate ── */}
+      {isBlocked && (
+        <div
+          className="mx-4 mt-2 mb-2 px-4 py-5 rounded-2xl flex flex-col items-center gap-3 text-center shrink-0"
+          style={{ background: "rgba(141,198,63,0.07)", border: "1px solid rgba(141,198,63,0.2)" }}
+        >
+          <Ticket style={{ width: 28, height: 28, color: "#8DC63F" }} />
+          <p className="text-[13px] font-black text-white">Solde insuffisant</p>
+          <p className="text-[11px] text-zinc-400 leading-relaxed">
+            Activez un ticket depuis l'accueil pour créditer votre compte et commencer à jouer.
+          </p>
+          <button
+            onClick={() => setLocation("/app")}
+            className="px-5 py-2.5 rounded-xl font-black text-[12px] uppercase tracking-wide"
+            style={{ background: "#8DC63F", color: "#0a1f0e" }}
+          >
+            Aller activer un ticket
+          </button>
+        </div>
+      )}
+
       {/* ── Bet Panel ── */}
       <div
         className="mt-2 mx-4 mb-4 rounded-2xl overflow-hidden shrink-0"
-        style={{ background: "#0d1d12", border: "1px solid rgba(255,255,255,0.07)" }}
+        style={{ background: "#0d1d12", border: "1px solid rgba(255,255,255,0.07)", opacity: isBlocked ? 0.35 : 1, pointerEvents: isBlocked ? "none" : undefined }}
       >
         <div className="flex" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
           <div className="flex-1 py-2.5 text-center text-[11px] font-black uppercase tracking-wide" style={{ color: "#8DC63F", borderBottom: "2px solid #8DC63F" }}>
