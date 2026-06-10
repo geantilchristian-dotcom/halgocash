@@ -342,7 +342,14 @@ export default function Home() {
     try {
       const res = await authFetch("/api/withdrawals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: amt }) });
       const data = await res.json() as { token?: string; error?: string };
-      if (!res.ok) { setRetraitError(data.error ?? "Erreur serveur"); return; }
+      if (!res.ok) {
+        if (res.status === 401) {
+          setRetraitError("Session expirée — rechargez la page et reconnectez-vous");
+        } else {
+          setRetraitError(data.error ?? "Erreur serveur");
+        }
+        return;
+      }
       setRetraitQR({ token: data.token!, amount: amt, qrValue: data.token! });
     } catch { setRetraitError("Erreur de connexion"); }
     finally { setRetraitLoading(false); }
