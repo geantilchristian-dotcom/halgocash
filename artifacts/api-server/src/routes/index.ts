@@ -15,6 +15,7 @@ import settingsRouter from "./settings";
 import kycRouter from "./kyc";
 import supportRouter from "./support";
 import pushNotificationsRouter from "./push-notifications";
+import sportRouter from "./sport";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(settingsRouter);
 router.use(kycRouter);
 router.use(supportRouter);
 router.use(pushNotificationsRouter);
+router.use(sportRouter);
 
 export default router;

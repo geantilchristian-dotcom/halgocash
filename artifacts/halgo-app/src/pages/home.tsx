@@ -704,6 +704,35 @@ export default function Home() {
           </div>
         </div>
 
+        {/* ── Paris Sportifs ── */}
+        <div
+          onClick={() => navigate("/app/sport")}
+          className="rounded-2xl overflow-hidden relative cursor-pointer active:scale-[0.98] transition-transform"
+          style={{
+            background: "linear-gradient(135deg,#0a1f10 0%,#0d2a16 50%,#061209 100%)",
+            border: "1px solid rgba(39,174,96,0.35)",
+            boxShadow: "0 6px 24px rgba(39,174,96,0.15)",
+          }}
+        >
+          <div className="px-4 py-4 flex items-center gap-4">
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 text-3xl"
+              style={{ background: "linear-gradient(135deg,#1e5c2e,#27ae60)", boxShadow: "0 4px 16px rgba(39,174,96,0.4)" }}
+            >
+              ⚽
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-white font-black text-sm">Paris Sportifs</span>
+                <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ background: "#27ae60", color: "#fff" }}>LIVE</span>
+              </div>
+              <p className="text-white/50 text-[11px]">CL · Ligue 1 · Premier League · Bundesliga…</p>
+              <p className="text-[#27ae60] text-[11px] font-bold mt-1">Misez sur les matchs en direct →</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-white/30 flex-shrink-0" />
+          </div>
+        </div>
+
         {/* ── Promotions ── */}
         <div>
           <div className="flex items-center justify-between mb-3">

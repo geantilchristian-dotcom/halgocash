@@ -149,6 +149,45 @@ export const supportMessagesTable = pgTable("support_messages", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const sportMatchesTable = pgTable("sport_matches", {
+  id: serial("id").primaryKey(),
+  fixtureId: integer("fixture_id").notNull().unique(),
+  competition: varchar("competition", { length: 10 }).notNull(),
+  competitionName: text("competition_name").notNull(),
+  homeTeam: text("home_team").notNull(),
+  awayTeam: text("away_team").notNull(),
+  homeTeamCrest: text("home_team_crest"),
+  awayTeamCrest: text("away_team_crest"),
+  matchDate: timestamp("match_date").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("SCHEDULED"),
+  homeScore: integer("home_score"),
+  awayScore: integer("away_score"),
+  oddsHome: decimal("odds_home", { precision: 5, scale: 2 }).notNull().default("2.00"),
+  oddsDraw: decimal("odds_draw", { precision: 5, scale: 2 }).notNull().default("3.20"),
+  oddsAway: decimal("odds_away", { precision: 5, scale: 2 }).notNull().default("3.50"),
+  fetchedAt: timestamp("fetched_at").notNull().defaultNow(),
+});
+
+export const sportBetsTable = pgTable("sport_bets", {
+  id: serial("id").primaryKey(),
+  clerkId: varchar("clerk_id", { length: 255 }).notNull(),
+  matchId: integer("match_id").notNull(),
+  fixtureId: integer("fixture_id").notNull(),
+  homeTeam: text("home_team").notNull(),
+  awayTeam: text("away_team").notNull(),
+  matchDate: timestamp("match_date").notNull(),
+  betType: varchar("bet_type", { length: 10 }).notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  odds: decimal("odds", { precision: 5, scale: 2 }).notNull(),
+  potentialWin: decimal("potential_win", { precision: 12, scale: 2 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  settledAt: timestamp("settled_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type SportMatch = typeof sportMatchesTable.$inferSelect;
+export type SportBet = typeof sportBetsTable.$inferSelect;
+
 export const insertVendorSchema = createInsertSchema(vendorsTable).omit({ id: true, createdAt: true });
 export const insertDrawSchema = createInsertSchema(drawsTable).omit({ id: true, createdAt: true, drawnAt: true, winningTicketCode: true, winningNumbers: true, prizePool: true });
 export const insertTicketSchema = createInsertSchema(ticketsTable).omit({ id: true, createdAt: true });
