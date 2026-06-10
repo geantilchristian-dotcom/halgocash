@@ -407,34 +407,66 @@ export default function Home() {
         className="flex items-center justify-between px-4 pt-4 pb-3 gap-3"
         style={{ background: "#0f1f12" }}
       >
-        {/* Left: logo "halgocash" lowercase two-tone */}
-        <div className="flex items-baseline gap-0 select-none shrink-0">
-          <span
-            style={{
-              fontFamily: "'Plus Jakarta Sans', 'Montserrat', sans-serif",
-              fontWeight: 900,
-              fontSize: "1.55rem",
-              color: "#ffffff",
-              letterSpacing: "-0.02em",
-              lineHeight: 1,
-              fontStyle: "italic",
-            }}
-          >
-            halgo
-          </span>
-          <span
-            style={{
-              fontFamily: "'Plus Jakarta Sans', 'Montserrat', sans-serif",
-              fontWeight: 900,
-              fontSize: "1.55rem",
-              color: "#8DC63F",
-              letterSpacing: "-0.02em",
-              lineHeight: 1,
-              fontStyle: "italic",
-            }}
-          >
-            Cash
-          </span>
+        {/* Left: logo + player ID */}
+        <div className="flex flex-col gap-1 select-none shrink-0">
+          <div className="flex items-baseline gap-0">
+            <span
+              style={{
+                fontFamily: "'Plus Jakarta Sans', 'Montserrat', sans-serif",
+                fontWeight: 900,
+                fontSize: "1.55rem",
+                color: "#ffffff",
+                letterSpacing: "-0.02em",
+                lineHeight: 1,
+                fontStyle: "italic",
+              }}
+            >
+              halgo
+            </span>
+            <span
+              style={{
+                fontFamily: "'Plus Jakarta Sans', 'Montserrat', sans-serif",
+                fontWeight: 900,
+                fontSize: "1.55rem",
+                color: "#8DC63F",
+                letterSpacing: "-0.02em",
+                lineHeight: 1,
+                fontStyle: "italic",
+              }}
+            >
+              Cash
+            </span>
+          </div>
+
+          {/* Player ID badge */}
+          {referralCode ? (
+            <button
+              onClick={() => {
+                const formatted = referralCode.slice(0, 3) + "-" + referralCode.slice(3);
+                void navigator.clipboard.writeText(formatted).catch(() => {});
+                setReferralCopied(true);
+                setTimeout(() => setReferralCopied(false), 1500);
+              }}
+              className="flex items-center gap-1 self-start transition-all active:scale-95"
+            >
+              <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)" }}>ID</span>
+              <span
+                className="text-[11px] font-black tracking-wider px-2 py-0.5 rounded-md"
+                style={{
+                  fontFamily: "'Courier New', monospace",
+                  background: referralCopied ? "rgba(141,198,63,0.2)" : "rgba(255,255,255,0.07)",
+                  color: referralCopied ? "#8DC63F" : "rgba(255,255,255,0.7)",
+                  border: `1px solid ${referralCopied ? "rgba(141,198,63,0.4)" : "rgba(255,255,255,0.1)"}`,
+                  transition: "all 0.25s",
+                  letterSpacing: "0.08em",
+                }}
+              >
+                {referralCopied ? "Copié ✓" : referralCode.slice(0, 3) + "-" + referralCode.slice(3)}
+              </span>
+            </button>
+          ) : (
+            <div className="h-5 w-24 rounded animate-pulse" style={{ background: "rgba(255,255,255,0.06)" }} />
+          )}
         </div>
 
         {/* Right: bell + balance chip */}
