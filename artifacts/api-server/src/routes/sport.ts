@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, and, gte, inArray } from "drizzle-orm";
 import { db, sportMatchesTable, sportBetsTable } from "@workspace/db";
 import { getAuth } from "@clerk/express";
+import { runSettlementJob } from "./sport-scheduler";
 
 const router: IRouter = Router();
 
@@ -175,7 +176,7 @@ router.post("/sport/bets", async (req: Request, res: Response): Promise<void> =>
     .limit(1);
 
   if (!match) { res.status(404).json({ error: "Match introuvable" }); return; }
-  if (match.status !== "SCHEDULED") {
+  if (!["SCHEDULED", "TIMED"].includes(match.status)) {
     res.status(400).json({ error: "Ce match n'accepte plus de paris" });
     return;
   }
@@ -219,6 +220,44 @@ router.post("/sport/bets", async (req: Request, res: Response): Promise<void> =>
     .returning();
 
   res.json({ bet, newBalance: balance - amount });
+});
+
+// ── Admin endpoints ──────────────────────────────────────────────────────────
+
+// POST /api/admin/sport/settle — manually trigger settlement (admin only)
+router.post("/admin/sport/settle", async (req: Request, res: Response): Promise<void> => {
+  // Basic admin check via session role
+  const sessionRole = (req.session as { role?: string }).role;
+  const { userId } = getAuth(req);
+  if (!userId && sessionRole !== "admin" && sessionRole !== "superadmin") {
+    res.status(403).json({ error: "Admin requis" });
+    return;
+  }
+  try {
+    const result = await runSettlementJob();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    req.log.error({ err }, "POST /admin/sport/settle error");
+    res.status(500).json({ error: "Erreur lors du règlement" });
+  }
+});
+
+// GET /api/admin/sport/bets — list all bets with optional filter
+router.get("/admin/sport/bets", async (req: Request, res: Response): Promise<void> => {
+  const sessionRole = (req.session as { role?: string }).role;
+  const { userId } = getAuth(req);
+  if (!userId && sessionRole !== "admin" && sessionRole !== "superadmin") {
+    res.status(403).json({ error: "Admin requis" });
+    return;
+  }
+  const { status } = req.query as { status?: string };
+  const bets = await db
+    .select()
+    .from(sportBetsTable)
+    .where(status ? eq(sportBetsTable.status, status) : undefined)
+    .orderBy(desc(sportBetsTable.createdAt))
+    .limit(200);
+  res.json(bets);
 });
 
 export default router;

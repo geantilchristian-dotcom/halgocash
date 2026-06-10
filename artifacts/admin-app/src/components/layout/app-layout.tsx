@@ -31,6 +31,7 @@ const navItems = [
   { href: "/workers",        label: "Annuaire vendeurs",   icon: Users           },
   { href: "/players",        label: "Joueurs inscrits",    icon: Users2          },
   { href: "/winners",        label: "Classement gagnants", icon: Trophy          },
+  { href: "/sport-bets",     label: "Paris sportifs",      icon: Trophy          },
   { href: "/withdrawals",    label: "Retraits joueurs",    icon: ArrowDownLeft   },
   { href: "/rapport",        label: "Rapport",             icon: BarChart2       },
   { href: "/publicite",      label: "Publicité",           icon: Megaphone       },

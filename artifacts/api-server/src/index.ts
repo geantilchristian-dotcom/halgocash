@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { runMigrations, seedAdmin } from "./lib/migrate";
+import { startSettlementScheduler } from "./routes/sport-scheduler";
 
 const rawPort = process.env["PORT"];
 
@@ -25,6 +26,7 @@ runMigrations()
         process.exit(1);
       }
       logger.info({ port }, "Server listening");
+      startSettlementScheduler();
     });
   })
   .catch((err) => {

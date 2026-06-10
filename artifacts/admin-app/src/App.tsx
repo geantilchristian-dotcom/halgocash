@@ -17,6 +17,7 @@ import PlayersPage from "@/pages/players";
 import WinnersPage from "@/pages/winners";
 import KycAdmin from "@/pages/kyc-admin";
 import SupportAdmin from "@/pages/support-admin";
+import SportBetsAdmin from "@/pages/sport-bets-admin";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Loader2 } from "lucide-react";
 
@@ -66,6 +67,7 @@ function ProtectedRouter() {
         <Route path="/winners" component={WinnersPage} />
         <Route path="/kyc" component={KycAdmin} />
         <Route path="/support" component={SupportAdmin} />
+        <Route path="/sport-bets" component={SportBetsAdmin} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>
