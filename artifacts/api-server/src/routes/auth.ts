@@ -249,6 +249,35 @@ router.get("/auth/balance", balanceCheckRateLimit, async (req, res): Promise<voi
   res.json({ balance: Math.max(0, wins - paid - pending) });
 });
 
+// GET /api/auth/notifications — paid withdrawals the player hasn't seen yet
+router.get("/auth/notifications", async (req, res): Promise<void> => {
+  const { userId: clerkUserId } = getAuth(req);
+  const sessionUserId = req.session.userId;
+  const effectiveUserId = clerkUserId ?? (sessionUserId ? `local:${sessionUserId}` : null);
+
+  if (!effectiveUserId) {
+    res.json({ count: 0, items: [] });
+    return;
+  }
+
+  const rows = await db
+    .select()
+    .from(withdrawalsTable)
+    .where(and(eq(withdrawalsTable.clerkId, effectiveUserId), eq(withdrawalsTable.status, "paid"), isNotNull(withdrawalsTable.paidAt)))
+    .orderBy(desc(withdrawalsTable.paidAt))
+    .limit(20);
+
+  const items = rows.map((w) => ({
+    id: w.id,
+    type: "withdrawal_paid" as const,
+    message: `Retrait de ${parseFloat(w.amount).toLocaleString("fr-FR")} FC confirmé`,
+    amount: parseFloat(w.amount),
+    paidAt: w.paidAt!.toISOString(),
+  }));
+
+  res.json({ count: items.length, items });
+});
+
 // GET /api/auth/history — activated tickets for the current user
 router.get("/auth/history", async (req, res): Promise<void> => {
   const { userId: clerkUserId } = getAuth(req);
