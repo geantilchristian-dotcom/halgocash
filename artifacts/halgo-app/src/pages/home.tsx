@@ -328,6 +328,8 @@ export default function Home() {
   const [retraitError,   setRetraitError]   = useState<string | null>(null);
   const [retraitPaid,    setRetraitPaid]    = useState<{ paidAt: string } | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const balanceRetryCountRef = useRef<number>(0);
+  const balanceRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Fetch helpers ──
   const fetchBalance = useCallback(async () => {
@@ -341,6 +343,8 @@ export default function Home() {
       if (res.ok) {
         const d = await res.json() as { balance: number };
         if (d.balance > 0) {
+          balanceRetryCountRef.current = 0;
+          if (balanceRetryTimerRef.current) { clearTimeout(balanceRetryTimerRef.current); balanceRetryTimerRef.current = null; }
           setBalance(d.balance);
           if (key) { try { localStorage.setItem(key, String(d.balance)); } catch { /* ignore */ } }
         } else {
@@ -358,6 +362,18 @@ export default function Home() {
               if (key) { try { localStorage.removeItem(key); } catch { /* ignore */ } }
               return 0;
             });
+            // Retry: if the user is authenticated but we got 0, the Clerk JWT may
+            // not have been ready on the first request.  Retry up to 3 times with
+            // increasing delays so we don't leave a real balance stuck at 0.
+            if (user?.id && balanceRetryCountRef.current < 3) {
+              balanceRetryCountRef.current++;
+              const delay = 1500 * balanceRetryCountRef.current;
+              if (balanceRetryTimerRef.current) clearTimeout(balanceRetryTimerRef.current);
+              balanceRetryTimerRef.current = setTimeout(() => {
+                balanceRetryTimerRef.current = null;
+                void fetchBalance();
+              }, delay);
+            }
           }
         }
       } else {
