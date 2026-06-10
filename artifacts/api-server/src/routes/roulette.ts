@@ -6,9 +6,28 @@ import { z } from "zod";
 
 const router = Router();
 
-// Segments in the same order as the frontend wheel
-const SEGMENT_LABELS = ["0","7","4","11","2","15","6","13","8","19","10","21","12","17","14","23","16","25"];
-const SEG_COUNT = SEGMENT_LABELS.length;
+const SEGMENTS = [
+  { label: "JACKPOT",    multiplier: 100, weight: 0.5  },
+  { label: "MÉGA",       multiplier: 25,  weight: 1.5  },
+  { label: "GRAND",      multiplier: 10,  weight: 3    },
+  { label: "MAJEUR",     multiplier: 5,   weight: 5    },
+  { label: "MINEUR",     multiplier: 2,   weight: 10   },
+  { label: "PETIT",      multiplier: 1,   weight: 15   },
+  { label: "TRÈS PETIT", multiplier: 0.5, weight: 20   },
+  { label: "PERDU",      multiplier: 0,   weight: 45   },
+] as const;
+
+const TOTAL_WEIGHT = SEGMENTS.reduce((s, seg) => s + seg.weight, 0);
+
+function weightedRoll(): number {
+  const r = Math.random() * TOTAL_WEIGHT;
+  let acc = 0;
+  for (let i = 0; i < SEGMENTS.length; i++) {
+    acc += SEGMENTS[i]!.weight;
+    if (r < acc) return i;
+  }
+  return SEGMENTS.length - 1;
+}
 
 async function getBalance(clerkId: string): Promise<number> {
   const [[winsRow], [paidRow], [pendingRow], [creditsRow]] = await Promise.all([
@@ -28,26 +47,17 @@ async function getBalance(clerkId: string): Promise<number> {
   return Math.max(0, wins + credits - paid - pending);
 }
 
-function getMultiplier(betType: "rouge" | "noir" | "vert", label: string): number {
-  if (betType === "vert") return label === "0" ? 14 : 0;
-  const n = parseInt(label, 10);
-  if (betType === "rouge") return n !== 0 && n % 2 === 1 ? 2 : 0;
-  return n !== 0 && n % 2 === 0 ? 2 : 0;
-}
-
 const SpinBody = z.object({
-  betType: z.enum(["rouge", "noir", "vert"]),
-  amount: z.number().int().min(100).max(10_000_000),
+  amount: z.number().min(100).max(10_000_000),
 });
 
-// POST /api/roulette/spin — atomic: bet + roll + credit in one call
 router.post("/roulette/spin", async (req, res): Promise<void> => {
   const { userId: clerkId } = getAuth(req);
   if (!clerkId) { res.status(401).json({ error: "Non authentifié" }); return; }
 
   const parsed = SpinBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Données invalides" }); return; }
-  const { betType, amount } = parsed.data;
+  const { amount } = parsed.data;
 
   const currentBalance = await getBalance(clerkId);
   if (amount > currentBalance) {
@@ -55,12 +65,9 @@ router.post("/roulette/spin", async (req, res): Promise<void> => {
     return;
   }
 
-  // Server-side roll
-  const segmentIdx = Math.floor(Math.random() * SEG_COUNT);
-  const result = SEGMENT_LABELS[segmentIdx]!;
-  const mult = getMultiplier(betType, result);
-  const won = mult > 0;
-  const wonAmount = won ? Math.floor(amount * mult) : 0;
+  const segmentIdx = weightedRoll();
+  const seg = SEGMENTS[segmentIdx]!;
+  const wonAmount = Math.floor(amount * seg.multiplier);
   const netChange = wonAmount - amount;
 
   if (netChange !== 0) {
@@ -72,7 +79,7 @@ router.post("/roulette/spin", async (req, res): Promise<void> => {
   }
 
   const newBalance = Math.max(0, currentBalance + netChange);
-  res.json({ segmentIdx, result, won, wonAmount, newBalance });
+  res.json({ segmentIdx, label: seg.label, multiplier: seg.multiplier, wonAmount, newBalance });
 });
 
 export default router;
