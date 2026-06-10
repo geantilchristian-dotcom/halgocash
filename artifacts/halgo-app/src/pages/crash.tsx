@@ -44,7 +44,8 @@ function seededCrashPoint(roundId: number): number {
   x = Math.imul(x ^ (x >>> 16), 0x45d9f3b5) | 0;
   const r = ((x ^ (x >>> 16)) >>> 0) / 0x100000000;
   if (r < 0.04) return 1.0;
-  return Math.max(1.01, Math.round((1 / (1 - r)) * 100) / 100);
+  const MAX_MULT = 1000;
+  return Math.min(MAX_MULT, Math.max(1.01, Math.round((1 / (1 - r)) * 100) / 100));
 }
 
 function currentRoundId(): number {
