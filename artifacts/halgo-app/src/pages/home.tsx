@@ -887,12 +887,18 @@ export default function Home() {
         <QrScanner
           onResult={(raw) => {
             setShowQrScanner(false);
-            let code = raw.trim();
-            try { const url = new URL(raw); const p = url.searchParams.get("code"); if (p) code = p; } catch { /* raw */ }
-            code = code.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 10);
+            // Try to extract a 10-digit code from the raw value
+            let code = "";
+            // 1. URL with ?code= param
+            try { const url = new URL(raw); const p = url.searchParams.get("code"); if (p) code = p.replace(/\D/g, "").slice(0, 10); } catch { /* not a URL */ }
+            // 2. 10 consecutive digits anywhere in the string
+            if (code.length !== 10) { const m = raw.replace(/\s/g, "").match(/\d{10}/); if (m) code = m[0]; }
+            // 3. fallback: keep digits only, take first 10
+            if (code.length !== 10) { code = raw.replace(/\D/g, "").slice(0, 10); }
+            if (!code) return;
             setTicketCode(code);
             setActivationError(null);
-            // Use autoSubmitRef pattern so activateTicket sees the updated ticketCode state
+            setShowTicketInput(true);
             if (code.length === 10) autoSubmitRef.current = true;
           }}
           onClose={() => setShowQrScanner(false)}
