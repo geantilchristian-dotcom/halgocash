@@ -97,9 +97,10 @@ app.use(
   }),
 );
 
-// ── Body parsing — keep limits tight ──────────────────────────────────────
-app.use(express.json({ limit: "512kb" }));
-app.use(express.urlencoded({ extended: true, limit: "512kb" }));
+// ── Body parsing ──────────────────────────────────────────────────────────
+// 10 MB to handle base64-encoded image uploads (banners, game covers, jackpot poster)
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // ── Session ───────────────────────────────────────────────────────────────
 // Use PostgreSQL store in production so sessions survive restarts/hibernation.
@@ -109,7 +110,7 @@ const sessionStore = isProd && process.env["DATABASE_URL"]
   ? new PgSession({
       conString: process.env["DATABASE_URL"],
       tableName: "session",
-      createTableIfMissing: false, // table created by migrate.ts
+      createTableIfMissing: true, // create if missing (safety net)
     })
   : undefined;
 
@@ -200,6 +201,8 @@ app.use((_req: Request, res: Response) => {
 // ── Global error handler ──────────────────────────────────────────────────
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   logger.error({ err }, "Unhandled error");
+  // Guard: headers may already be sent (e.g. streaming, sendFile mid-transfer)
+  if (res.headersSent) return;
   const status = (err as NodeJS.ErrnoException & { status?: number }).status ?? 500;
   res.status(status).json({ error: isProd ? "Erreur serveur interne" : err.message });
 });
