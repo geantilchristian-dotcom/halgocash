@@ -109,11 +109,11 @@ const GAMES = [
 ];
 
 interface Notif {
-  id: number;
-  type: "withdrawal_paid";
+  id: string;
+  type: "ticket_win" | "withdrawal_paid" | "withdrawal_pending" | "withdrawal_cancelled";
   message: string;
   amount: number;
-  paidAt: string;
+  date: string;
 }
 
 export default function Home() {
@@ -201,7 +201,7 @@ export default function Home() {
       setNotifs(data.items);
       const lastSeen = localStorage.getItem("halgo_notif_seen");
       const lastSeenTs = lastSeen ? parseInt(lastSeen) : 0;
-      const unread = data.items.filter((n) => new Date(n.paidAt).getTime() > lastSeenTs).length;
+      const unread = data.items.filter((n) => new Date(n.date).getTime() > lastSeenTs).length;
       setUnreadCount(unread);
     } catch { /* silent */ }
   }, [authFetch]);
@@ -988,24 +988,61 @@ export default function Home() {
                 <div className="flex flex-col items-center py-10 gap-3">
                   <CheckCheck style={{ width: 36, height: 36, color: "rgba(255,255,255,0.2)" }} />
                   <p className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.35)" }}>Aucune notification</p>
+                  <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.2)" }}>Vos gains et retraits apparaîtront ici</p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2 pb-4">
-                  {notifs.map((n) => (
-                    <div key={n.id} className="rounded-xl px-4 py-3 flex items-center gap-3"
-                      style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}>
-                      <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-                        style={{ background: "rgba(34,197,94,0.15)" }}>
-                        <CheckCircle style={{ width: 18, height: 18, color: "#22c55e" }} />
+                  {notifs.map((n) => {
+                    const cfg =
+                      n.type === "ticket_win"
+                        ? { bg: "rgba(245,197,24,0.08)", border: "rgba(245,197,24,0.25)", iconBg: "rgba(245,197,24,0.15)", iconColor: "#F5C518", Icon: Ticket }
+                        : n.type === "withdrawal_paid"
+                        ? { bg: "rgba(34,197,94,0.08)", border: "rgba(34,197,94,0.25)", iconBg: "rgba(34,197,94,0.15)", iconColor: "#22c55e", Icon: CheckCircle }
+                        : n.type === "withdrawal_pending"
+                        ? { bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.25)", iconBg: "rgba(251,191,36,0.15)", iconColor: "#fbbf24", Icon: Clock }
+                        : { bg: "rgba(239,68,68,0.06)", border: "rgba(239,68,68,0.2)",  iconBg: "rgba(239,68,68,0.12)",  iconColor: "#ef4444", Icon: X };
+                    return (
+                      <div key={n.id} className="rounded-xl px-4 py-3 flex items-center gap-3"
+                        style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}>
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                          style={{ background: cfg.iconBg }}>
+                          <cfg.Icon style={{ width: 18, height: 18, color: cfg.iconColor }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white font-bold text-[13px] leading-tight">{n.message}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+                              {new Date(n.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                            {n.type === "ticket_win" && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                                style={{ background: "rgba(245,197,24,0.2)", color: "#F5C518" }}>
+                                +{formatFC(n.amount)} FC
+                              </span>
+                            )}
+                            {n.type === "withdrawal_paid" && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                                style={{ background: "rgba(34,197,94,0.2)", color: "#22c55e" }}>
+                                PAYÉ
+                              </span>
+                            )}
+                            {n.type === "withdrawal_pending" && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                                style={{ background: "rgba(251,191,36,0.2)", color: "#fbbf24" }}>
+                                EN ATTENTE
+                              </span>
+                            )}
+                            {n.type === "withdrawal_cancelled" && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                                style={{ background: "rgba(239,68,68,0.2)", color: "#ef4444" }}>
+                                ANNULÉ
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white font-bold text-[13px] leading-tight">{n.message}</p>
-                        <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
-                          {new Date(n.paidAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

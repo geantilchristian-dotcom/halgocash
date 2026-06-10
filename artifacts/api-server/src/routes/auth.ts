@@ -252,32 +252,99 @@ router.get("/auth/balance", balanceCheckRateLimit, async (req, res): Promise<voi
   res.json({ balance: Math.max(0, wins - paid - pending) });
 });
 
-// GET /api/auth/notifications — paid withdrawals the player hasn't seen yet
+// GET /api/auth/notifications — wins + withdrawals for the current player
 router.get("/auth/notifications", async (req, res): Promise<void> => {
   const { userId: clerkUserId } = getAuth(req);
   const sessionUserId = req.session.userId;
   const effectiveUserId = clerkUserId ?? (sessionUserId ? `local:${sessionUserId}` : null);
 
   if (!effectiveUserId) {
+    res.set("Cache-Control", "no-store");
     res.json({ count: 0, items: [] });
     return;
   }
 
-  const rows = await db
+  // 1. Winning ticket activations
+  const wins = await db
+    .select()
+    .from(ticketsTable)
+    .where(and(eq(ticketsTable.registeredByClerkId, effectiveUserId), eq(ticketsTable.isWinner, true), isNotNull(ticketsTable.registeredAt)))
+    .orderBy(desc(ticketsTable.registeredAt))
+    .limit(30);
+
+  // 2. All withdrawals (pending, paid, cancelled)
+  const withdrawals = await db
     .select()
     .from(withdrawalsTable)
-    .where(and(eq(withdrawalsTable.clerkId, effectiveUserId), eq(withdrawalsTable.status, "paid"), isNotNull(withdrawalsTable.paidAt)))
-    .orderBy(desc(withdrawalsTable.paidAt))
+    .where(eq(withdrawalsTable.clerkId, effectiveUserId))
+    .orderBy(desc(withdrawalsTable.createdAt))
     .limit(20);
 
-  const items = rows.map((w) => ({
-    id: w.id,
-    type: "withdrawal_paid" as const,
-    message: `Retrait de ${parseFloat(w.amount).toLocaleString("fr-FR")} FC confirmé`,
-    amount: parseFloat(w.amount),
-    paidAt: w.paidAt!.toISOString(),
-  }));
+  type NotifItem = {
+    id: string;
+    type: "ticket_win" | "withdrawal_paid" | "withdrawal_pending" | "withdrawal_cancelled";
+    message: string;
+    amount: number;
+    date: string;
+  };
 
+  const items: NotifItem[] = [];
+
+  for (const t of wins) {
+    const prize = parseFloat(t.prizeAmount ?? "0");
+    let label = "Gagnant";
+    if (prize >= 50000)      label = "Jackpot 🏆";
+    else if (prize >= 25000) label = "Très Grand Gagnant 💎";
+    else if (prize >= 10000) label = "Grand Gagnant 🥇";
+    else if (prize >= 5000)  label = "Gagnant 🎉";
+    else if (prize >= 2000)  label = "Bon Gagnant ✨";
+    else if (prize >= 1000)  label = "Petit Gagnant 🌟";
+    else if (prize >= 500)   label = "Micro Gagnant 👍";
+    else if (prize >= 200)   label = "Consolation 🎁";
+    else                     label = "Remboursé 🔄";
+
+    items.push({
+      id: `t-${t.id}`,
+      type: "ticket_win",
+      message: `${label} — ${prize.toLocaleString("fr-FR")} FC (ticket ${t.code})`,
+      amount: prize,
+      date: t.registeredAt!.toISOString(),
+    });
+  }
+
+  for (const w of withdrawals) {
+    const amt = parseFloat(w.amount);
+    if (w.status === "paid" && w.paidAt) {
+      items.push({
+        id: `wp-${w.id}`,
+        type: "withdrawal_paid",
+        message: `Retrait de ${amt.toLocaleString("fr-FR")} FC confirmé ✅`,
+        amount: amt,
+        date: w.paidAt.toISOString(),
+      });
+    } else if (w.status === "pending") {
+      items.push({
+        id: `ww-${w.id}`,
+        type: "withdrawal_pending",
+        message: `Retrait de ${amt.toLocaleString("fr-FR")} FC en attente de paiement`,
+        amount: amt,
+        date: w.createdAt.toISOString(),
+      });
+    } else if (w.status === "cancelled") {
+      items.push({
+        id: `wc-${w.id}`,
+        type: "withdrawal_cancelled",
+        message: `Retrait de ${amt.toLocaleString("fr-FR")} FC annulé`,
+        amount: amt,
+        date: w.createdAt.toISOString(),
+      });
+    }
+  }
+
+  // Sort newest first
+  items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  res.set("Cache-Control", "no-store");
   res.json({ count: items.length, items });
 });
 
