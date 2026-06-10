@@ -216,6 +216,16 @@ export default function Home() {
   const [balance, setBalance] = useState<number | null>(null);
   const [balanceFlash, setBalanceFlash] = useState(false);
 
+  // Pré-charger depuis localStorage dès que l'ID utilisateur est connu
+  // pour afficher une valeur immédiatement pendant que l'API charge.
+  useEffect(() => {
+    if (!lsKey) return;
+    try {
+      const stored = localStorage.getItem(lsKey);
+      if (stored !== null) setBalance(prev => prev === null ? parseFloat(stored) : prev);
+    } catch { /* ignore */ }
+  }, [lsKey]);
+
   // Ticket activation
   const [ticketCode,       setTicketCode]       = useState("");
   const [activating,       setActivating]       = useState(false);
@@ -243,11 +253,15 @@ export default function Home() {
 
   // ── Fetch helpers ──
   const fetchBalance = useCallback(async () => {
+    const key = user?.id ? `halgo_balance_${user.id}` : null;
+    const readLocal = (): number | null => {
+      if (!key) return null;
+      try { const v = localStorage.getItem(key); return v !== null ? parseFloat(v) : null; } catch { return null; }
+    };
     try {
       const res = await authFetch("/api/auth/balance");
       if (res.ok) {
         const d = await res.json() as { balance: number };
-        const key = user?.id ? `halgo_balance_${user.id}` : null;
         if (d.balance > 0) {
           setBalance(d.balance);
           if (key) { try { localStorage.setItem(key, String(d.balance)); } catch { /* ignore */ } }
@@ -262,8 +276,19 @@ export default function Home() {
             if (key) { try { localStorage.removeItem(key); } catch { /* ignore */ } }
           }
         }
+      } else {
+        // API returned an error (4xx/5xx) — keep whatever is in localStorage rather
+        // than leaving the display stuck on the skeleton indefinitely.
+        const cached = readLocal();
+        if (cached !== null) setBalance(prev => prev === null ? cached : prev);
+        else setBalance(prev => prev === null ? 0 : prev);
       }
-    } catch { /* silent */ }
+    } catch {
+      // Network error — fall back to localStorage so balance never stays blank.
+      const cached = readLocal();
+      if (cached !== null) setBalance(prev => prev === null ? cached : prev);
+      else setBalance(prev => prev === null ? 0 : prev);
+    }
   }, [authFetch, user?.id]);
 
   const fetchProfile = useCallback(async () => {
