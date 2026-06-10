@@ -54,10 +54,58 @@ function useJackpotCountdown() {
 }
 
 const GAMES = [
-  { name: "Aviator", badge: "TOP",    bg: "linear-gradient(135deg,#1a0808,#4a0f0f)", icon: "✈️",  glow: "#c0392b" },
-  { name: "JetX",    badge: "TOP",    bg: "linear-gradient(135deg,#080a1a,#1a2040)", icon: "🚀",  glow: "#2980b9" },
-  { name: "Mines",   badge: "NOUVEAU",bg: "linear-gradient(135deg,#08141a,#0f2a40)", icon: "💎",  glow: "#2471a3" },
-  { name: "Crash",   badge: "TOP",    bg: "linear-gradient(135deg,#0a0f08,#1a2f10)", icon: "📈",  glow: "#27ae60", multiplier: "12.45×" },
+  {
+    name: "Aviator",
+    badge: "TOP",
+    badgeColor: "#e74c3c",
+    bg: "linear-gradient(160deg,#2a0808 0%,#5a1010 50%,#1a0505 100%)",
+    previewBg: "radial-gradient(ellipse at 50% 80%, #c0392b44 0%, transparent 70%)",
+    icon: "✈️",
+    iconSize: "2.8rem",
+    glow: "#c0392b",
+    players: "2 841",
+    multiplier: null,
+    accent: "#e74c3c",
+  },
+  {
+    name: "JetX",
+    badge: "TOP",
+    badgeColor: "#e74c3c",
+    bg: "linear-gradient(160deg,#08081a 0%,#101840 50%,#050512 100%)",
+    previewBg: "radial-gradient(ellipse at 50% 80%, #2980b955 0%, transparent 70%)",
+    icon: "🚀",
+    iconSize: "2.8rem",
+    glow: "#3498db",
+    players: "1 623",
+    multiplier: null,
+    accent: "#3498db",
+  },
+  {
+    name: "Mines",
+    badge: "NOUVEAU",
+    badgeColor: "#22a84a",
+    bg: "linear-gradient(160deg,#081418 0%,#0d2a3a 50%,#050e12 100%)",
+    previewBg: "radial-gradient(ellipse at 50% 80%, #1abc9c55 0%, transparent 70%)",
+    icon: "💎",
+    iconSize: "2.8rem",
+    glow: "#1abc9c",
+    players: "987",
+    multiplier: null,
+    accent: "#1abc9c",
+  },
+  {
+    name: "Crash",
+    badge: "TOP",
+    badgeColor: "#e74c3c",
+    bg: "linear-gradient(160deg,#0a1008 0%,#162a10 50%,#070f05 100%)",
+    previewBg: "radial-gradient(ellipse at 50% 80%, #27ae6055 0%, transparent 70%)",
+    icon: "📈",
+    iconSize: "2.4rem",
+    glow: "#2ecc71",
+    players: "3 210",
+    multiplier: "12.45×",
+    accent: "#2ecc71",
+  },
 ];
 
 interface Notif {
@@ -428,17 +476,112 @@ export default function Home() {
           </div>
           <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
             {GAMES.map((g) => (
-              <div key={g.name} className="shrink-0 rounded-2xl overflow-hidden relative transition-all active:scale-95 cursor-pointer"
-                style={{ width: 110, height: 120, background: g.bg, border: "1px solid rgba(255,255,255,0.08)", boxShadow: `0 4px 16px ${g.glow}40` }}>
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 p-2">
-                  {g.multiplier
-                    ? <span className="font-black" style={{ fontSize: "1.3rem", color: "#8DC63F", textShadow: `0 0 12px ${g.glow}` }}>{g.multiplier}</span>
-                    : <span style={{ fontSize: "2.5rem", filter: `drop-shadow(0 0 8px ${g.glow})` }}>{g.icon}</span>}
-                  <span className="text-white font-black text-[13px] tracking-wide">{g.name}</span>
+              <div
+                key={g.name}
+                className="shrink-0 rounded-2xl overflow-hidden relative transition-all active:scale-[0.96] cursor-pointer flex flex-col"
+                style={{
+                  width: 120,
+                  height: 158,
+                  background: g.bg,
+                  border: `1px solid ${g.accent}30`,
+                  boxShadow: `0 6px 20px ${g.glow}35, 0 2px 6px rgba(0,0,0,0.5)`,
+                }}
+              >
+                {/* Preview zone — top 60% */}
+                <div
+                  className="relative flex-1 flex items-center justify-center overflow-hidden"
+                  style={{ background: g.previewBg }}
+                >
+                  {/* Subtle grid lines for depth */}
+                  <div
+                    className="absolute inset-0 opacity-10"
+                    style={{
+                      backgroundImage: `linear-gradient(${g.accent}60 1px, transparent 1px), linear-gradient(90deg, ${g.accent}60 1px, transparent 1px)`,
+                      backgroundSize: "18px 18px",
+                    }}
+                  />
+                  {/* Glow orb behind icon */}
+                  <div
+                    className="absolute rounded-full"
+                    style={{
+                      width: 60, height: 60,
+                      background: `radial-gradient(circle, ${g.glow}55 0%, transparent 70%)`,
+                      filter: "blur(8px)",
+                    }}
+                  />
+                  {/* Multiplier or icon */}
+                  {g.multiplier ? (
+                    <div className="flex flex-col items-center gap-0.5 relative z-10">
+                      <span style={{ fontSize: g.iconSize, filter: `drop-shadow(0 0 10px ${g.glow})` }}>{g.icon}</span>
+                      <span
+                        className="font-black"
+                        style={{
+                          fontSize: "1.15rem",
+                          color: g.accent,
+                          textShadow: `0 0 14px ${g.glow}`,
+                          lineHeight: 1,
+                        }}
+                      >
+                        {g.multiplier}
+                      </span>
+                    </div>
+                  ) : (
+                    <span
+                      className="relative z-10"
+                      style={{
+                        fontSize: g.iconSize,
+                        filter: `drop-shadow(0 0 12px ${g.glow}) drop-shadow(0 4px 8px rgba(0,0,0,0.6))`,
+                        lineHeight: 1,
+                      }}
+                    >
+                      {g.icon}
+                    </span>
+                  )}
+                  {/* Badge top-left */}
+                  <div
+                    className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wide"
+                    style={{
+                      background: g.badge === "NOUVEAU" ? g.badgeColor : "rgba(0,0,0,0.55)",
+                      color: g.badge === "NOUVEAU" ? "#fff" : "#F5C518",
+                      border: g.badge === "NOUVEAU" ? "none" : `1px solid ${g.accent}80`,
+                      backdropFilter: "blur(4px)",
+                    }}
+                  >
+                    {g.badge}
+                  </div>
                 </div>
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase"
-                  style={{ background: g.badge === "NOUVEAU" ? "rgba(22,163,74,0.9)" : "rgba(245,197,24,0.15)", color: g.badge === "NOUVEAU" ? "#fff" : "#F5C518", border: g.badge === "NOUVEAU" ? "none" : "1px solid rgba(245,197,24,0.4)" }}>
-                  {g.badge}
+
+                {/* Bottom info zone */}
+                <div
+                  className="px-2.5 pt-2 pb-2.5 flex flex-col gap-1.5"
+                  style={{ borderTop: `1px solid ${g.accent}20` }}
+                >
+                  {/* Name + live dot */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-white font-black text-[12px] tracking-wide leading-none">{g.name}</span>
+                    <div className="flex items-center gap-1">
+                      <span
+                        className="w-1.5 h-1.5 rounded-full animate-pulse"
+                        style={{ background: "#22c55e", boxShadow: "0 0 4px #22c55e" }}
+                      />
+                      <span className="text-[8px] font-bold" style={{ color: "rgba(255,255,255,0.45)" }}>LIVE</span>
+                    </div>
+                  </div>
+                  {/* Player count */}
+                  <p className="text-[8px] font-semibold" style={{ color: "rgba(255,255,255,0.38)" }}>
+                    👥 {g.players} joueurs
+                  </p>
+                  {/* JOUER button */}
+                  <button
+                    className="w-full py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wide"
+                    style={{
+                      background: `linear-gradient(135deg, ${g.accent}dd, ${g.accent}88)`,
+                      color: "#fff",
+                      boxShadow: `0 2px 8px ${g.glow}40`,
+                    }}
+                  >
+                    JOUER
+                  </button>
                 </div>
               </div>
             ))}
