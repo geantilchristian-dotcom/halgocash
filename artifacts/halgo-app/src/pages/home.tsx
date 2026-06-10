@@ -436,11 +436,16 @@ export default function Home() {
     }
   }, [isLoaded]);
 
-  // Secondary trigger: when Clerk marks the session as fully signed-in the JWT
-  // is guaranteed to be available.  Reset retry state and re-fetch balance so
-  // users who had a 0 due to a slow JWT get the real value immediately.
+  // Secondary trigger: fires only when isSignedIn TRANSITIONS to true (not on
+  // initial mount), meaning the JWT just became available for the first time.
+  // Guards against double-call by tracking the previous value in a ref.
+  const prevIsSignedInRef = useRef<boolean | undefined>(undefined);
   useEffect(() => {
-    if (isSignedIn) {
+    const prev = prevIsSignedInRef.current;
+    prevIsSignedInRef.current = isSignedIn ?? false;
+    // Only act when transitioning from non-true → true (skip first-render where
+    // both isLoaded and isSignedIn fire simultaneously and cause rate-limiting).
+    if (isSignedIn && prev === false) {
       balanceRetryCountRef.current = 0;
       if (balanceRetryTimerRef.current) {
         clearTimeout(balanceRetryTimerRef.current);

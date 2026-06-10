@@ -658,15 +658,25 @@ export default function CrashGame() {
           if (c) drawCurve(c, mToT(finalM), "crashed", finalM, [], now);
           setHistory((h) => [{ cp: finalM }, ...h].slice(0, 12));
 
-          // 5s countdown → next round
+          // countdown → next round (never replay the round that just crashed)
           setCrashCountdown(POST_CRASH_S);
           let remaining = POST_CRASH_S;
+          const crashedRoundId = currentRoundRef.current;
           const cdPostCrash = setInterval(() => {
             remaining -= 1;
             setCrashCountdown(Math.max(0, remaining));
             if (remaining <= 0) {
               clearInterval(cdPostCrash);
-              startRound(currentRoundId());
+              const nowId = currentRoundId();
+              if (nowId > crashedRoundId) {
+                // Naturally rolled into the next round during post-crash wait
+                startRound(nowId);
+              } else {
+                // Still within the same crashed round — wait for the next round boundary
+                const nextId = crashedRoundId + 1;
+                const delay = Math.max(0, nextId * ROUND_MS - Date.now());
+                setTimeout(() => startRound(currentRoundId()), Math.max(1, delay));
+              }
             }
           }, 1000);
           return;
