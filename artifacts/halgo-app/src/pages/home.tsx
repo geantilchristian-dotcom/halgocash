@@ -554,14 +554,10 @@ export default function Home() {
             boxShadow: "0 8px 32px rgba(22,92,40,0.5)",
           }}
         >
-          <Trophy
-            className="absolute right-4 top-1/2 -translate-y-1/2 select-none pointer-events-none"
-            style={{ width: 68, height: 68, color: "#F5C518", filter: "drop-shadow(0 4px 20px rgba(245,197,24,0.65))" }}
-          />
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-1" style={{ color: "rgba(255,255,255,0.6)" }}>
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] mb-1 text-white">
             JACKPOT HEBDOMADAIRE
           </p>
-          <p className="font-black leading-none" style={{ fontFamily: "'Oswald', sans-serif", fontSize: "2.1rem", color: "#F5C518", textShadow: "0 0 24px rgba(245,197,24,0.5)", letterSpacing: "0.04em" }}>
+          <p className="font-black leading-none text-white" style={{ fontFamily: "'Oswald', sans-serif", fontSize: "2.1rem", letterSpacing: "0.04em" }}>
             5 000 000 <span className="text-2xl">CDF</span>
           </p>
           <div className="flex items-center gap-3 mt-3">
@@ -842,81 +838,6 @@ export default function Home() {
                 EN SAVOIR +
               </button>
             </div>
-          </div>
-        </div>
-
-        {/* ── Parrainage ── */}
-        <div className="rounded-2xl overflow-hidden"
-          style={{ background: "linear-gradient(135deg,#0d2e14 0%,#1a4a22 50%,#0f3319 100%)", border: "1px solid rgba(141,198,63,0.3)", boxShadow: "0 6px 24px rgba(0,0,0,0.35)" }}>
-          <div className="flex items-center justify-between px-4 pt-4 pb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: "linear-gradient(135deg,rgba(141,198,63,0.25),rgba(141,198,63,0.1))", border: "1px solid rgba(141,198,63,0.3)" }}>
-                <Users style={{ width: 18, height: 18, color: "#8DC63F" }} />
-              </div>
-              <div>
-                <p className="text-white font-black text-[13px] uppercase tracking-wide leading-none">Parrainage</p>
-                <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>1 ami inscrit = 1 billet gratuit à gratter</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Filleuls</p>
-              <p className="font-black text-white text-lg leading-none">{referralCount}</p>
-            </div>
-          </div>
-
-          <div className="px-4 pb-4 space-y-3">
-            {/* Stat billets */}
-            {referralTickets > 0 && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
-                style={{ background: "rgba(141,198,63,0.1)", border: "1px solid rgba(141,198,63,0.2)" }}>
-                <Ticket style={{ width: 16, height: 16, color: "#8DC63F" }} />
-                <p className="text-[12px] font-black text-white">Billets reçus : <span style={{ color: "#8DC63F" }}>{referralTickets}</span> — Voir dans les notifications</p>
-              </div>
-            )}
-
-            {/* Code + Copier */}
-            <div>
-              <p className="text-[9px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "rgba(255,255,255,0.35)" }}>Votre code unique</p>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 flex items-center justify-center py-3 rounded-xl font-mono font-black text-xl tracking-[0.25em]"
-                  style={{ background: "rgba(0,0,0,0.3)", border: "1.5px dashed rgba(141,198,63,0.4)", color: "#8DC63F", letterSpacing: "0.2em" }}>
-                  {referralCode ?? "—"}
-                </div>
-                <button
-                  onClick={() => {
-                    if (!referralCode) return;
-                    navigator.clipboard.writeText(referralCode).catch(() => {});
-                    setReferralCopied(true);
-                    setTimeout(() => setReferralCopied(false), 2000);
-                  }}
-                  className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-90"
-                  style={{ background: referralCopied ? "rgba(141,198,63,0.25)" : "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)" }}>
-                  {referralCopied
-                    ? <CheckCircle style={{ width: 18, height: 18, color: "#8DC63F" }} />
-                    : <Copy style={{ width: 18, height: 18, color: "rgba(255,255,255,0.55)" }} />
-                  }
-                </button>
-              </div>
-            </div>
-
-            {/* Partager */}
-            <button
-              onClick={() => {
-                if (!referralCode) return;
-                const text = `Rejoins-moi sur Halgo Cash 🎟️⚡ et reçois 200 FC de bonus de bienvenue ! Utilise mon code : ${referralCode}\nhttps://www.halgocash.com`;
-                if (navigator.share) { navigator.share({ text }).catch(() => {}); }
-                else { navigator.clipboard.writeText(text).catch(() => {}); }
-              }}
-              className="w-full py-3 rounded-xl font-black text-[13px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
-              style={{ background: "linear-gradient(135deg,#3aab3a,#4dc44d)", color: "#0a2e14", boxShadow: "0 4px 16px rgba(58,171,58,0.3)" }}>
-              <UserPlus style={{ width: 16, height: 16 }} />
-              INVITER UN AMI
-            </button>
-
-            <p className="text-[9px] text-center" style={{ color: "rgba(255,255,255,0.25)" }}>
-              Votre ami reçoit 200 FC · Vous recevez 500 FC à son 1er ticket
-            </p>
           </div>
         </div>
 

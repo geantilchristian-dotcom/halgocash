@@ -48,6 +48,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "list.bullet", selected: "list.bullet.rectangle.fill" }} />
         <Label>Tickets</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="notifications">
+        <Icon sf={{ default: "bell", selected: "bell.fill" }} />
+        <Label>Alertes</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: "person", selected: "person.fill" }} />
         <Label>Profil</Label>
@@ -110,6 +114,18 @@ function ClassicTabLayout() {
               <SymbolView name="list.bullet" tintColor={color} size={24} />
             ) : (
               <Feather name="list" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: "Alertes",
+          tabBarIcon: ({ color }) =>
+            isIOS && SymbolView ? (
+              <SymbolView name="bell" tintColor={color} size={24} />
+            ) : (
+              <Feather name="bell" size={22} color={color} />
             ),
         }}
       />

@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import { useAuth } from "@clerk/react";
-import { ArrowLeft, TrendingUp, Users, Clock } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users } from "lucide-react";
 
 type Phase = "waiting" | "flying" | "crashed";
 
 interface HistoryEntry { cp: number }
+interface FeedEntry { id: string; mult: number; amount: number; ts: number }
 
 function fFC(n: number) {
   return new Intl.NumberFormat("fr-FR").format(Math.round(n)).replace(/\s/g, ".");
@@ -26,43 +26,70 @@ function multColor(m: number) {
   return "#ef4444";
 }
 
-// Crash point distribution: ~4% instant crash; rest exponential
-function genCrashPoint(): number {
-  const r = Math.random();
+// ── Shared deterministic crash point ─────────────────────────────────────
+// All users get the same crash point for the same round.
+// Round = every ROUND_MS milliseconds (10s wait + flight duration capped).
+const ROUND_MS = 22000; // 22s per round slot
+const WAIT = 10;        // 10s waiting phase
+
+function seededCrashPoint(roundId: number): number {
+  let x = roundId ^ 0xdeadbeef;
+  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b5) | 0;
+  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b5) | 0;
+  const r = ((x ^ (x >>> 16)) >>> 0) / 0x100000000;
   if (r < 0.04) return 1.0;
   return Math.max(1.01, Math.round((1 / (1 - r)) * 100) / 100);
 }
 
-const K = 0.07; // growth rate: multiplier = e^(K*t)
+function currentRoundId(): number {
+  return Math.floor(Date.now() / ROUND_MS);
+}
+
+function msIntoRound(): number {
+  return Date.now() % ROUND_MS;
+}
+
+// ── Odds: multiplier = e^(K*t) ─────────────────────────────────────────
+const K = 0.07;
 function tToM(t: number) { return Math.exp(K * t); }
 function mToT(m: number) { return Math.log(Math.max(1, m)) / K; }
 
-const WAIT = 5; // seconds between rounds
+// ── Balance from localStorage ──────────────────────────────────────────
+function readLocalBalance(): number {
+  try {
+    const v = localStorage.getItem("halgo_balance");
+    return v !== null ? Math.max(0, parseFloat(v)) : 50000;
+  } catch { return 50000; }
+}
+function writeLocalBalance(n: number) {
+  try { localStorage.setItem("halgo_balance", String(Math.max(0, Math.round(n)))); } catch { /* ignore */ }
+}
 
-// Initial seeded history
+// ── Seeded history ──────────────────────────────────────────────────────
 const SEED_HISTORY: HistoryEntry[] = [
   { cp: 2.14 }, { cp: 1.03 }, { cp: 8.73 }, { cp: 1.02 }, { cp: 4.55 },
   { cp: 1.22 }, { cp: 15.33 }, { cp: 3.01 }, { cp: 1.55 }, { cp: 6.78 },
 ];
 
-function drawCurve(
-  canvas: HTMLCanvasElement,
-  elapsed: number,
-  phase: Phase,
-  crashPoint: number,
-) {
+// ── Fake player names for live feed ────────────────────────────────────
+const FAKE_IDS = [
+  "User#3821","Player#4477","Joueur#1592","User#8832","Client#2019",
+  "Pro#5541","User#7731","VIP#4422","Joueur#9921","Player#3312",
+  "User#6614","Joueur#0087","Client#5505","VIP#1199","User#3374",
+  "Pro#8823","Player#6609","User#4411","Joueur#7756","Client#8834",
+];
+
+// ── Canvas drawing ──────────────────────────────────────────────────────
+function drawCurve(canvas: HTMLCanvasElement, elapsed: number, phase: Phase, crashPoint: number) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   const W = canvas.width;
   const H = canvas.height;
 
   ctx.clearRect(0, 0, W, H);
-
-  // Background
   ctx.fillStyle = "#080f0a";
   ctx.fillRect(0, 0, W, H);
 
-  // Grid
   ctx.strokeStyle = "rgba(141,198,63,0.06)";
   ctx.lineWidth = 1;
   for (let i = 1; i < 7; i++) {
@@ -101,7 +128,6 @@ function drawCurve(
   const [lx, ly] = pts[pts.length - 1];
   const color = phase === "crashed" ? "#ef4444" : multColor(tToM(elapsed));
 
-  // Fill under curve
   ctx.beginPath();
   ctx.moveTo(pts[0][0], usableH);
   for (const [x, y] of pts) ctx.lineTo(x, y);
@@ -113,7 +139,6 @@ function drawCurve(
   ctx.fillStyle = fill;
   ctx.fill();
 
-  // Line
   ctx.beginPath();
   ctx.moveTo(pts[0][0], pts[0][1]);
   for (const [x, y] of pts) ctx.lineTo(x, y);
@@ -126,7 +151,6 @@ function drawCurve(
   ctx.stroke();
   ctx.shadowBlur = 0;
 
-  // Icon at tip
   ctx.save();
   ctx.translate(lx, ly);
   if (phase === "flying" && pts.length >= 2) {
@@ -145,7 +169,6 @@ function drawCurve(
   }
   ctx.restore();
 
-  // Multiplier labels on y axis
   const labels = [2, 5, 10, 20, 50].filter((l) => l <= maxM * 0.95);
   ctx.font = "9px monospace";
   ctx.fillStyle = "rgba(255,255,255,0.25)";
@@ -165,14 +188,13 @@ function drawCurve(
 
 export default function CrashGame() {
   const [, setLocation] = useLocation();
-  const { getToken } = useAuth();
 
-  // ── Display state ──
+  // ── Display state ──────────────────────────────────────────────────
   const [phase, setPhase] = useState<Phase>("waiting");
   const [multiplier, setMultiplier] = useState(1.0);
   const [countdown, setCountdown] = useState(WAIT);
   const [history, setHistory] = useState<HistoryEntry[]>(SEED_HISTORY);
-  const [balance, setBalance] = useState<number | null>(null);
+  const [balance, setBalance] = useState<number>(readLocalBalance);
   const [balanceFlash, setBalanceFlash] = useState(false);
 
   // Bet UI state
@@ -183,128 +205,26 @@ export default function CrashGame() {
   const [cashoutMult, setCashoutMult] = useState<number | null>(null);
   const [winAmount, setWinAmount] = useState<number | null>(null);
 
-  // ── Refs (mutable, used in RAF) ──
+  // Live feed
+  const [feed, setFeed] = useState<FeedEntry[]>([]);
+
+  // ── Refs ────────────────────────────────────────────────────────────
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const phaseRef = useRef<Phase>("waiting");
   const crashPointRef = useRef(2.0);
   const startTimeRef = useRef<number>(0);
   const rafRef = useRef<number | null>(null);
   const betRef = useRef({ placed: false, amount: 0, cashedOut: false, autoCashout: 0 });
+  const feedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const currentRoundRef = useRef<number>(currentRoundId());
 
-  // Keep betRef in sync with UI
   useEffect(() => { betRef.current.autoCashout = parseFloat(autoCashoutInput) || 0; }, [autoCashoutInput]);
 
-  const authFetch = useCallback(async (url: string, opts: RequestInit = {}) => {
-    const token = await getToken().catch(() => null);
-    const headers: Record<string, string> = { ...(opts.headers as Record<string, string> ?? {}) };
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    return fetch(url, { ...opts, headers, credentials: "include" });
-  }, [getToken]);
+  // Sync balance to localStorage whenever it changes
+  useEffect(() => { writeLocalBalance(balance); }, [balance]);
 
-  // Fetch balance once on mount
-  useEffect(() => {
-    authFetch("/api/auth/balance")
-      .then((r) => r.json())
-      .then((d: { balance: number }) => setBalance(d.balance ?? 0))
-      .catch(() => setBalance(0));
-  }, [authFetch]);
-
-  // Cash-out handler (called from RAF or button)
-  const doCashOut = useCallback((atMult: number, betAmount: number) => {
-    if (betRef.current.cashedOut) return;
-    betRef.current.cashedOut = true;
-    const won = Math.floor(betAmount * atMult);
-    setCashedOut(true);
-    setCashoutMult(atMult);
-    setWinAmount(won);
-    setBalance((prev) => {
-      const nb = (prev ?? 0) + won;
-      try { localStorage.setItem("halgo_balance", String(nb)); } catch { /* ignore */ }
-      return nb;
-    });
-    setBalanceFlash(true);
-    setTimeout(() => setBalanceFlash(false), 600);
-  }, []);
-
-  // ── Game loop ──
-  const startRound = useCallback(() => {
-    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
-
-    const cp = genCrashPoint();
-    crashPointRef.current = cp;
-    phaseRef.current = "waiting";
-    betRef.current = { placed: false, amount: 0, cashedOut: false, autoCashout: betRef.current.autoCashout };
-
-    setPhase("waiting");
-    setMultiplier(1.0);
-    setBetPlaced(false);
-    setCashedOut(false);
-    setCashoutMult(null);
-    setWinAmount(null);
-
-    const canvas = canvasRef.current;
-    if (canvas) drawCurve(canvas, 0, "waiting", cp);
-
-    let remaining = WAIT;
-    setCountdown(remaining);
-
-    const cdInterval = setInterval(() => {
-      remaining -= 1;
-      setCountdown(remaining);
-      if (remaining <= 0) {
-        clearInterval(cdInterval);
-        launchFlight();
-      }
-    }, 1000);
-
-    function launchFlight() {
-      phaseRef.current = "flying";
-      setPhase("flying");
-      startTimeRef.current = performance.now();
-
-      function tick(now: number) {
-        const elapsed = (now - startTimeRef.current) / 1000;
-        const m = tToM(elapsed);
-        setMultiplier(m);
-
-        const c = canvasRef.current;
-        if (c) drawCurve(c, elapsed, "flying", crashPointRef.current);
-
-        // Auto cash out
-        const autoAt = betRef.current.autoCashout;
-        if (betRef.current.placed && !betRef.current.cashedOut && autoAt > 1 && m >= autoAt) {
-          doCashOut(m, betRef.current.amount);
-        }
-
-        // Check crash
-        if (m >= crashPointRef.current) {
-          const finalM = crashPointRef.current;
-          setMultiplier(finalM);
-          phaseRef.current = "crashed";
-          setPhase("crashed");
-          if (c) drawCurve(c, mToT(finalM), "crashed", finalM);
-          setHistory((h) => [{ cp: finalM }, ...h].slice(0, 12));
-          setTimeout(() => startRound(), 3500);
-          return;
-        }
-
-        rafRef.current = requestAnimationFrame(tick);
-      }
-
-      rafRef.current = requestAnimationFrame(tick);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doCashOut]);
-
-  // Start on mount
-  useEffect(() => {
-    startRound();
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Resize canvas to match container
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Resize canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -317,19 +237,164 @@ export default function CrashGame() {
     return () => ro.disconnect();
   }, []);
 
-  // ── Bet actions ──
+  // ── Cash-out handler ────────────────────────────────────────────────
+  const doCashOut = useCallback((atMult: number, betAmount: number) => {
+    if (betRef.current.cashedOut) return;
+    betRef.current.cashedOut = true;
+    const won = Math.floor(betAmount * atMult);
+    setCashedOut(true);
+    setCashoutMult(atMult);
+    setWinAmount(won);
+    setBalance((prev) => {
+      const nb = prev + won;
+      writeLocalBalance(nb);
+      return nb;
+    });
+    setBalanceFlash(true);
+    setTimeout(() => setBalanceFlash(false), 600);
+  }, []);
+
+  // ── Fake live feed during flying phase ─────────────────────────────
+  const startFeed = useCallback((cp: number) => {
+    if (feedTimerRef.current) clearInterval(feedTimerRef.current);
+    const activePlayers = [...FAKE_IDS].sort(() => Math.random() - 0.5).slice(0, 8);
+    let idx = 0;
+    feedTimerRef.current = setInterval(() => {
+      if (idx >= activePlayers.length) { clearInterval(feedTimerRef.current!); return; }
+      const mult = parseFloat((1.1 + Math.random() * Math.min(cp - 1.1, 3.5)).toFixed(2));
+      const amount = [500, 1000, 2000, 5000, 10000][Math.floor(Math.random() * 5)];
+      const entry: FeedEntry = {
+        id: activePlayers[idx],
+        mult,
+        amount: Math.floor(amount * mult),
+        ts: Date.now(),
+      };
+      setFeed((prev) => [entry, ...prev].slice(0, 6));
+      idx++;
+    }, 800 + Math.random() * 600);
+  }, []);
+
+  const stopFeed = useCallback(() => {
+    if (feedTimerRef.current) { clearInterval(feedTimerRef.current); feedTimerRef.current = null; }
+  }, []);
+
+  // ── Game loop ────────────────────────────────────────────────────────
+  const startRound = useCallback((roundId: number) => {
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    stopFeed();
+
+    const cp = seededCrashPoint(roundId);
+    crashPointRef.current = cp;
+    currentRoundRef.current = roundId;
+    phaseRef.current = "waiting";
+    betRef.current = { placed: false, amount: 0, cashedOut: false, autoCashout: betRef.current.autoCashout };
+
+    setPhase("waiting");
+    setMultiplier(1.0);
+    setBetPlaced(false);
+    setCashedOut(false);
+    setCashoutMult(null);
+    setWinAmount(null);
+    setFeed([]);
+
+    const canvas = canvasRef.current;
+    if (canvas) drawCurve(canvas, 0, "waiting", cp);
+
+    // Calculate how much time is left in the waiting phase
+    const msInto = msIntoRound();
+    const waitRemaining = Math.max(0, WAIT * 1000 - msInto);
+    let remaining = Math.ceil(waitRemaining / 1000);
+    setCountdown(remaining);
+
+    const cdInterval = setInterval(() => {
+      remaining -= 1;
+      setCountdown(Math.max(0, remaining));
+      if (remaining <= 0) {
+        clearInterval(cdInterval);
+        launchFlight();
+      }
+    }, 1000);
+
+    function launchFlight() {
+      phaseRef.current = "flying";
+      setPhase("flying");
+      startTimeRef.current = performance.now();
+      startFeed(cp);
+
+      function tick(now: number) {
+        const elapsed = (now - startTimeRef.current) / 1000;
+        const m = tToM(elapsed);
+        setMultiplier(m);
+
+        const c = canvasRef.current;
+        if (c) drawCurve(c, elapsed, "flying", crashPointRef.current);
+
+        // Auto cash out
+        const autoAt = betRef.current.autoCashout;
+        if (betRef.current.placed && !betRef.current.cashedOut && autoAt > 1.0 && m >= autoAt) {
+          doCashOut(parseFloat(m.toFixed(2)), betRef.current.amount);
+        }
+
+        // Check crash
+        if (m >= crashPointRef.current) {
+          const finalM = parseFloat(crashPointRef.current.toFixed(2));
+          setMultiplier(finalM);
+          phaseRef.current = "crashed";
+          setPhase("crashed");
+          stopFeed();
+          if (c) drawCurve(c, mToT(finalM), "crashed", finalM);
+          setHistory((h) => [{ cp: finalM }, ...h].slice(0, 12));
+
+          // Start next round after 3.5s, aligned to global schedule
+          setTimeout(() => {
+            const nextRound = currentRoundId();
+            startRound(nextRound);
+          }, 3500);
+          return;
+        }
+
+        rafRef.current = requestAnimationFrame(tick);
+      }
+
+      rafRef.current = requestAnimationFrame(tick);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doCashOut, startFeed, stopFeed]);
+
+  // Start on mount — sync to global round
+  useEffect(() => {
+    const roundId = currentRoundId();
+    const msInto = msIntoRound();
+
+    if (msInto < WAIT * 1000) {
+      // We're in the waiting phase — start waiting
+      startRound(roundId);
+    } else {
+      // We're in the flying phase — fast-forward
+      startRound(roundId);
+      // The launchFlight will trigger on countdown reaching 0 with 0 delay
+    }
+
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      stopFeed();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Bet actions ─────────────────────────────────────────────────────
   const placeBet = () => {
     if (phase !== "waiting") return;
     const amt = parseInt(betInput.replace(/\D/g, ""), 10);
     if (!amt || amt < 100) return;
-    if (balance !== null && amt > balance) return;
+    if (amt > balance) return;
     betRef.current.placed = true;
     betRef.current.amount = amt;
     betRef.current.cashedOut = false;
     setBetPlaced(true);
     setBalance((prev) => {
-      const nb = (prev ?? 0) - amt;
-      try { localStorage.setItem("halgo_balance", String(nb)); } catch { /* ignore */ }
+      const nb = prev - amt;
+      writeLocalBalance(nb);
       return nb;
     });
   };
@@ -340,16 +405,21 @@ export default function CrashGame() {
     betRef.current.placed = false;
     betRef.current.amount = 0;
     setBetPlaced(false);
-    setBalance((prev) => (prev ?? 0) + amt);
+    setBalance((prev) => {
+      writeLocalBalance(prev + amt);
+      return prev + amt;
+    });
   };
 
   const cashOut = () => {
     if (phase !== "flying" || !betRef.current.placed || betRef.current.cashedOut) return;
-    doCashOut(multiplier, betRef.current.amount);
+    doCashOut(parseFloat(multiplier.toFixed(2)), betRef.current.amount);
   };
 
   const color = phase === "crashed" ? "#ef4444" : multColor(multiplier);
   const quickAmounts = [500, 1000, 2000, 5000];
+  const betAmt = parseInt(betInput) || 0;
+  const canBet = betAmt >= 100 && betAmt <= balance;
 
   return (
     <div
@@ -369,13 +439,9 @@ export default function CrashGame() {
           <ArrowLeft style={{ width: 18, height: 18, color: "rgba(255,255,255,0.7)" }} />
         </button>
 
-        {/* Title */}
         <div className="flex items-center gap-2">
           <TrendingUp style={{ width: 18, height: 18, color: "#8DC63F" }} />
-          <span
-            className="font-black tracking-wide"
-            style={{ fontSize: "1rem", color: "#fff", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-          >
+          <span className="font-black tracking-wide" style={{ fontSize: "1rem", color: "#fff" }}>
             HALGO <span style={{ color: "#8DC63F" }}>CRASH</span>
           </span>
           <span
@@ -386,7 +452,6 @@ export default function CrashGame() {
           </span>
         </div>
 
-        {/* Balance */}
         <div
           className="flex items-center gap-1.5 px-3 h-8 rounded-full transition-all"
           style={{
@@ -395,13 +460,9 @@ export default function CrashGame() {
             transition: "all 0.3s",
           }}
         >
-          {balance === null ? (
-            <div className="w-16 h-3 rounded animate-pulse" style={{ background: "rgba(255,255,255,0.1)" }} />
-          ) : (
-            <span className="font-black text-[11px]" style={{ color: balanceFlash ? "#8DC63F" : "#fff" }}>
-              {fFC(balance)} <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>FC</span>
-            </span>
-          )}
+          <span className="font-black text-[11px]" style={{ color: balanceFlash ? "#8DC63F" : "#fff" }}>
+            {fFC(balance)} <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>FC</span>
+          </span>
         </div>
       </header>
 
@@ -428,19 +489,16 @@ export default function CrashGame() {
       <div
         ref={containerRef}
         className="relative shrink-0"
-        style={{ height: 260, background: "#080f0a" }}
+        style={{ height: 240, background: "#080f0a" }}
       >
-        <canvas
-          ref={canvasRef}
-          style={{ width: "100%", height: "100%", display: "block" }}
-        />
+        <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block" }} />
 
         {/* Big multiplier overlay */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           {phase === "waiting" ? (
             <div className="flex flex-col items-center gap-1">
               <span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: "rgba(255,255,255,0.4)" }}>
-                PROCHAIN TOUR DANS
+                DÉCOLLAGE DANS
               </span>
               <span
                 className="font-black leading-none"
@@ -453,15 +511,13 @@ export default function CrashGame() {
                   className="text-[11px] font-black px-3 py-1 rounded-full mt-1"
                   style={{ background: "rgba(141,198,63,0.15)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.3)" }}
                 >
-                  MISE PLACÉE · {fFC(betRef.current.amount)} FC
+                  ✅ MISE · {fFC(betRef.current.amount)} FC
                 </span>
               )}
             </div>
           ) : phase === "crashed" ? (
             <div className="flex flex-col items-center gap-1">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: "rgba(239,68,68,0.7)" }}>
-                CRASHÉ À
-              </span>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: "rgba(239,68,68,0.7)" }}>CRASHÉ À</span>
               <span
                 className="font-black leading-none"
                 style={{ fontSize: "3.5rem", color: "#ef4444", fontFamily: "'Oswald', sans-serif", textShadow: "0 0 40px rgba(239,68,68,0.5)" }}
@@ -495,41 +551,54 @@ export default function CrashGame() {
           )}
         </div>
 
-        {/* Players count */}
-        <div
-          className="absolute bottom-2 right-3 flex items-center gap-1"
-          style={{ opacity: 0.45 }}
-        >
-          <Users style={{ width: 10, height: 10, color: "#8DC63F" }} />
-          <span className="text-[9px] font-bold" style={{ color: "#8DC63F" }}>
-            {Math.floor(800 + Math.sin(Date.now() / 5000) * 200)} joueurs
-          </span>
-        </div>
+        {/* Players count — only during flight */}
+        {phase === "flying" && (
+          <div className="absolute bottom-2 right-3 flex items-center gap-1" style={{ opacity: 0.5 }}>
+            <Users style={{ width: 10, height: 10, color: "#8DC63F" }} />
+            <span className="text-[9px] font-bold" style={{ color: "#8DC63F" }}>
+              {Math.floor(620 + Math.sin(Date.now() / 4000) * 180)} joueurs
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* ── Win banner ── */}
+      {/* ── Live cashout feed ── */}
+      {feed.length > 0 && (
+        <div
+          className="mx-4 mt-2 px-3 py-2 rounded-xl shrink-0 space-y-1 overflow-hidden"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", maxHeight: 110 }}
+        >
+          {feed.slice(0, 5).map((entry) => (
+            <div key={entry.ts} className="flex items-center justify-between gap-2 animate-slide-in">
+              <span className="text-[10px] font-bold truncate" style={{ color: "rgba(255,255,255,0.45)" }}>
+                🟢 {entry.id}
+              </span>
+              <span className="text-[10px] font-black shrink-0" style={{ color: multColor(entry.mult) }}>
+                encaissé à {fMult(entry.mult)}
+              </span>
+              <span className="text-[10px] font-bold shrink-0 text-white">
+                +{fFC(entry.amount)} FC
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Win / Loss banner ── */}
       {phase === "crashed" && betPlaced && cashedOut && winAmount !== null && (
         <div
-          className="mx-4 mt-3 px-4 py-3 rounded-2xl flex items-center justify-between shrink-0"
-          style={{
-            background: "linear-gradient(135deg, rgba(141,198,63,0.15), rgba(141,198,63,0.05))",
-            border: "1px solid rgba(141,198,63,0.3)",
-          }}
+          className="mx-4 mt-2 px-4 py-3 rounded-2xl flex items-center justify-between shrink-0"
+          style={{ background: "linear-gradient(135deg,rgba(141,198,63,0.15),rgba(141,198,63,0.05))", border: "1px solid rgba(141,198,63,0.3)" }}
         >
           <span className="text-[12px] font-black text-white">🎉 VOUS AVEZ GAGNÉ</span>
-          <span className="font-black" style={{ color: "#8DC63F", fontSize: "1.1rem" }}>
-            +{fFC(winAmount)} FC
-          </span>
+          <span className="font-black" style={{ color: "#8DC63F", fontSize: "1.1rem" }}>+{fFC(winAmount)} FC</span>
         </div>
       )}
 
       {phase === "crashed" && betPlaced && !cashedOut && (
         <div
-          className="mx-4 mt-3 px-4 py-3 rounded-2xl flex items-center justify-between shrink-0"
-          style={{
-            background: "rgba(239,68,68,0.08)",
-            border: "1px solid rgba(239,68,68,0.2)",
-          }}
+          className="mx-4 mt-2 px-4 py-3 rounded-2xl flex items-center justify-between shrink-0"
+          style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}
         >
           <span className="text-[12px] font-black" style={{ color: "#ef4444" }}>💸 PERDU</span>
           <span className="font-black text-[12px]" style={{ color: "rgba(255,255,255,0.5)" }}>
@@ -540,21 +609,14 @@ export default function CrashGame() {
 
       {/* ── Bet Panel ── */}
       <div
-        className="mt-3 mx-4 mb-4 rounded-2xl overflow-hidden shrink-0"
+        className="mt-2 mx-4 mb-4 rounded-2xl overflow-hidden shrink-0"
         style={{ background: "#0d1d12", border: "1px solid rgba(255,255,255,0.07)" }}
       >
-        {/* Tabs */}
         <div className="flex" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-          <div
-            className="flex-1 py-2.5 text-center text-[11px] font-black uppercase tracking-wide"
-            style={{ color: "#8DC63F", borderBottom: "2px solid #8DC63F" }}
-          >
+          <div className="flex-1 py-2.5 text-center text-[11px] font-black uppercase tracking-wide" style={{ color: "#8DC63F", borderBottom: "2px solid #8DC63F" }}>
             Mise manuelle
           </div>
-          <div
-            className="flex-1 py-2.5 text-center text-[11px] font-bold uppercase tracking-wide"
-            style={{ color: "rgba(255,255,255,0.3)" }}
-          >
+          <div className="flex-1 py-2.5 text-center text-[11px] font-bold uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.3)" }}>
             Auto
           </div>
         </div>
@@ -562,42 +624,32 @@ export default function CrashGame() {
         <div className="px-4 pt-3 pb-4 space-y-3">
           {/* Amount input */}
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.4)" }}>
-                Montant (FC)
-              </span>
-            </div>
             <div
               className="flex items-center rounded-xl overflow-hidden"
               style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
             >
               <button
                 onClick={() => setBetInput((v) => String(Math.max(100, (parseInt(v) || 0) - 500)))}
-                disabled={phase === "flying" && betPlaced}
+                disabled={betPlaced}
                 className="w-10 h-10 flex items-center justify-center font-black text-lg transition-all active:scale-90 disabled:opacity-30"
                 style={{ color: "rgba(255,255,255,0.6)" }}
-              >
-                −
-              </button>
+              >−</button>
               <input
                 type="number"
                 value={betInput}
                 onChange={(e) => setBetInput(e.target.value)}
-                disabled={(phase === "flying" && betPlaced) || betPlaced}
+                disabled={betPlaced}
                 className="flex-1 bg-transparent text-center font-black text-white outline-none disabled:opacity-50"
                 style={{ fontSize: "1rem" }}
                 min={100}
               />
               <button
                 onClick={() => setBetInput((v) => String((parseInt(v) || 0) + 500))}
-                disabled={phase === "flying" && betPlaced}
+                disabled={betPlaced}
                 className="w-10 h-10 flex items-center justify-center font-black text-lg transition-all active:scale-90 disabled:opacity-30"
                 style={{ color: "rgba(255,255,255,0.6)" }}
-              >
-                +
-              </button>
+              >+</button>
             </div>
-            {/* Quick amounts */}
             <div className="flex gap-1.5 mt-2">
               {quickAmounts.map((a) => (
                 <button
@@ -610,15 +662,13 @@ export default function CrashGame() {
                   {a >= 1000 ? `${a / 1000}K` : a}
                 </button>
               ))}
-              {balance && balance > 0 && (
+              {balance > 0 && (
                 <button
                   onClick={() => setBetInput(String(Math.floor(balance)))}
                   disabled={betPlaced}
                   className="flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all active:scale-95 disabled:opacity-30"
                   style={{ background: "rgba(141,198,63,0.08)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.15)" }}
-                >
-                  MAX
-                </button>
+                >MAX</button>
               )}
             </div>
           </div>
@@ -635,7 +685,10 @@ export default function CrashGame() {
               <input
                 type="number"
                 value={autoCashoutInput}
-                onChange={(e) => setAutoCashoutInput(e.target.value)}
+                onChange={(e) => {
+                  setAutoCashoutInput(e.target.value);
+                  betRef.current.autoCashout = parseFloat(e.target.value) || 0;
+                }}
                 placeholder="ex: 2.00"
                 className="flex-1 bg-transparent px-3 h-9 font-bold text-white outline-none text-[13px]"
                 step="0.1"
@@ -645,120 +698,89 @@ export default function CrashGame() {
             </div>
           </div>
 
-          {/* Main action button */}
+          {/* ── Main action button ── */}
+
+          {/* WAITING + no bet */}
           {phase === "waiting" && !betPlaced && (
             <button
               onClick={placeBet}
-              disabled={!betInput || parseInt(betInput) < 100 || (balance !== null && parseInt(betInput) > balance)}
+              disabled={!canBet}
               className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[13px] transition-all active:scale-[0.97] disabled:opacity-40"
-              style={{
-                background: "linear-gradient(135deg, #1a6b2f, #22a84a)",
-                color: "#fff",
-                boxShadow: "0 4px 20px rgba(34,168,74,0.35)",
-              }}
+              style={{ background: "linear-gradient(135deg,#1a6b2f,#22a84a)", color: "#fff", boxShadow: "0 4px 20px rgba(34,168,74,0.35)" }}
             >
-              <div className="flex items-center justify-center gap-2">
-                <Clock style={{ width: 16, height: 16 }} />
-                PLACER LA MISE · {fFC(parseInt(betInput) || 0)} FC
-              </div>
+              ✅ PLACER LA MISE · {fFC(betAmt)} FC
             </button>
           )}
 
+          {/* WAITING + bet placed */}
           {phase === "waiting" && betPlaced && (
             <button
               onClick={cancelBet}
               className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[13px] transition-all active:scale-[0.97]"
               style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)" }}
             >
-              ANNULER LA MISE
+              ✕ ANNULER LA MISE
             </button>
           )}
 
+          {/* FLYING + no bet */}
           {phase === "flying" && !betPlaced && (
-            <button
-              disabled
-              className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[13px] opacity-30"
-              style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}
-            >
+            <button disabled className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[13px] opacity-30"
+              style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>
               EN VOL — ATTENDEZ LE PROCHAIN TOUR
             </button>
           )}
 
+          {/* FLYING + bet + not cashed out → ARRÊTER button */}
           {phase === "flying" && betPlaced && !cashedOut && (
             <button
               onClick={cashOut}
-              className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[13px] transition-all active:scale-[0.96]"
+              className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[14px] transition-all active:scale-[0.95]"
               style={{
-                background: `linear-gradient(135deg, ${color}cc, ${color}88)`,
+                background: `linear-gradient(135deg,${color}cc,${color}88)`,
                 color: "#fff",
                 boxShadow: `0 4px 24px ${hexToRgba(color, 0.5)}`,
-                animation: "pulse 0.8s ease-in-out infinite",
+                animation: "crashPulse 0.7s ease-in-out infinite",
               }}
             >
               <div className="flex flex-col items-center gap-0.5">
-                <span>ENCAISSER — {fMult(multiplier)}</span>
-                <span className="text-[10px] font-bold opacity-80">
-                  +{fFC(Math.floor((parseInt(betInput) || 0) * multiplier))} FC
+                <span>🛑 ARRÊTER — {fMult(multiplier)}</span>
+                <span className="text-[11px] font-bold opacity-90">
+                  +{fFC(Math.floor(betAmt * multiplier))} FC
                 </span>
               </div>
             </button>
           )}
 
+          {/* FLYING + bet + cashed out */}
           {phase === "flying" && betPlaced && cashedOut && (
-            <button
-              disabled
-              className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[13px]"
-              style={{ background: "rgba(141,198,63,0.12)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.3)" }}
-            >
+            <button disabled className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[13px]"
+              style={{ background: "rgba(141,198,63,0.12)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.3)" }}>
               ✓ ENCAISSÉ À {cashoutMult !== null ? fMult(cashoutMult) : "--"}
             </button>
           )}
 
+          {/* CRASHED */}
           {phase === "crashed" && (
-            <button
-              disabled
-              className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[13px] opacity-40"
-              style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <Clock style={{ width: 16, height: 16 }} />
-                PROCHAIN TOUR DANS {WAIT}s…
-              </div>
+            <button disabled className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[13px] opacity-40"
+              style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>
+              PROCHAIN DÉCOLLAGE DANS {WAIT}s…
             </button>
           )}
         </div>
       </div>
 
-      {/* ── How it works ── */}
-      <div
-        className="mx-4 mb-6 px-4 py-3 rounded-xl"
-        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
-      >
-        <p className="text-[9px] font-bold uppercase tracking-wider mb-2" style={{ color: "rgba(255,255,255,0.3)" }}>
-          COMMENT JOUER
-        </p>
-        <div className="space-y-1">
-          {[
-            "Placez votre mise avant le décollage",
-            "Le multiplicateur monte en continu",
-            "Appuyez sur ENCAISSER avant le crash",
-            "Plus vous attendez, plus vous gagnez",
-          ].map((t, i) => (
-            <div key={i} className="flex items-start gap-2">
-              <span className="text-[9px] font-black rounded-full w-3.5 h-3.5 shrink-0 flex items-center justify-center mt-0.5"
-                style={{ background: "rgba(141,198,63,0.2)", color: "#8DC63F" }}>
-                {i + 1}
-              </span>
-              <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>{t}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
       <style>{`
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.02); }
+        @keyframes crashPulse {
+          0%, 100% { transform: scale(1); box-shadow: 0 4px 24px rgba(74,222,128,0.4); }
+          50% { transform: scale(1.015); box-shadow: 0 6px 32px rgba(74,222,128,0.65); }
+        }
+        .animate-slide-in {
+          animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateY(-6px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>
