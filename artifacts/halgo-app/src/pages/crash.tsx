@@ -33,8 +33,8 @@ function multColor(m: number) {
 //   [POST_CRASH_MS – FLIGHT_START_MS) → décollage countdown (10s)
 //   [FLIGHT_START_MS – 30000)         → vol / flight
 const ROUND_MS = 30000;       // 30s per round slot
-const POST_CRASH_S = 5;       // 5s "prochain match" after crash
-const WAIT = 10;              // 10s décollage countdown
+const POST_CRASH_S = 3;       // 3s "prochain match" after crash
+const WAIT = 2;               // 2s décollage countdown
 const POST_CRASH_MS = POST_CRASH_S * 1000;          // 5 000 ms
 const FLIGHT_START_MS = POST_CRASH_MS + WAIT * 1000; // 15 000 ms
 
