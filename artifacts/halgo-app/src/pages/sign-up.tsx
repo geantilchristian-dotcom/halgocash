@@ -12,16 +12,19 @@ export default function SignUpPage() {
   const { setActive } = useClerk();
 
   const [step, setStep]       = useState<Step>("form");
-  const [nom, setNom]         = useState("");
-  const [postNom, setPostNom] = useState("");
-  const [prenom, setPrenom]   = useState("");
-  const [phone, setPhone]     = useState("");
-  const [email, setEmail]     = useState("");
+  const [nom, setNom]           = useState("");
+  const [postNom, setPostNom]   = useState("");
+  const [prenom, setPrenom]     = useState("");
+  const [phone, setPhone]       = useState("");
+  const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd]   = useState(false);
-  const [otp, setOtp]           = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState(() => {
+    try { return localStorage.getItem("halgo_pending_referral") ?? ""; } catch { return ""; }
+  });
+  const [otp, setOtp]     = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   /* ── Step 1 : créer le compte ─────────────────────────────── */
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,6 +33,9 @@ export default function SignUpPage() {
     setLoading(true);
     setError(null);
     try {
+      if (referralCode.trim()) {
+        try { localStorage.setItem("halgo_pending_referral", referralCode.trim().toUpperCase()); } catch { /* ignore */ }
+      }
       await signUp.create({
         firstName: prenom,
         lastName: `${nom} ${postNom}`.trim(),
@@ -319,6 +325,26 @@ export default function SignUpPage() {
                 </div>
                 {password.length > 0 && password.length < 8 && (
                   <p className="text-[10px] mt-1 text-orange-400/80">Au moins 8 caractères requis</p>
+                )}
+              </div>
+
+              {/* Code de parrainage (optionnel) */}
+              <div>
+                <label className="text-[9px] font-bold text-white/40 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                  Code de parrainage
+                  <span className="text-[8px] rounded-full px-1.5 py-0.5 font-bold" style={{ background: "rgba(58,171,58,0.15)", color: "#3aab3a", border: "1px solid rgba(58,171,58,0.25)" }}>
+                    OPTIONNEL · +200 FC 🎁
+                  </span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-sm">🤝</span>
+                  <input type="text" placeholder="Ex: HLGAB3X2" value={referralCode}
+                    onChange={(e) => setReferralCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8))}
+                    className={inputLeft}
+                    style={{ textTransform: "uppercase", letterSpacing: "0.1em" }} />
+                </div>
+                {referralCode.length > 0 && (
+                  <p className="text-[10px] mt-1 text-[#3aab3a]/80">Vous recevrez 200 FC de bonus de bienvenue ✨</p>
                 )}
               </div>
 

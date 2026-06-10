@@ -1,13 +1,33 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
-import { eq, or, sum, and, isNotNull, desc } from "drizzle-orm";
-import { db, usersTable, ticketsTable, withdrawalsTable } from "@workspace/db";
+import { eq, or, sum, and, isNotNull, desc, count } from "drizzle-orm";
+import { db, usersTable, ticketsTable, withdrawalsTable, playerProfilesTable, creditAdjustmentsTable } from "@workspace/db";
 import { RegisterBody } from "@workspace/api-zod";
 import { z } from "zod";
 import { logger } from "../lib/logger";
 import { getAuth } from "@clerk/express";
 import { updatePresence } from "../lib/presence";
 import { loginRateLimit, balanceCheckRateLimit } from "../middlewares/rateLimiters";
+
+function generateReferralCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "HLG";
+  for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+async function getOrCreateProfile(clerkId: string) {
+  const [existing] = await db.select().from(playerProfilesTable).where(eq(playerProfilesTable.clerkId, clerkId)).limit(1);
+  if (existing) return existing;
+  let referralCode = generateReferralCode();
+  for (let i = 0; i < 9; i++) {
+    const [clash] = await db.select({ id: playerProfilesTable.id }).from(playerProfilesTable).where(eq(playerProfilesTable.referralCode, referralCode)).limit(1);
+    if (!clash) break;
+    referralCode = generateReferralCode();
+  }
+  const [created] = await db.insert(playerProfilesTable).values({ clerkId, referralCode }).returning();
+  return created!;
+}
 
 // Accept email address OR plain username
 const VendorLoginBody = z.object({
@@ -224,32 +244,23 @@ router.get("/auth/balance", balanceCheckRateLimit, async (req, res): Promise<voi
     return;
   }
 
-  const [winsRow] = await db
-    .select({ total: sum(ticketsTable.prizeAmount) })
-    .from(ticketsTable)
-    .where(
-      and(
-        eq(ticketsTable.registeredByClerkId, effectiveUserId),
-        eq(ticketsTable.isWinner, true),
-        isNotNull(ticketsTable.prizeAmount),
-      ),
-    );
-
-  const [paidRow] = await db
-    .select({ total: sum(withdrawalsTable.amount) })
-    .from(withdrawalsTable)
-    .where(and(eq(withdrawalsTable.clerkId, effectiveUserId), eq(withdrawalsTable.status, "paid")));
-
-  const [pendingRow] = await db
-    .select({ total: sum(withdrawalsTable.amount) })
-    .from(withdrawalsTable)
-    .where(and(eq(withdrawalsTable.clerkId, effectiveUserId), eq(withdrawalsTable.status, "pending")));
+  const [[winsRow], [paidRow], [pendingRow], [creditsRow]] = await Promise.all([
+    db.select({ total: sum(ticketsTable.prizeAmount) }).from(ticketsTable)
+      .where(and(eq(ticketsTable.registeredByClerkId, effectiveUserId), eq(ticketsTable.isWinner, true), isNotNull(ticketsTable.prizeAmount))),
+    db.select({ total: sum(withdrawalsTable.amount) }).from(withdrawalsTable)
+      .where(and(eq(withdrawalsTable.clerkId, effectiveUserId), eq(withdrawalsTable.status, "paid"))),
+    db.select({ total: sum(withdrawalsTable.amount) }).from(withdrawalsTable)
+      .where(and(eq(withdrawalsTable.clerkId, effectiveUserId), eq(withdrawalsTable.status, "pending"))),
+    db.select({ total: sum(creditAdjustmentsTable.amount) }).from(creditAdjustmentsTable)
+      .where(eq(creditAdjustmentsTable.clerkId, effectiveUserId)),
+  ]);
 
   const wins    = winsRow?.total    ? parseFloat(String(winsRow.total))    : 0;
   const paid    = paidRow?.total    ? parseFloat(String(paidRow.total))    : 0;
   const pending = pendingRow?.total ? parseFloat(String(pendingRow.total)) : 0;
+  const credits = creditsRow?.total ? parseFloat(String(creditsRow.total)) : 0;
 
-  res.json({ balance: Math.max(0, wins - paid - pending) });
+  res.json({ balance: Math.max(0, wins + credits - paid - pending) });
 });
 
 // GET /api/auth/notifications — wins + withdrawals for the current player
@@ -282,7 +293,7 @@ router.get("/auth/notifications", async (req, res): Promise<void> => {
 
   type NotifItem = {
     id: string;
-    type: "ticket_win" | "withdrawal_paid" | "withdrawal_pending" | "withdrawal_cancelled";
+    type: "ticket_win" | "withdrawal_paid" | "withdrawal_pending" | "withdrawal_cancelled" | "referral_bonus";
     message: string;
     amount: number;
     date: string;
@@ -341,11 +352,76 @@ router.get("/auth/notifications", async (req, res): Promise<void> => {
     }
   }
 
+  // 3. Referral bonuses earned
+  const referralBonuses = await db
+    .select()
+    .from(creditAdjustmentsTable)
+    .where(and(eq(creditAdjustmentsTable.clerkId, effectiveUserId), eq(creditAdjustmentsTable.reason, "referral_bonus")))
+    .orderBy(desc(creditAdjustmentsTable.createdAt))
+    .limit(20);
+
+  for (const b of referralBonuses) {
+    const amt = parseFloat(b.amount);
+    items.push({ id: `rb-${b.id}`, type: "referral_bonus", message: `Bonus parrainage : +${amt.toLocaleString("fr-FR")} FC 🤝`, amount: amt, date: b.createdAt.toISOString() });
+  }
+
   // Sort newest first
   items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   res.set("Cache-Control", "no-store");
   res.json({ count: items.length, items });
+});
+
+// GET /api/auth/profile — player referral profile (creates if not exists)
+router.get("/auth/profile", async (req, res): Promise<void> => {
+  const { userId: clerkUserId } = getAuth(req);
+  if (!clerkUserId) { res.status(401).json({ error: "Non authentifié" }); return; }
+
+  const profile = await getOrCreateProfile(clerkUserId);
+
+  const [referralCountRow] = await db
+    .select({ total: count() })
+    .from(playerProfilesTable)
+    .where(eq(playerProfilesTable.referredByCode, profile.referralCode));
+
+  const [earningsRow] = await db
+    .select({ total: sum(creditAdjustmentsTable.amount) })
+    .from(creditAdjustmentsTable)
+    .where(and(eq(creditAdjustmentsTable.clerkId, clerkUserId), eq(creditAdjustmentsTable.reason, "referral_bonus")));
+
+  res.json({
+    referralCode: profile.referralCode,
+    referredByCode: profile.referredByCode ?? null,
+    referralCount: referralCountRow?.total ?? 0,
+    referralEarnings: parseFloat(earningsRow?.total ?? "0"),
+  });
+});
+
+// POST /api/auth/referral/use — claim a referral code after sign-up
+router.post("/auth/referral/use", async (req, res): Promise<void> => {
+  const { userId: clerkUserId } = getAuth(req);
+  if (!clerkUserId) { res.status(401).json({ error: "Non authentifié" }); return; }
+
+  const { code } = req.body as { code?: string };
+  if (!code || typeof code !== "string") { res.status(400).json({ error: "Code requis" }); return; }
+
+  const normalizedCode = code.trim().toUpperCase();
+
+  const profile = await getOrCreateProfile(clerkUserId);
+
+  if (profile.referredByCode) { res.status(400).json({ error: "Vous avez déjà utilisé un code de parrainage" }); return; }
+  if (profile.referralCode === normalizedCode) { res.status(400).json({ error: "Vous ne pouvez pas utiliser votre propre code" }); return; }
+
+  const [referrer] = await db.select().from(playerProfilesTable).where(eq(playerProfilesTable.referralCode, normalizedCode)).limit(1);
+  if (!referrer) { res.status(404).json({ error: "Code de parrainage introuvable" }); return; }
+
+  await db.update(playerProfilesTable).set({ referredByCode: normalizedCode }).where(eq(playerProfilesTable.clerkId, clerkUserId));
+
+  // Welcome bonus 200 FC for the new player
+  await db.insert(creditAdjustmentsTable).values({ clerkId: clerkUserId, amount: "200", reason: "welcome_bonus", refId: normalizedCode });
+
+  req.log.info({ clerkUserId, normalizedCode }, "Referral code claimed");
+  res.json({ ok: true, welcomeBonus: 200 });
 });
 
 // GET /api/auth/history — activated tickets for the current user

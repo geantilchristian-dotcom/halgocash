@@ -1,41 +1,32 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, sum, isNotNull } from "drizzle-orm";
-import { db, withdrawalsTable, vendorsTable, usersTable, ticketsTable } from "@workspace/db";
+import { db, withdrawalsTable, vendorsTable, usersTable, ticketsTable, creditAdjustmentsTable } from "@workspace/db";
 import { getAuth } from "@clerk/express";
 import { withdrawalRateLimit } from "../middlewares/rateLimiters";
 
 const router: IRouter = Router();
 
 /** Compute the true available balance for a Clerk user.
- *  availableBalance = sum(won prizes) - sum(paid withdrawals) - sum(pending withdrawals)
+ *  availableBalance = sum(won prizes) + sum(credit_adjustments) - sum(paid withdrawals) - sum(pending withdrawals)
  */
 async function getAvailableBalance(clerkId: string): Promise<number> {
-  const [winsRow] = await db
-    .select({ total: sum(ticketsTable.prizeAmount) })
-    .from(ticketsTable)
-    .where(
-      and(
-        eq(ticketsTable.registeredByClerkId, clerkId),
-        eq(ticketsTable.isWinner, true),
-        isNotNull(ticketsTable.prizeAmount),
-      ),
-    );
-
-  const [paidRow] = await db
-    .select({ total: sum(withdrawalsTable.amount) })
-    .from(withdrawalsTable)
-    .where(and(eq(withdrawalsTable.clerkId, clerkId), eq(withdrawalsTable.status, "paid")));
-
-  const [pendingRow] = await db
-    .select({ total: sum(withdrawalsTable.amount) })
-    .from(withdrawalsTable)
-    .where(and(eq(withdrawalsTable.clerkId, clerkId), eq(withdrawalsTable.status, "pending")));
+  const [[winsRow], [paidRow], [pendingRow], [creditsRow]] = await Promise.all([
+    db.select({ total: sum(ticketsTable.prizeAmount) }).from(ticketsTable)
+      .where(and(eq(ticketsTable.registeredByClerkId, clerkId), eq(ticketsTable.isWinner, true), isNotNull(ticketsTable.prizeAmount))),
+    db.select({ total: sum(withdrawalsTable.amount) }).from(withdrawalsTable)
+      .where(and(eq(withdrawalsTable.clerkId, clerkId), eq(withdrawalsTable.status, "paid"))),
+    db.select({ total: sum(withdrawalsTable.amount) }).from(withdrawalsTable)
+      .where(and(eq(withdrawalsTable.clerkId, clerkId), eq(withdrawalsTable.status, "pending"))),
+    db.select({ total: sum(creditAdjustmentsTable.amount) }).from(creditAdjustmentsTable)
+      .where(eq(creditAdjustmentsTable.clerkId, clerkId)),
+  ]);
 
   const wins    = winsRow?.total    ? parseFloat(String(winsRow.total))    : 0;
   const paid    = paidRow?.total    ? parseFloat(String(paidRow.total))    : 0;
   const pending = pendingRow?.total ? parseFloat(String(pendingRow.total)) : 0;
+  const credits = creditsRow?.total ? parseFloat(String(creditsRow.total)) : 0;
 
-  return Math.max(0, wins - paid - pending);
+  return Math.max(0, wins + credits - paid - pending);
 }
 
 // POST /api/withdrawals — rate-limited, player creates a withdrawal request (Clerk auth required)

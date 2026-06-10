@@ -100,6 +100,23 @@ export const siteSettingsTable = pgTable("site_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const playerProfilesTable = pgTable("player_profiles", {
+  id: serial("id").primaryKey(),
+  clerkId: varchar("clerk_id", { length: 255 }).notNull().unique(),
+  referralCode: varchar("referral_code", { length: 20 }).notNull().unique(),
+  referredByCode: varchar("referred_by_code", { length: 20 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const creditAdjustmentsTable = pgTable("credit_adjustments", {
+  id: serial("id").primaryKey(),
+  clerkId: varchar("clerk_id", { length: 255 }).notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  reason: text("reason").notNull(),
+  refId: text("ref_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const insertVendorSchema = createInsertSchema(vendorsTable).omit({ id: true, createdAt: true });
 export const insertDrawSchema = createInsertSchema(drawsTable).omit({ id: true, createdAt: true, drawnAt: true, winningTicketCode: true, winningNumbers: true, prizePool: true });
 export const insertTicketSchema = createInsertSchema(ticketsTable).omit({ id: true, createdAt: true });

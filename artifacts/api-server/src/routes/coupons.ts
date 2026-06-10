@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, isNotNull, sum } from "drizzle-orm";
-import { db, ticketsTable, drawsTable, withdrawalsTable } from "@workspace/db";
+import { eq, desc, and, isNotNull, sum, count } from "drizzle-orm";
+import { db, ticketsTable, drawsTable, withdrawalsTable, playerProfilesTable, creditAdjustmentsTable } from "@workspace/db";
 import { getAuth } from "@clerk/express";
 
 const router: IRouter = Router();
@@ -173,27 +173,50 @@ router.post("/tickets/activate", async (req, res): Promise<void> => {
     .set({ registeredByClerkId: effectiveUserId ?? null, registeredAt: new Date() })
     .where(eq(ticketsTable.id, ticket.id));
 
+  // Referral bonus — fire & forget (non-blocking)
+  if (effectiveUserId && !effectiveUserId.startsWith("local:")) {
+    void (async () => {
+      try {
+        const [ticketCountRow] = await db
+          .select({ total: count() })
+          .from(ticketsTable)
+          .where(and(eq(ticketsTable.registeredByClerkId, effectiveUserId), isNotNull(ticketsTable.registeredAt)));
+        if ((ticketCountRow?.total ?? 0) === 1) {
+          const [myProfile] = await db.select().from(playerProfilesTable).where(eq(playerProfilesTable.clerkId, effectiveUserId)).limit(1);
+          if (myProfile?.referredByCode) {
+            const [referrerProfile] = await db.select().from(playerProfilesTable).where(eq(playerProfilesTable.referralCode, myProfile.referredByCode)).limit(1);
+            if (referrerProfile) {
+              const [already] = await db.select({ id: creditAdjustmentsTable.id }).from(creditAdjustmentsTable)
+                .where(and(eq(creditAdjustmentsTable.clerkId, referrerProfile.clerkId), eq(creditAdjustmentsTable.reason, "referral_bonus"), eq(creditAdjustmentsTable.refId, effectiveUserId))).limit(1);
+              if (!already) {
+                await db.insert(creditAdjustmentsTable).values({ clerkId: referrerProfile.clerkId, amount: "500", reason: "referral_bonus", refId: effectiveUserId });
+              }
+            }
+          }
+        }
+      } catch { /* non-blocking */ }
+    })();
+  }
+
   // Compute authoritative new balance in the same request so the client
   // never needs a separate fetchBalance() call after activation.
   let newBalance: number | null = null;
   if (effectiveUserId) {
-    const [winsRow] = await db
-      .select({ total: sum(ticketsTable.prizeAmount) })
-      .from(ticketsTable)
-      .where(and(eq(ticketsTable.registeredByClerkId, effectiveUserId), eq(ticketsTable.isWinner, true), isNotNull(ticketsTable.prizeAmount)));
-    const [paidRow] = await db
-      .select({ total: sum(withdrawalsTable.amount) })
-      .from(withdrawalsTable)
-      .where(and(eq(withdrawalsTable.clerkId, effectiveUserId), eq(withdrawalsTable.status, "paid")));
-    const [pendingRow] = await db
-      .select({ total: sum(withdrawalsTable.amount) })
-      .from(withdrawalsTable)
-      .where(and(eq(withdrawalsTable.clerkId, effectiveUserId), eq(withdrawalsTable.status, "pending")));
-
+    const [[winsRow], [paidRow], [pendingRow], [creditsRow]] = await Promise.all([
+      db.select({ total: sum(ticketsTable.prizeAmount) }).from(ticketsTable)
+        .where(and(eq(ticketsTable.registeredByClerkId, effectiveUserId), eq(ticketsTable.isWinner, true), isNotNull(ticketsTable.prizeAmount))),
+      db.select({ total: sum(withdrawalsTable.amount) }).from(withdrawalsTable)
+        .where(and(eq(withdrawalsTable.clerkId, effectiveUserId), eq(withdrawalsTable.status, "paid"))),
+      db.select({ total: sum(withdrawalsTable.amount) }).from(withdrawalsTable)
+        .where(and(eq(withdrawalsTable.clerkId, effectiveUserId), eq(withdrawalsTable.status, "pending"))),
+      db.select({ total: sum(creditAdjustmentsTable.amount) }).from(creditAdjustmentsTable)
+        .where(eq(creditAdjustmentsTable.clerkId, effectiveUserId)),
+    ]);
     const wins    = winsRow?.total    ? parseFloat(String(winsRow.total))    : 0;
     const paid    = paidRow?.total    ? parseFloat(String(paidRow.total))    : 0;
     const pending = pendingRow?.total ? parseFloat(String(pendingRow.total)) : 0;
-    newBalance = Math.max(0, wins - paid - pending);
+    const credits = creditsRow?.total ? parseFloat(String(creditsRow.total)) : 0;
+    newBalance = Math.max(0, wins + credits - paid - pending);
   }
 
   res.json({

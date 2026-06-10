@@ -5,6 +5,7 @@ import {
   Ticket, AlertCircle, CheckCircle, Scan,
   Home as HomeIcon, User, Settings,
   Bell, CheckCheck, Clock, Shield, Lock, Camera, Tag,
+  Users, Copy,
 } from "lucide-react";
 import { useUser, useAuth } from "@clerk/react";
 import { QRCodeSVG } from "qrcode.react";
@@ -110,7 +111,7 @@ const GAMES = [
 
 interface Notif {
   id: string;
-  type: "ticket_win" | "withdrawal_paid" | "withdrawal_pending" | "withdrawal_cancelled";
+  type: "ticket_win" | "withdrawal_paid" | "withdrawal_pending" | "withdrawal_cancelled" | "referral_bonus";
   message: string;
   amount: number;
   date: string;
@@ -157,6 +158,12 @@ export default function Home() {
   // QR Scanner
   const [showQrScanner, setShowQrScanner] = useState(false);
 
+  // Parrainage
+  const [referralCode,     setReferralCode]     = useState<string | null>(null);
+  const [referralCount,    setReferralCount]    = useState(0);
+  const [referralEarnings, setReferralEarnings] = useState(0);
+  const [referralCopied,   setReferralCopied]   = useState(false);
+
   // Retrait
   const [retraitAmount,  setRetraitAmount]  = useState("");
   const [retraitLoading, setRetraitLoading] = useState(false);
@@ -193,6 +200,27 @@ export default function Home() {
     } catch { /* silent */ }
   }, [authFetch]);
 
+  const fetchProfile = useCallback(async () => {
+    try {
+      const res = await authFetch("/api/auth/profile");
+      if (!res.ok) return;
+      const data = await res.json() as { referralCode: string; referralCount: number; referralEarnings: number };
+      setReferralCode(data.referralCode);
+      setReferralCount(data.referralCount);
+      setReferralEarnings(data.referralEarnings);
+    } catch { /* silent */ }
+  }, [authFetch]);
+
+  const claimPendingReferral = useCallback(async () => {
+    const pending = (() => { try { return localStorage.getItem("halgo_pending_referral"); } catch { return null; } })();
+    if (!pending) return;
+    try { localStorage.removeItem("halgo_pending_referral"); } catch { /* ignore */ }
+    try {
+      const res = await authFetch("/api/auth/referral/use", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: pending }) });
+      if (res.ok) { void fetchBalance(); void fetchProfile(); }
+    } catch { /* silent */ }
+  }, [authFetch, fetchBalance]);
+
   const fetchNotifications = useCallback(async () => {
     try {
       const res = await authFetch("/api/auth/notifications");
@@ -208,7 +236,14 @@ export default function Home() {
 
   // Only fetch once Clerk has finished loading — avoids a race where the
   // unauthenticated first fetch (no token) returns 0 and overwrites the real balance.
-  useEffect(() => { if (isLoaded) { void fetchBalance(); void fetchNotifications(); } }, [isLoaded]);
+  useEffect(() => {
+    if (isLoaded) {
+      void fetchBalance();
+      void fetchNotifications();
+      void fetchProfile();
+      void claimPendingReferral();
+    }
+  }, [isLoaded]);
 
   // QR scan auto-fill
   // Tracks locally-confirmed wins not yet reflected by server balance.
@@ -740,6 +775,80 @@ export default function Home() {
           </div>
         </div>
 
+        {/* ── Parrainage ── */}
+        <div className="rounded-2xl overflow-hidden"
+          style={{ background: "linear-gradient(135deg,#0d2e14 0%,#1a4a22 50%,#0f3319 100%)", border: "1px solid rgba(141,198,63,0.3)", boxShadow: "0 6px 24px rgba(0,0,0,0.35)" }}>
+          <div className="flex items-center justify-between px-4 pt-4 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                style={{ background: "linear-gradient(135deg,rgba(141,198,63,0.25),rgba(141,198,63,0.1))", border: "1px solid rgba(141,198,63,0.3)" }}>
+                <Users style={{ width: 18, height: 18, color: "#8DC63F" }} />
+              </div>
+              <div>
+                <p className="text-white font-black text-[13px] uppercase tracking-wide leading-none">Parrainage</p>
+                <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>Invitez vos amis · gagnez 500 FC chacun</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Filleuls</p>
+              <p className="font-black text-white text-lg leading-none">{referralCount}</p>
+            </div>
+          </div>
+
+          <div className="px-4 pb-4 space-y-3">
+            {/* Stat gains */}
+            {referralEarnings > 0 && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
+                style={{ background: "rgba(141,198,63,0.1)", border: "1px solid rgba(141,198,63,0.2)" }}>
+                <span className="text-sm">💰</span>
+                <p className="text-[12px] font-black text-white">Gains parrainage : <span style={{ color: "#8DC63F" }}>{formatFC(referralEarnings)} FC</span></p>
+              </div>
+            )}
+
+            {/* Code + Copier */}
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "rgba(255,255,255,0.35)" }}>Votre code unique</p>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 flex items-center justify-center py-3 rounded-xl font-mono font-black text-xl tracking-[0.25em]"
+                  style={{ background: "rgba(0,0,0,0.3)", border: "1.5px dashed rgba(141,198,63,0.4)", color: "#8DC63F", letterSpacing: "0.2em" }}>
+                  {referralCode ?? "—"}
+                </div>
+                <button
+                  onClick={() => {
+                    if (!referralCode) return;
+                    navigator.clipboard.writeText(referralCode).catch(() => {});
+                    setReferralCopied(true);
+                    setTimeout(() => setReferralCopied(false), 2000);
+                  }}
+                  className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-90"
+                  style={{ background: referralCopied ? "rgba(141,198,63,0.25)" : "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                  {referralCopied
+                    ? <CheckCircle style={{ width: 18, height: 18, color: "#8DC63F" }} />
+                    : <Copy style={{ width: 18, height: 18, color: "rgba(255,255,255,0.55)" }} />
+                  }
+                </button>
+              </div>
+            </div>
+
+            {/* Partager */}
+            <button
+              onClick={() => {
+                if (!referralCode) return;
+                const text = `Rejoins-moi sur Halgo Cash 🎟️⚡ et reçois 200 FC de bonus de bienvenue ! Utilise mon code : ${referralCode}\nhttps://www.halgocash.com`;
+                if (navigator.share) { navigator.share({ text }).catch(() => {}); }
+                else { navigator.clipboard.writeText(text).catch(() => {}); }
+              }}
+              className="w-full py-3 rounded-xl font-black text-[13px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
+              style={{ background: "linear-gradient(135deg,#3aab3a,#4dc44d)", color: "#0a2e14", boxShadow: "0 4px 16px rgba(58,171,58,0.3)" }}>
+              🤝 INVITER UN AMI
+            </button>
+
+            <p className="text-[9px] text-center" style={{ color: "rgba(255,255,255,0.25)" }}>
+              Votre ami reçoit 200 FC · Vous recevez 500 FC à son 1er ticket
+            </p>
+          </div>
+        </div>
+
         {/* ══════════════ ACTIVER MON TICKET CTA ══════════════ */}
         <button
           onClick={() => setShowTicketInput(true)}
@@ -1007,6 +1116,8 @@ export default function Home() {
                         ? { bg: "rgba(34,197,94,0.08)", border: "rgba(34,197,94,0.25)", iconBg: "rgba(34,197,94,0.15)", iconColor: "#22c55e", Icon: CheckCircle }
                         : n.type === "withdrawal_pending"
                         ? { bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.25)", iconBg: "rgba(251,191,36,0.15)", iconColor: "#fbbf24", Icon: Clock }
+                        : n.type === "referral_bonus"
+                        ? { bg: "rgba(141,198,63,0.08)", border: "rgba(141,198,63,0.25)", iconBg: "rgba(141,198,63,0.15)", iconColor: "#8DC63F", Icon: Users }
                         : { bg: "rgba(239,68,68,0.06)", border: "rgba(239,68,68,0.2)",  iconBg: "rgba(239,68,68,0.12)",  iconColor: "#ef4444", Icon: X };
                     return (
                       <div key={n.id} className="rounded-xl px-4 py-3 flex items-center gap-3"
@@ -1043,6 +1154,12 @@ export default function Home() {
                               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
                                 style={{ background: "rgba(239,68,68,0.2)", color: "#ef4444" }}>
                                 ANNULÉ
+                              </span>
+                            )}
+                            {n.type === "referral_bonus" && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                                style={{ background: "rgba(141,198,63,0.2)", color: "#8DC63F" }}>
+                                +{formatFC(n.amount)} FC
                               </span>
                             )}
                           </div>
