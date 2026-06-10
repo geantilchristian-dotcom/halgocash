@@ -256,104 +256,107 @@ export default function Home() {
   return (
     <div className="min-h-dvh flex flex-col" style={{ background: "#0b1612" }}>
 
-      {/* ═══════════════ HEADER ═══════════════ */}
+      {/* ═══════════════ HEADER — style betPawa ═══════════════ */}
       <header
-        className="flex items-center justify-between px-4 pt-5 pb-4 gap-2"
-        style={{ background: "linear-gradient(160deg,#0a1f0e 0%,#0f3d1c 60%,#165c2a 100%)" }}
+        className="flex items-center justify-between px-4 pt-4 pb-3 gap-3"
+        style={{ background: "#0f1f12" }}
       >
-        {/* Left: Balance + RETRAIT */}
-        <div className="flex flex-col gap-1 min-w-0">
-          <span className="text-[9px] font-bold uppercase tracking-[0.15em]" style={{ color: "rgba(255,255,255,0.4)" }}>
-            SOLDE
+        {/* Left: logo "halgocash" lowercase two-tone */}
+        <div className="flex items-baseline gap-0 select-none shrink-0">
+          <span
+            style={{
+              fontFamily: "'Plus Jakarta Sans', 'Montserrat', sans-serif",
+              fontWeight: 900,
+              fontSize: "1.55rem",
+              color: "#ffffff",
+              letterSpacing: "-0.02em",
+              lineHeight: 1,
+              fontStyle: "italic",
+            }}
+          >
+            halgo
           </span>
-          <div className="flex items-center gap-2">
+          <span
+            style={{
+              fontFamily: "'Plus Jakarta Sans', 'Montserrat', sans-serif",
+              fontWeight: 900,
+              fontSize: "1.55rem",
+              color: "#8DC63F",
+              letterSpacing: "-0.02em",
+              lineHeight: 1,
+              fontStyle: "italic",
+            }}
+          >
+            Cash
+          </span>
+        </div>
+
+        {/* Right: bell + balance chip */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Bell */}
+          <button
+            onClick={openNotifPanel}
+            className="relative w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-90"
+            style={{ background: "rgba(255,255,255,0.07)" }}
+          >
+            <Bell style={{ width: 18, height: 18, color: "rgba(255,255,255,0.65)" }} />
+            {unreadCount > 0 && (
+              <span
+                className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] rounded-full flex items-center justify-center text-[8px] font-black px-0.5"
+                style={{ background: "#e67e22", color: "#fff" }}
+              >
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {/* Balance pill — eye + amount FC */}
+          <div
+            className="flex items-center gap-1.5 px-3 h-9 rounded-full"
+            style={{ background: "#1e2e21", border: "1px solid rgba(141,198,63,0.2)" }}
+          >
+            <button
+              onClick={() => setBalanceHidden((h) => !h)}
+              className="flex items-center justify-center transition-all active:scale-90"
+            >
+              {balanceHidden
+                ? <EyeOff style={{ width: 14, height: 14, color: "rgba(255,255,255,0.45)" }} />
+                : <Eye    style={{ width: 14, height: 14, color: "rgba(255,255,255,0.55)" }} />}
+            </button>
             {balance === null ? (
-              <div className="h-6 w-20 rounded animate-pulse" style={{ background: "rgba(255,255,255,0.1)" }} />
+              <div className="h-3.5 w-14 rounded animate-pulse" style={{ background: "rgba(255,255,255,0.1)" }} />
             ) : (
               <span
                 className="font-black leading-none"
                 style={{
-                  fontFamily: "'Oswald', sans-serif",
-                  fontSize: "1.45rem",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontSize: "0.82rem",
                   color: balanceFlash ? "#8DC63F" : "#ffffff",
                   transition: "color 0.4s",
-                  letterSpacing: "0.02em",
+                  letterSpacing: "0.01em",
+                  whiteSpace: "nowrap",
                 }}
               >
                 {balanceHidden ? "•••" : formatFC(balance)}
-                <span className="text-xs font-bold ml-1" style={{ color: "rgba(255,255,255,0.45)" }}>FC</span>
+                <span className="font-bold ml-1" style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.72rem" }}>FC</span>
               </span>
             )}
-            <button
-              onClick={() => setBalanceHidden((h) => !h)}
-              className="w-6 h-6 rounded-full flex items-center justify-center"
-              style={{ background: "rgba(255,255,255,0.1)" }}
-            >
-              {balanceHidden
-                ? <EyeOff style={{ width: 11, height: 11, color: "rgba(255,255,255,0.5)" }} />
-                : <Eye    style={{ width: 11, height: 11, color: "rgba(255,255,255,0.5)" }} />}
-            </button>
           </div>
-          {/* RETRAIT button */}
+
+          {/* Green "+" button — opens retrait */}
           <button
             onClick={openRetrait}
-            className="flex items-center gap-1 px-3 py-1 rounded-lg font-black text-[10px] uppercase tracking-wide transition-all active:scale-95 self-start"
-            style={{ background: "linear-gradient(135deg,#9e6800,#d4a017)", color: "#0a1f0e", boxShadow: "0 2px 8px rgba(212,160,23,0.35)" }}
+            className="w-9 h-9 rounded-full flex items-center justify-center font-black text-xl transition-all active:scale-90"
+            style={{
+              background: "#8DC63F",
+              color: "#0a1f0e",
+              boxShadow: "0 2px 10px rgba(141,198,63,0.4)",
+              lineHeight: 1,
+            }}
           >
-            <QrCode style={{ width: 10, height: 10 }} />
-            RETRAIT
+            +
           </button>
         </div>
-
-        {/* Center: Title */}
-        <div className="flex flex-col items-center gap-0.5 flex-1">
-          <div className="flex items-center gap-0">
-            <span
-              className="tracking-[0.18em] leading-none select-none"
-              style={{
-                fontFamily: "'Oswald', sans-serif",
-                fontWeight: 800,
-                fontSize: "1.6rem",
-                color: "#ffffff",
-                filter: "drop-shadow(0 2px 6px rgba(255,255,255,0.2))",
-              }}
-            >
-              HALGO&nbsp;
-            </span>
-            <span
-              className="tracking-[0.18em] leading-none select-none"
-              style={{
-                fontFamily: "'Oswald', sans-serif",
-                fontWeight: 800,
-                fontSize: "1.6rem",
-                color: "#F5C518",
-                filter: "drop-shadow(0 2px 8px rgba(245,197,24,0.5))",
-              }}
-            >
-              CASH
-            </span>
-          </div>
-          <span className="text-[8px] font-bold tracking-[0.2em]" style={{ color: "rgba(255,255,255,0.35)" }}>
-            PARIEZ · GAGNEZ · ENCAISSEZ
-          </span>
-        </div>
-
-        {/* Right: Bell */}
-        <button
-          onClick={openNotifPanel}
-          className="relative w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all active:scale-90"
-          style={{ background: "rgba(255,255,255,0.08)" }}
-        >
-          <Bell style={{ width: 20, height: 20, color: "rgba(255,255,255,0.7)" }} />
-          {unreadCount > 0 && (
-            <span
-              className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[9px] font-black px-1"
-              style={{ background: "#e67e22", color: "#fff" }}
-            >
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-        </button>
       </header>
 
       {/* ═══════════════ SCROLLABLE CONTENT ═══════════════ */}
