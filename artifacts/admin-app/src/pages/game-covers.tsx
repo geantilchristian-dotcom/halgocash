@@ -3,6 +3,7 @@ import { Upload, ImagePlus, RotateCcw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { compressImage } from "@/lib/compress-image";
 
 const GAMES = [
   { key: "halgo_cover_crash",    label: "Halgo Crash",     accent: "#ef4444" },
@@ -12,15 +13,6 @@ const GAMES = [
 ] as const;
 
 type GameKey = (typeof GAMES)[number]["key"];
-
-function toBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 export default function GameCovers() {
   const { toast } = useToast();
@@ -44,24 +36,19 @@ export default function GameCovers() {
       toast({ title: "Fichier invalide", description: "Veuillez choisir une image.", variant: "destructive" });
       return;
     }
-    if (file.size > 4 * 1024 * 1024) {
-      toast({ title: "Fichier trop lourd", description: "Maximum 4 Mo.", variant: "destructive" });
-      return;
-    }
     setSaving(key);
     try {
-      const imageData = await toBase64(file);
-      const mimeType = file.type;
+      const { dataUrl, mimeType, originalKb, compressedKb } = await compressImage(file, { maxWidth: 800, maxHeight: 800, quality: 0.82 });
       const res = await fetch(`/api/admin/game-covers/${key}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ imageData, mimeType }),
+        body: JSON.stringify({ imageData: dataUrl, mimeType }),
       });
       if (!res.ok) throw new Error("Erreur serveur");
       setExists(prev => ({ ...prev, [key]: true }));
       setTs(prev => ({ ...prev, [key]: Date.now() }));
-      toast({ title: "Pochette mise à jour", description: "Visible immédiatement pour tous les utilisateurs." });
+      toast({ title: "Pochette mise à jour", description: `${originalKb} Ko → ${compressedKb} Ko (WebP)` });
     } catch {
       toast({ title: "Erreur", description: "Impossible d'enregistrer la pochette.", variant: "destructive" });
     } finally {

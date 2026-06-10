@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { compressImage } from "@/lib/compress-image";
 
 interface BannerMeta {
   id: number;
@@ -55,15 +56,6 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error((err as { error: string }).error || "Erreur");
   }
   return res.json() as Promise<T>;
-}
-
-function toBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
 
 function PromoBannerPreview({ cfg, animKey }: { cfg: PromoBannerConfig; animKey: number }) {
@@ -132,6 +124,8 @@ export default function Publicite() {
   const [preview, setPreview] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [pendingMime, setPendingMime] = useState<string>("image/webp");
+  const [bannerStats, setBannerStats] = useState<{ originalKb: number; compressedKb: number } | null>(null);
 
   const [cfg, setCfg] = useState<PromoBannerConfig>(DEFAULT_PROMO);
   const [animKey, setAnimKey] = useState(0);
@@ -140,7 +134,8 @@ export default function Publicite() {
   // Jackpot poster state
   const jpInputRef = useRef<HTMLInputElement>(null);
   const [jpPreview, setJpPreview] = useState<string | null>(null);
-  const [jpFile, setJpFile] = useState<File | null>(null);
+  const [jpMime, setJpMime] = useState<string>("image/webp");
+  const [jpStats, setJpStats] = useState<{ originalKb: number; compressedKb: number } | null>(null);
   const [jpUploading, setJpUploading] = useState(false);
   const [jpTs, setJpTs] = useState(Date.now());
   const [jpExists, setJpExists] = useState(false);
@@ -155,28 +150,32 @@ export default function Publicite() {
   async function handleJpFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setJpFile(file);
-    const b64 = await toBase64(file);
-    setJpPreview(b64);
+    try {
+      const { dataUrl, mimeType, originalKb, compressedKb } = await compressImage(file, { maxWidth: 1200, maxHeight: 1600, quality: 0.82 });
+      setJpPreview(dataUrl);
+      setJpMime(mimeType);
+      setJpStats({ originalKb, compressedKb });
+    } catch {
+      toast({ title: "Erreur lecture image", variant: "destructive" });
+    }
   }
 
   async function uploadJpPoster() {
-    if (!jpFile) return;
+    if (!jpPreview) return;
     setJpUploading(true);
     try {
-      const imageData = await toBase64(jpFile);
       const r = await apiFetch<{ ok: boolean }>("/api/admin/jackpot-poster", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageData, mimeType: jpFile.type }),
+        body: JSON.stringify({ imageData: jpPreview, mimeType: jpMime }),
       });
       if (r.ok) {
-        toast({ title: "Affiche jackpot mise à jour" });
+        toast({ title: "Affiche jackpot mise à jour", description: jpStats ? `${jpStats.originalKb} Ko → ${jpStats.compressedKb} Ko (WebP)` : undefined });
         setJpPreview(null);
-        setJpFile(null);
+        setJpStats(null);
         setJpTs(Date.now());
       }
-    } catch (e) {
+    } catch {
       toast({ title: "Erreur upload", variant: "destructive" });
     } finally {
       setJpUploading(false);
@@ -223,8 +222,15 @@ export default function Publicite() {
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const dataUrl = await toBase64(file);
-    setPreview(dataUrl); setPendingFile(file);
+    try {
+      const { dataUrl, mimeType, originalKb, compressedKb } = await compressImage(file, { maxWidth: 1200, maxHeight: 600, quality: 0.82 });
+      setPreview(dataUrl);
+      setPendingFile(file);
+      setPendingMime(mimeType);
+      setBannerStats({ originalKb, compressedKb });
+    } catch {
+      toast({ title: "Erreur lecture image", variant: "destructive" });
+    }
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -235,11 +241,11 @@ export default function Publicite() {
       await apiFetch("/api/admin/banners", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageData: preview, mimeType: pendingFile.type, fileName: pendingFile.name }),
+        body: JSON.stringify({ imageData: preview, mimeType: pendingMime, fileName: pendingFile.name }),
       });
       qc.invalidateQueries({ queryKey: ["/api/admin/banners"] });
-      toast({ title: "Bannière publiée" });
-      setPreview(null); setPendingFile(null);
+      toast({ title: "Bannière publiée", description: bannerStats ? `${bannerStats.originalKb} Ko → ${bannerStats.compressedKb} Ko (WebP)` : undefined });
+      setPreview(null); setPendingFile(null); setBannerStats(null);
     } catch (e) {
       toast({ title: "Erreur upload", description: (e as Error).message, variant: "destructive" });
     } finally { setUploading(false); }
@@ -542,7 +548,7 @@ export default function Publicite() {
             <div className="relative rounded-xl overflow-hidden border border-border">
               <img src={jpPreview} alt="Aperçu affiche" className="w-full object-cover max-h-64" />
               <button
-                onClick={() => { setJpPreview(null); setJpFile(null); }}
+                onClick={() => { setJpPreview(null); setJpStats(null); }}
                 className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white hover:bg-black/80"
               >
                 <Trash2 className="w-3.5 h-3.5" />
