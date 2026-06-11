@@ -1,32 +1,26 @@
+import { createHmac } from "crypto";
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
-import { db, creditAdjustmentsTable, ticketsTable, withdrawalsTable } from "@workspace/db";
+import { db, creditAdjustmentsTable, ticketsTable, withdrawalsTable, crashBetsTable } from "@workspace/db";
 import { eq, and, sum, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 
 const router = Router();
 
-// ── Deterministic crash point (same algorithm as client) ──────────────────
-const ROUND_MS = 30_000;
+const ROUND_MS        = 30_000;
+const FLIGHT_START_MS = 12_000; // 2s crash-show + 10s bet-window
 
-function seededCrashPoint(roundId: number): number {
-  let x = roundId ^ 0xdeadbeef;
-  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b5) | 0;
-  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b5) | 0;
-  const r = ((x ^ (x >>> 16)) >>> 0) / 0x100000000;
-  if (r < 0.04) return 1.0;
-  return Math.min(1000, Math.max(1.01, Math.round((1 / (1 - r)) * 100) / 100));
+// ── Server-side HMAC crash point — clients CANNOT reproduce this ──────────────
+const CRASH_SECRET = process.env.SESSION_SECRET ?? "halgo-crash-secret-fallback";
+
+function hmacCrashPoint(roundId: number): number {
+  const hash = createHmac("sha256", CRASH_SECRET).update(String(roundId)).digest("hex");
+  const r = parseInt(hash.slice(0, 8), 16) / 0xffffffff;
+  if (r < 0.03) return 1.0;
+  return Math.min(1000, Math.max(1.01, Math.floor((0.99 / (1 - r)) * 100) / 100));
 }
 
-// GET /api/crash/round — authoritative round state (no auth required)
-router.get("/crash/round", (_req, res): void => {
-  const now = Date.now();
-  const roundId = Math.floor(now / ROUND_MS);
-  const msIntoRound = now % ROUND_MS;
-  const crashPoint = seededCrashPoint(roundId);
-  res.json({ roundId, crashPoint, msIntoRound, serverMs: now });
-});
-
+// ── Balance helper ────────────────────────────────────────────────────────────
 async function getBalance(clerkId: string): Promise<number> {
   const [[winsRow], [paidRow], [pendingRow], [creditsRow]] = await Promise.all([
     db.select({ total: sum(ticketsTable.prizeAmount) }).from(ticketsTable)
@@ -45,16 +39,37 @@ async function getBalance(clerkId: string): Promise<number> {
   return Math.max(0, wins + credits - paid - pending);
 }
 
-const BetBody = z.object({ amount: z.number().int().min(100).max(10_000_000) });
+// GET /api/crash/round — authoritative round state; crash point uses server secret
+router.get("/crash/round", (_req, res): void => {
+  const now     = Date.now();
+  const roundId = Math.floor(now / ROUND_MS);
+  const msInto  = now % ROUND_MS;
+  const crashPoint = hmacCrashPoint(roundId);
+  res.json({ roundId, crashPoint, msIntoRound: msInto, serverMs: now });
+});
 
-// POST /api/crash/bet — deduct bet from real balance
+// POST /api/crash/bet — validate timing, deduct balance, record in DB
+const BetBody = z.object({
+  amount:  z.number().int().min(100).max(10_000_000),
+  roundId: z.number().int().positive(),
+});
+
 router.post("/crash/bet", async (req, res): Promise<void> => {
   const { userId: clerkId } = getAuth(req);
   if (!clerkId) { res.status(401).json({ error: "Non authentifié" }); return; }
 
   const parsed = BetBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Montant invalide" }); return; }
-  const { amount } = parsed.data;
+  const { amount, roundId } = parsed.data;
+
+  // Verify we are still in the betting window for this round
+  const now          = Date.now();
+  const serverRound  = Math.floor(now / ROUND_MS);
+  const msInto       = now % ROUND_MS;
+  if (roundId !== serverRound || msInto >= FLIGHT_START_MS) {
+    res.status(400).json({ error: "La fenêtre de mise est fermée" });
+    return;
+  }
 
   const currentBalance = await getBalance(clerkId);
   if (amount > currentBalance) {
@@ -62,29 +77,57 @@ router.post("/crash/bet", async (req, res): Promise<void> => {
     return;
   }
 
+  // One bet per round per user
+  const [existing] = await db.select({ id: crashBetsTable.id })
+    .from(crashBetsTable)
+    .where(and(eq(crashBetsTable.clerkId, clerkId), eq(crashBetsTable.roundId, roundId)))
+    .limit(1);
+  if (existing) {
+    res.status(409).json({ error: "Vous avez déjà misé dans ce round" });
+    return;
+  }
+
   await db.insert(creditAdjustmentsTable).values({
     clerkId,
     amount: String(-amount),
     reason: "crash_bet",
+    refId: `RND-${roundId}`,
   });
+  await db.insert(crashBetsTable).values({ clerkId, roundId, amount, status: "placed" });
 
   res.json({ ok: true, newBalance: Math.max(0, currentBalance - amount) });
 });
 
-const CancelBetBody = z.object({ amount: z.number().int().min(100) });
+// POST /api/crash/cancel-bet
+const CancelBetBody = z.object({
+  roundId: z.number().int().positive(),
+});
 
-// POST /api/crash/cancel-bet — refund a cancelled bet
 router.post("/crash/cancel-bet", async (req, res): Promise<void> => {
   const { userId: clerkId } = getAuth(req);
   if (!clerkId) { res.status(401).json({ error: "Non authentifié" }); return; }
 
   const parsed = CancelBetBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: "Montant invalide" }); return; }
-  const { amount } = parsed.data;
+  if (!parsed.success) { res.status(400).json({ error: "Données invalides" }); return; }
+  const { roundId } = parsed.data;
+
+  const [bet] = await db.select()
+    .from(crashBetsTable)
+    .where(and(eq(crashBetsTable.clerkId, clerkId), eq(crashBetsTable.roundId, roundId)))
+    .limit(1);
+
+  if (!bet || bet.status !== "placed") {
+    res.status(400).json({ error: "Mise introuvable ou déjà traitée" });
+    return;
+  }
+
+  await db.update(crashBetsTable)
+    .set({ status: "cancelled" })
+    .where(eq(crashBetsTable.id, bet.id));
 
   await db.insert(creditAdjustmentsTable).values({
     clerkId,
-    amount: String(amount),
+    amount: String(bet.amount),
     reason: "crash_bet_cancel",
   });
 
@@ -92,16 +135,51 @@ router.post("/crash/cancel-bet", async (req, res): Promise<void> => {
   res.json({ ok: true, newBalance });
 });
 
-const CashoutBody = z.object({ wonAmount: z.number().int().min(0) });
+// POST /api/crash/cashout — server validates mult < crashPoint and computes winnings
+const CashoutBody = z.object({
+  roundId:     z.number().int().positive(),
+  cashoutMult: z.number().min(1.0).max(1000),
+  betType:     z.enum(["full", "half"]).default("full"),
+});
 
-// POST /api/crash/cashout — credit winnings (bet*multiplier) to balance
 router.post("/crash/cashout", async (req, res): Promise<void> => {
   const { userId: clerkId } = getAuth(req);
   if (!clerkId) { res.status(401).json({ error: "Non authentifié" }); return; }
 
   const parsed = CashoutBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: "Montant invalide" }); return; }
-  const { wonAmount } = parsed.data;
+  if (!parsed.success) { res.status(400).json({ error: "Données invalides" }); return; }
+  const { roundId, cashoutMult, betType } = parsed.data;
+
+  // Server-side check: was the cashout before the crash?
+  const crashPoint = hmacCrashPoint(roundId);
+  if (cashoutMult > crashPoint + 0.05) {
+    res.status(400).json({ error: "Cashout refusé : l'avion avait déjà crashé" });
+    return;
+  }
+
+  const [bet] = await db.select()
+    .from(crashBetsTable)
+    .where(and(eq(crashBetsTable.clerkId, clerkId), eq(crashBetsTable.roundId, roundId)))
+    .limit(1);
+
+  if (!bet || bet.status !== "placed") {
+    res.status(400).json({ error: "Mise introuvable ou déjà traitée" });
+    return;
+  }
+
+  const effectiveBet = betType === "half" ? Math.floor(bet.amount / 2) : bet.amount;
+  const wonAmount    = Math.floor(effectiveBet * cashoutMult);
+  const newStatus    = betType === "half" ? "placed" : "cashed"; // half: still active
+
+  await db.update(crashBetsTable)
+    .set({
+      status:      newStatus,
+      cashoutMult: String(cashoutMult),
+      wonAmount,
+      // For half-cashout, reduce the tracked amount
+      amount:      betType === "half" ? bet.amount - Math.floor(bet.amount / 2) : bet.amount,
+    })
+    .where(eq(crashBetsTable.id, bet.id));
 
   if (wonAmount > 0) {
     await db.insert(creditAdjustmentsTable).values({
@@ -112,7 +190,7 @@ router.post("/crash/cashout", async (req, res): Promise<void> => {
   }
 
   const newBalance = await getBalance(clerkId);
-  res.json({ ok: true, newBalance });
+  res.json({ ok: true, newBalance, wonAmount });
 });
 
 export default router;

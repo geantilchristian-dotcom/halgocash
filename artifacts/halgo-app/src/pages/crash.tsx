@@ -142,17 +142,6 @@ const CRASH_SHOW_S   = 2;      // how long crash result is shown
 const BET_WINDOW_S   = 10;     // betting countdown (replaces old "prochain match")
 const FLIGHT_START_MS = (CRASH_SHOW_S + BET_WINDOW_S) * 1000; // 12 000 ms
 
-function seededCrashPoint(roundId: number): number {
-  let x = roundId ^ 0xdeadbeef;
-  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b5) | 0;
-  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b5) | 0;
-  const r = ((x ^ (x >>> 16)) >>> 0) / 0x100000000;
-  // ~3% instant crash (like Aviator), 0.99 house-edge factor on remaining
-  if (r < 0.03) return 1.0;
-  const MAX_MULT = 1000;
-  return Math.min(MAX_MULT, Math.max(1.01, Math.floor((0.99 / (1 - r)) * 100) / 100));
-}
-
 function currentRoundId(): number {
   return Math.floor(Date.now() / ROUND_MS);
 }
@@ -516,9 +505,9 @@ export default function CrashGame() {
     });
     setBalanceFlash(true);
     setTimeout(() => setBalanceFlash(false), 600);
-    authFetch("/api/crash/cashout", { method: "POST", body: JSON.stringify({ wonAmount: won }) })
+    authFetch("/api/crash/cashout", { method: "POST", body: JSON.stringify({ roundId: currentRoundRef.current, cashoutMult: atMult, betType: "full" }) })
       .then(r => r.ok ? r.json() : null)
-      .then((d: { newBalance: number } | null) => {
+      .then((d: { newBalance: number; wonAmount?: number } | null) => {
         if (d?.newBalance !== undefined) {
           setBalance(d.newBalance);
           if (user?.id) writeCachedBalance(user.id, d.newBalance);
@@ -545,9 +534,9 @@ export default function CrashGame() {
     });
     setBalanceFlash(true);
     setTimeout(() => setBalanceFlash(false), 600);
-    authFetch("/api/crash/cashout", { method: "POST", body: JSON.stringify({ wonAmount: halfWin }) })
+    authFetch("/api/crash/cashout", { method: "POST", body: JSON.stringify({ roundId: currentRoundRef.current, cashoutMult: atMult, betType: "half" }) })
       .then(r => r.ok ? r.json() : null)
-      .then((d: { newBalance: number } | null) => {
+      .then((d: { newBalance: number; wonAmount?: number } | null) => {
         if (d?.newBalance !== undefined) {
           setBalance(d.newBalance);
           if (user?.id) writeCachedBalance(user.id, d.newBalance);
@@ -557,7 +546,7 @@ export default function CrashGame() {
   }, [authFetch, user?.id]);
 
   // ── Game loop ─────────────────────────────────────────────────────────────
-  const startRound = useCallback((roundId: number, msIntoOverride?: number) => {
+  const startRound = useCallback((roundId: number, msIntoOverride?: number, serverCrashPoint?: number) => {
     if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
 
     // Invalidate any stale intervals from previous rounds
@@ -568,7 +557,7 @@ export default function CrashGame() {
     if (bettingTickerRef.current) { clearTimeout(bettingTickerRef.current); bettingTickerRef.current = null; }
     if (feedTickerRef.current)    { clearTimeout(feedTickerRef.current);    feedTickerRef.current    = null; }
 
-    const cp = seededCrashPoint(roundId);
+    const cp = serverCrashPoint ?? 2.0;
     crashPointRef.current = cp;
     currentRoundRef.current = roundId;
     phaseRef.current = "waiting";
@@ -738,11 +727,17 @@ export default function CrashGame() {
                 setCountdown(Math.max(0, betRemaining));
                 if (betRemaining <= 0) {
                   clearInterval(cdBet);
-                  const nowId = currentRoundId();
-                  const nextId = nowId > crashedRoundId ? nowId : crashedRoundId + 1;
-                  crashPointRef.current = seededCrashPoint(nextId);
-                  currentRoundRef.current = nextId;
-                  launchFlight(0);
+                  void (async () => {
+                    const rd = await fetch("/api/crash/round")
+                      .then(r => r.ok ? r.json() as Promise<{ roundId: number; crashPoint: number; msIntoRound: number; serverMs: number }> : null)
+                      .catch(() => null);
+                    if (roundGenRef.current !== gen) return;
+                    const nowId = currentRoundId();
+                    const nextId = rd?.roundId ?? (nowId > crashedRoundId ? nowId : crashedRoundId + 1);
+                    crashPointRef.current = rd?.crashPoint ?? 2.0;
+                    currentRoundRef.current = nextId;
+                    launchFlight(0);
+                  })();
                 }
               }, 1000);
             }
@@ -773,12 +768,12 @@ export default function CrashGame() {
         if (data) {
           const networkOffset = (Date.now() - data.serverMs) / 2;
           const adjustedMs = Math.min(ROUND_MS - 1, data.msIntoRound + networkOffset);
-          startRound(data.roundId, adjustedMs);
+          startRound(data.roundId, adjustedMs, data.crashPoint);
         } else {
-          startRound(currentRoundId());
+          startRound(currentRoundId(), undefined, 2.0);
         }
       })
-      .catch(() => { if (!cancelled) startRound(currentRoundId()); });
+      .catch(() => { if (!cancelled) startRound(currentRoundId(), undefined, 2.0); });
 
     return cleanup;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -794,7 +789,7 @@ export default function CrashGame() {
     if (amt > balance) return;
     setBetLoading(true);
     try {
-      const res = await authFetch("/api/crash/bet", { method: "POST", body: JSON.stringify({ amount: amt }) });
+      const res = await authFetch("/api/crash/bet", { method: "POST", body: JSON.stringify({ amount: amt, roundId: currentRoundRef.current }) });
       const data = await res.json() as { ok?: boolean; error?: string; newBalance?: number };
       if (!res.ok) return;
       betRef.current.placed = true;
@@ -818,7 +813,7 @@ export default function CrashGame() {
       if (user?.id) writeCachedBalance(user.id, nb);
       return nb;
     });
-    authFetch("/api/crash/cancel-bet", { method: "POST", body: JSON.stringify({ amount: amt }) })
+    authFetch("/api/crash/cancel-bet", { method: "POST", body: JSON.stringify({ roundId: currentRoundRef.current }) })
       .then(r => r.ok ? r.json() : null)
       .then((d: { newBalance: number } | null) => {
         if (d?.newBalance !== undefined) {

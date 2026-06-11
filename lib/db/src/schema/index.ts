@@ -149,6 +149,17 @@ export const supportMessagesTable = pgTable("support_messages", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const crashBetsTable = pgTable("crash_bets", {
+  id: serial("id").primaryKey(),
+  clerkId: varchar("clerk_id", { length: 255 }).notNull(),
+  roundId: integer("round_id").notNull(),
+  amount: integer("amount").notNull(),
+  status: text("status").notNull().default("placed"),
+  cashoutMult: decimal("cashout_mult", { precision: 8, scale: 2 }),
+  wonAmount: integer("won_amount"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const sportMatchesTable = pgTable("sport_matches", {
   id: serial("id").primaryKey(),
   fixtureId: integer("fixture_id").notNull().unique(),
