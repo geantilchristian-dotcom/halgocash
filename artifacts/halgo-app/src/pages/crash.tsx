@@ -392,6 +392,9 @@ export default function CrashGame() {
   const [cashedOut, setCashedOut]       = useState(false);
   const [cashoutMult, setCashoutMult]   = useState<number | null>(null);
   const [winAmount, setWinAmount]       = useState<number | null>(null);
+  const [halfCashedOut, setHalfCashedOut]   = useState(false);
+  const [halfCashoutMult, setHalfCashoutMult] = useState<number | null>(null);
+  const [halfWonAmount, setHalfWonAmount]   = useState<number | null>(null);
 
   const [feed, setFeed]                 = useState<FeedEntry[]>([]);
 
@@ -402,7 +405,7 @@ export default function CrashGame() {
   const crashPointRef     = useRef(2.0);
   const startTimeRef      = useRef<number>(0);
   const rafRef            = useRef<number | null>(null);
-  const betRef            = useRef({ placed: false, amount: 0, cashedOut: false, autoCashout: 0 });
+  const betRef            = useRef({ placed: false, amount: 0, cashedOut: false, autoCashout: 0, halfCashedOut: false });
   const currentRoundRef   = useRef<number>(currentRoundId());
   const particlesRef      = useRef<Particle[]>([]);
   const lastParticleRef   = useRef<number>(0);
@@ -480,7 +483,7 @@ export default function CrashGame() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Cash-out ──────────────────────────────────────────────────────────────
+  // ── Cash-out (full) ───────────────────────────────────────────────────────
   const doCashOut = useCallback((atMult: number, betAmount: number) => {
     if (betRef.current.cashedOut) return;
     betRef.current.cashedOut = true;
@@ -506,6 +509,35 @@ export default function CrashGame() {
       .catch(() => {});
   }, [authFetch, user?.id]);
 
+  // ── Cash-out (50% partial) ────────────────────────────────────────────────
+  const doHalfCashOut = useCallback((atMult: number) => {
+    if (betRef.current.cashedOut || betRef.current.halfCashedOut) return;
+    const fullBet   = betRef.current.amount;
+    const halfBet   = Math.floor(fullBet / 2);
+    const halfWin   = Math.floor(halfBet * atMult);
+    betRef.current.halfCashedOut = true;
+    betRef.current.amount = fullBet - halfBet; // remaining in play
+    setHalfCashedOut(true);
+    setHalfCashoutMult(atMult);
+    setHalfWonAmount(halfWin);
+    setBalance((prev) => {
+      const nb = prev + halfWin;
+      if (user?.id) writeCachedBalance(user.id, nb);
+      return nb;
+    });
+    setBalanceFlash(true);
+    setTimeout(() => setBalanceFlash(false), 600);
+    authFetch("/api/crash/cashout", { method: "POST", body: JSON.stringify({ wonAmount: halfWin }) })
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { newBalance: number } | null) => {
+        if (d?.newBalance !== undefined) {
+          setBalance(d.newBalance);
+          if (user?.id) writeCachedBalance(user.id, d.newBalance);
+        }
+      })
+      .catch(() => {});
+  }, [authFetch, user?.id]);
+
   // ── Game loop ─────────────────────────────────────────────────────────────
   const startRound = useCallback((roundId: number, msIntoOverride?: number) => {
     if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
@@ -514,7 +546,7 @@ export default function CrashGame() {
     crashPointRef.current = cp;
     currentRoundRef.current = roundId;
     phaseRef.current = "waiting";
-    betRef.current = { placed: false, amount: 0, cashedOut: false, autoCashout: betRef.current.autoCashout };
+    betRef.current = { placed: false, amount: 0, cashedOut: false, autoCashout: betRef.current.autoCashout, halfCashedOut: false };
 
     setPhase("waiting");
     setMultiplier(1.0);
@@ -522,6 +554,9 @@ export default function CrashGame() {
     setCashedOut(false);
     setCashoutMult(null);
     setWinAmount(null);
+    setHalfCashedOut(false);
+    setHalfCashoutMult(null);
+    setHalfWonAmount(null);
 
     const canvas = canvasRef.current;
     if (canvas) drawCurve(canvas, 0, "waiting", cp, lastFlightColorRef.current, [], performance.now());
@@ -640,11 +675,14 @@ export default function CrashGame() {
               setMultiplier(1.0);
               if (c) drawCurve(c, 0, "waiting", crashPointRef.current, lastFlightColorRef.current, [], performance.now());
               setCountdown(BET_WINDOW_S);
-              betRef.current = { placed: false, amount: 0, cashedOut: false, autoCashout: betRef.current.autoCashout };
+              betRef.current = { placed: false, amount: 0, cashedOut: false, autoCashout: betRef.current.autoCashout, halfCashedOut: false };
               setBetPlaced(false);
               setCashedOut(false);
               setCashoutMult(null);
               setWinAmount(null);
+              setHalfCashedOut(false);
+              setHalfCashoutMult(null);
+              setHalfWonAmount(null);
 
               let betRemaining = BET_WINDOW_S;
               const cdBet = setInterval(() => {
@@ -1173,19 +1211,53 @@ export default function CrashGame() {
               </button>
             )}
             {phase === "flying" && betPlaced && !cashedOut && (
-              <button
-                onClick={cashOut}
-                className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[15px] transition-all active:scale-[0.97] flex items-center justify-center gap-2"
-                style={{
-                  background: "linear-gradient(135deg,#16a34a,#22c55e)",
-                  color: "#fff",
-                  boxShadow: "0 4px 28px rgba(34,197,94,0.55)",
-                  animation: "encaisserGlow 0.8s ease-in-out infinite",
-                }}
-              >
-                <span>🛑 ENCAISSER</span>
-                <span className="font-bold">{fMult(multiplier)} · +{fFC(Math.floor(betAmt * multiplier))} FC</span>
-              </button>
+              <div className="space-y-1.5">
+                {/* ½ cashout badge — shown after partial cashout */}
+                {halfCashedOut && halfCashoutMult !== null && halfWonAmount !== null && (
+                  <div
+                    className="flex items-center justify-between px-3 py-1.5 rounded-xl text-[10px] font-bold"
+                    style={{ background: "rgba(250,204,21,0.1)", border: "1px solid rgba(250,204,21,0.25)", color: "#facc15" }}
+                  >
+                    <span>½ encaissé à {fMult(halfCashoutMult)}</span>
+                    <span>+{fFC(halfWonAmount)} FC · {fFC(betRef.current.amount)} FC en jeu</span>
+                  </div>
+                )}
+
+                {/* Full cashout button */}
+                <button
+                  onClick={cashOut}
+                  className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[15px] transition-all active:scale-[0.97] flex items-center justify-center gap-2"
+                  style={{
+                    background: "linear-gradient(135deg,#16a34a,#22c55e)",
+                    color: "#fff",
+                    boxShadow: "0 4px 28px rgba(34,197,94,0.55)",
+                    animation: "encaisserGlow 0.8s ease-in-out infinite",
+                  }}
+                >
+                  <span>🛑 ENCAISSER</span>
+                  <span className="font-bold">
+                    {fMult(multiplier)} · +{fFC(Math.floor(betRef.current.amount * multiplier))} FC
+                  </span>
+                </button>
+
+                {/* 50% partial cashout button — only available once */}
+                {!halfCashedOut && (
+                  <button
+                    onClick={() => doHalfCashOut(parseFloat(multiplier.toFixed(2)))}
+                    className="w-full py-2.5 rounded-2xl font-black uppercase tracking-wide text-[12px] transition-all active:scale-[0.97] flex items-center justify-center gap-2"
+                    style={{
+                      background: "rgba(250,204,21,0.1)",
+                      color: "#facc15",
+                      border: "1px solid rgba(250,204,21,0.3)",
+                    }}
+                  >
+                    <span>½ RETIRER 50%</span>
+                    <span className="font-bold opacity-90">
+                      +{fFC(Math.floor(betRef.current.amount * 0.5 * multiplier))} FC · {fFC(Math.floor(betRef.current.amount * 0.5))} FC restent
+                    </span>
+                  </button>
+                )}
+              </div>
             )}
             {phase === "flying" && betPlaced && cashedOut && (
               <button disabled className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[14px]"
