@@ -139,8 +139,8 @@ interface Particle {
 // After crash: 2s crash display → 10s betting window → fly
 const ROUND_MS       = 30000;
 const CRASH_SHOW_S   = 2;      // how long crash result is shown
-const BET_WINDOW_S   = 10;     // betting countdown (replaces old "prochain match")
-const FLIGHT_START_MS = (CRASH_SHOW_S + BET_WINDOW_S) * 1000; // 12 000 ms
+const BET_WINDOW_S   = 15;     // betting countdown
+const FLIGHT_START_MS = (CRASH_SHOW_S + BET_WINDOW_S) * 1000; // 17 000 ms
 
 function currentRoundId(): number {
   return Math.floor(Date.now() / ROUND_MS);
@@ -622,6 +622,16 @@ export default function CrashGame() {
           setCountdown(BET_WINDOW_S);
           setBettingFeed([]);
           scheduleBettingTick();
+          // Refresh round ID — new server cycle starts at crash time, ensure we have it
+          void fetch("/api/crash/round")
+            .then(r => r.ok ? r.json() as Promise<{ roundId: number; crashPoint?: number; betting?: boolean }> : null)
+            .then(rd => {
+              if (roundGenRef.current !== gen) return;
+              if (rd?.roundId) {
+                currentRoundRef.current = rd.roundId;
+                if (rd.crashPoint) crashPointRef.current = rd.crashPoint;
+              }
+            }).catch(() => {});
           let betRemaining = BET_WINDOW_S;
           const cdBet = setInterval(() => {
             if (roundGenRef.current !== gen) { clearInterval(cdBet); return; }
@@ -744,6 +754,17 @@ export default function CrashGame() {
               setHalfCashedOut(false);
               setHalfCashoutMult(null);
               setHalfWonAmount(null);
+              // Re-verify round ID — prefetch at crash time may have had race condition
+              // with server setTimeout; re-fetch ensures we have the correct new cycle ID
+              void fetch("/api/crash/round")
+                .then(r => r.ok ? r.json() as Promise<{ roundId: number; crashPoint?: number; betting?: boolean }> : null)
+                .then(rd => {
+                  if (roundGenRef.current !== gen) return;
+                  if (rd?.roundId) {
+                    currentRoundRef.current = rd.roundId;
+                    if (rd.crashPoint) crashPointRef.current = rd.crashPoint;
+                  }
+                }).catch(() => {});
               // Start betting simulation for next round
               setBettingFeed([]);
               setFeed([]);

@@ -17,8 +17,8 @@ function resolveUserId(req: Request): string | null {
 const router = Router();
 
 const CRASH_SHOW_MS  = 2_000;
-const BET_WINDOW_MS  = 10_000;
-const FLIGHT_START_MS = CRASH_SHOW_MS + BET_WINDOW_MS; // 12 000 ms
+const BET_WINDOW_MS  = 15_000;
+const FLIGHT_START_MS = CRASH_SHOW_MS + BET_WINDOW_MS; // 17 000 ms
 
 // ── HMAC crash point (server-secret, unpredictable by clients) ───────────────
 const CRASH_SECRET = process.env.SESSION_SECRET ?? "halgo-crash-secret-fallback";
