@@ -1946,9 +1946,9 @@ export default function Home() {
 
       {/* ══ PARTICIPER MODAL ══ */}
       {showParticipeModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center pb-6 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowParticipeModal(false)} />
-          <div className="relative w-full max-w-sm rounded-3xl overflow-hidden" style={{ background: "#0d1f14", boxShadow: "0 8px 60px rgba(0,0,0,0.8)" }}>
+          <div className="relative w-full max-w-sm rounded-3xl overflow-hidden" style={{ background: "#0d1f14", boxShadow: "0 8px 60px rgba(0,0,0,0.8)", maxHeight: "90dvh", overflowY: "auto" }}>
             {/* Header */}
             <div className="flex items-center justify-between px-5 pt-4 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
               <div className="flex items-center gap-2">

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, isNotNull, sum, count } from "drizzle-orm";
+import { eq, desc, and, isNotNull, isNull, sum, count } from "drizzle-orm";
 import { db, ticketsTable, drawsTable, withdrawalsTable, playerProfilesTable, creditAdjustmentsTable } from "@workspace/db";
 import { getAuth } from "@clerk/express";
 
@@ -158,8 +158,16 @@ router.post("/tickets/activate", async (req, res): Promise<void> => {
     else                      prizeLabel = "🔄 Remboursé";
   }
 
-  // Already activated — block completely and reveal result
-  if (ticket.registeredAt) {
+  // Atomic claim: UPDATE ... WHERE registered_at IS NULL
+  // If another request already claimed it, rowsUpdated = 0 → block.
+  const claimed = await db
+    .update(ticketsTable)
+    .set({ registeredByClerkId: effectiveUserId ?? null, registeredAt: new Date() })
+    .where(and(eq(ticketsTable.id, ticket.id), isNull(ticketsTable.registeredAt)))
+    .returning({ id: ticketsTable.id });
+
+  if (claimed.length === 0) {
+    // Either already activated before this request, or race condition lost
     const msg = ticket.isWinner
       ? `Ce ticket a déjà été gratté — Résultat : ${prizeLabel} (${amount.toLocaleString("fr-FR")} FC). Il ne peut plus être utilisé.`
       : "Ce ticket a déjà été gratté — Résultat : Perdant. Il ne peut plus être utilisé.";
@@ -172,12 +180,6 @@ router.post("/tickets/activate", async (req, res): Promise<void> => {
     });
     return;
   }
-
-  // Always mark ticket as scratched; link to whoever activated it
-  await db
-    .update(ticketsTable)
-    .set({ registeredByClerkId: effectiveUserId ?? null, registeredAt: new Date() })
-    .where(eq(ticketsTable.id, ticket.id));
 
 
   // Compute authoritative new balance in the same request so the client
