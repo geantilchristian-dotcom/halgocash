@@ -311,6 +311,22 @@ export async function runMigrations() {
       )
     `);
 
+    // Malette Secrète game sessions
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS malette_games (
+        id SERIAL PRIMARY KEY,
+        clerk_id VARCHAR(255) NOT NULL,
+        bet_amount INTEGER NOT NULL,
+        prize_positions JSON NOT NULL,
+        chosen_index INTEGER,
+        won_mult DECIMAL(5,2),
+        won_amount INTEGER,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        resolved_at TIMESTAMP
+      )
+    `);
+
     logger.info("Database migrations completed successfully");
   } finally {
     client.release();

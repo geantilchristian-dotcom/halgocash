@@ -194,6 +194,21 @@ const GAMES: GameDef[] = [
     accent: "#1abc9c",
     route: "/app/mines",
   },
+  {
+    name: "Malette Secrète",
+    coverKey: "halgo_cover_malette",
+    badge: "NOUVEAU",
+    badgeColor: "#b45309",
+    bg: "linear-gradient(160deg,#1a0f00 0%,#2e1e00 50%,#110c00 100%)",
+    previewBg: "radial-gradient(ellipse at 50% 80%, #F5C51855 0%, transparent 70%)",
+    Icon: Gift,
+    iconSize: 32,
+    glow: "#F5C518",
+    players: "412",
+    multiplier: "×5",
+    accent: "#F5C518",
+    route: "/app/malette",
+  },
 ];
 
 interface Notif {
