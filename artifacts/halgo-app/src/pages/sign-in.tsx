@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSignIn } from "@clerk/react";
 import { Link, useLocation } from "wouter";
 import { Eye, EyeOff, Loader2, AlertCircle, ArrowRight, ShieldCheck } from "lucide-react";
@@ -54,6 +54,14 @@ export default function SignInPage() {
   const [loading, setLoading]             = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError]                 = useState<string | null>(null);
+  const [clerkTimedOut, setClerkTimedOut] = useState(false);
+
+  // If Clerk hasn't loaded after 12 s, show an actionable error instead of forever-disabled buttons
+  useEffect(() => {
+    if (isLoaded) return;
+    const t = setTimeout(() => setClerkTimedOut(true), 12000);
+    return () => clearTimeout(t);
+  }, [isLoaded]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -254,12 +262,14 @@ export default function SignInPage() {
                 <span style={{ color: "rgba(255,255,255,0.75)", fontSize: "0.88rem", fontWeight: 500 }}>Se souvenir de moi</span>
               </label>
 
-              {/* Erreur */}
-              {error && (
+              {/* Erreur / timeout Clerk */}
+              {(error || clerkTimedOut) && (
                 <div className="flex items-start gap-2.5 rounded-2xl px-4 py-3"
                   style={{ background: "rgba(239,68,68,0.09)", border: "1px solid rgba(239,68,68,0.25)" }}>
                   <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                  <span style={{ color: "#f87171", fontSize: "0.82rem", lineHeight: 1.5 }}>{error}</span>
+                  <span style={{ color: "#f87171", fontSize: "0.82rem", lineHeight: 1.5 }}>
+                    {error ?? "Service d'authentification indisponible. Vérifiez votre connexion internet et rechargez la page."}
+                  </span>
                 </div>
               )}
 
@@ -267,15 +277,15 @@ export default function SignInPage() {
               <button
                 type="button"
                 onClick={() => { void handleSubmit(); }}
-                disabled={!isLoaded || loading}
+                disabled={!isLoaded || loading || clerkTimedOut}
                 className="w-full flex items-center justify-center gap-2 rounded-2xl font-bold transition-all active:scale-[0.98] disabled:opacity-60"
                 style={{
                   height: 56, fontSize: "1rem", letterSpacing: "0.01em",
-                  background: (!isLoaded || loading) ? "rgba(58,171,58,0.6)" : "linear-gradient(135deg,#3aab3a 0%,#4dc44d 100%)",
-                  color: "#fff", border: "none", cursor: (!isLoaded || loading) ? "default" : "pointer",
+                  background: loading ? "rgba(58,171,58,0.6)" : "linear-gradient(135deg,#3aab3a 0%,#4dc44d 100%)",
+                  color: "#fff", border: "none", cursor: (loading || !isLoaded) ? "default" : "pointer",
                   boxShadow: "0 4px 20px rgba(58,171,58,0.4)",
                 }}>
-                {(!isLoaded || loading)
+                {loading
                   ? <Loader2 className="w-5 h-5 animate-spin" />
                   : <><span>Se connecter</span><ArrowRight className="w-5 h-5" /></>}
               </button>
@@ -291,15 +301,15 @@ export default function SignInPage() {
               <button
                 type="button"
                 onClick={handleGoogle}
-                disabled={!isLoaded || googleLoading}
+                disabled={!isLoaded || googleLoading || clerkTimedOut}
                 className="w-full flex items-center justify-center gap-3 rounded-2xl font-semibold transition-all active:scale-[0.98] disabled:opacity-60"
                 style={{
                   height: 56, fontSize: "0.95rem",
-                  background: (!isLoaded || googleLoading) ? "rgba(255,255,255,0.85)" : "#ffffff",
-                  color: "#1a1a1a", border: "none", cursor: (!isLoaded || googleLoading) ? "default" : "pointer",
+                  background: "#ffffff",
+                  color: "#1a1a1a", border: "none", cursor: (googleLoading || !isLoaded) ? "default" : "pointer",
                   boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
                 }}>
-                {(!isLoaded || googleLoading) ? <Loader2 className="w-5 h-5 animate-spin text-gray-500" /> : <GoogleIcon />}
+                {googleLoading ? <Loader2 className="w-5 h-5 animate-spin text-gray-500" /> : <GoogleIcon />}
                 <span>Continuer avec Google</span>
               </button>
 
