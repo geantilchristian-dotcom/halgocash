@@ -5,6 +5,15 @@ import { Eye, EyeOff, Loader2, AlertCircle, ArrowRight, ShieldCheck } from "luci
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+function clerkTimeout<T>(promise: Promise<T>, ms = 15000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject({ _timeout: true }), ms)
+    ),
+  ]);
+}
+
 function GoogleIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -53,24 +62,27 @@ export default function SignInPage() {
     if (!identifier.trim() || !password.trim()) { setError("Veuillez remplir tous les champs."); return; }
     setLoading(true);
     try {
-      const result = await signIn.create({ identifier: identifier.trim(), password });
+      const result = await clerkTimeout(signIn.create({ identifier: identifier.trim(), password }));
       if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
+        await clerkTimeout(setActive({ session: result.createdSessionId }));
         setLocation(`${basePath}/app`);
       }
     } catch (err: unknown) {
-      const e = err as { errors?: { code?: string; longMessage?: string; message?: string }[] };
-      const code = e.errors?.[0]?.code ?? "";
-      const translations: Record<string, string> = {
-        form_password_incorrect:      "Mot de passe incorrect.",
-        form_identifier_not_found:    "Aucun compte trouvé avec cet identifiant.",
-        too_many_requests:            "Trop de tentatives. Réessayez dans quelques minutes.",
-        strategy_for_user_not_found:  "Ce compte utilise une autre méthode de connexion (ex: Google).",
-        form_param_format_invalid:    "Identifiant invalide.",
-        session_exists:               "Vous êtes déjà connecté(e).",
-        identifier_already_signed_in: "Vous êtes déjà connecté(e).",
-      };
-      setError(translations[code] ?? e.errors?.[0]?.longMessage ?? e.errors?.[0]?.message ?? "Identifiant ou mot de passe incorrect.");
+      const e = err as { _timeout?: boolean; errors?: { code?: string; longMessage?: string; message?: string }[] };
+      if (e._timeout) { setError("Connexion trop lente. Vérifiez votre réseau et réessayez."); }
+      else {
+        const code = e.errors?.[0]?.code ?? "";
+        const translations: Record<string, string> = {
+          form_password_incorrect:      "Mot de passe incorrect.",
+          form_identifier_not_found:    "Aucun compte trouvé. Inscrivez-vous d'abord.",
+          too_many_requests:            "Trop de tentatives. Réessayez dans quelques minutes.",
+          strategy_for_user_not_found:  "Ce compte utilise une autre méthode (ex: Google).",
+          form_param_format_invalid:    "Identifiant invalide.",
+          session_exists:               "Vous êtes déjà connecté(e).",
+          identifier_already_signed_in: "Vous êtes déjà connecté(e).",
+        };
+        setError(translations[code] ?? e.errors?.[0]?.longMessage ?? e.errors?.[0]?.message ?? "Identifiant ou mot de passe incorrect.");
+      }
     } finally {
       setLoading(false);
     }
@@ -81,14 +93,18 @@ export default function SignInPage() {
     setGoogleLoading(true);
     setError(null);
     try {
-      await signIn.authenticateWithRedirect({
+      await clerkTimeout(signIn.authenticateWithRedirect({
         strategy: "oauth_google",
         redirectUrl: `${window.location.origin}${basePath}/sso-callback`,
         redirectUrlComplete: `${window.location.origin}${basePath}/app`,
-      });
+      }), 12000);
     } catch (err: unknown) {
-      const e = err as { errors?: { message?: string }[] };
-      setError(e.errors?.[0]?.message ?? "Erreur lors de la connexion Google. Réessayez.");
+      const e = err as { _timeout?: boolean; errors?: { message?: string }[] };
+      if (e._timeout) {
+        setError("Google ne répond pas. Vérifiez votre connexion et réessayez.");
+      } else {
+        setError(e.errors?.[0]?.message ?? "Erreur lors de la connexion Google. Réessayez.");
+      }
       setGoogleLoading(false);
     }
   };

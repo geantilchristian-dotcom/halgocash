@@ -9,6 +9,15 @@ import {
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+function clerkTimeout<T>(promise: Promise<T>, ms = 15000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject({ _timeout: true }), ms)
+    ),
+  ]);
+}
+
 type Step = "form" | "verify";
 
 export default function SignUpPage() {
@@ -50,36 +59,40 @@ export default function SignUpPage() {
       if (referralCode.trim()) {
         try { localStorage.setItem("halgo_pending_referral", referralCode.trim().toUpperCase()); } catch { /* ignore */ }
       }
-      await signUp.create({
+      await clerkTimeout(signUp.create({
         firstName: prenom,
         lastName: `${nom} ${postNom}`.trim(),
         emailAddress: email,
         password,
         unsafeMetadata: { postNom, phone, address },
-      });
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      }));
+      await clerkTimeout(signUp.prepareEmailAddressVerification({ strategy: "email_code" }));
       setStep("verify");
     } catch (err: unknown) {
-      const e = err as { errors?: { longMessage?: string; message?: string; code?: string }[]; message?: string };
-      const clerkErr = e.errors?.[0];
-      const code = clerkErr?.code ?? "";
-      const translations: Record<string, string> = {
-        form_identifier_exists:      "Cette adresse email est déjà utilisée. Connectez-vous ou utilisez une autre email.",
-        form_password_pwned:         "Ce mot de passe est trop commun. Choisissez-en un plus sécurisé.",
-        form_password_too_short:     "Mot de passe trop court (minimum 8 caractères).",
-        form_param_format_invalid:   "Adresse email invalide.",
-        form_param_nil:              "Veuillez remplir tous les champs obligatoires.",
-        session_exists:              "Vous êtes déjà connecté(e).",
-        too_many_requests:           "Trop de tentatives. Réessayez dans quelques minutes.",
-        strategy_for_user_not_found: "Méthode de connexion non reconnue pour ce compte.",
-      };
-      setError(
-        translations[code] ??
-        clerkErr?.longMessage ??
-        clerkErr?.message ??
-        e.message ??
-        "Erreur lors de l'inscription. Vérifiez vos informations et réessayez."
-      );
+      const e = err as { _timeout?: boolean; errors?: { longMessage?: string; message?: string; code?: string }[]; message?: string };
+      if (e._timeout) {
+        setError("Réseau trop lent. Vérifiez votre connexion et réessayez.");
+      } else {
+        const clerkErr = e.errors?.[0];
+        const code = clerkErr?.code ?? "";
+        const translations: Record<string, string> = {
+          form_identifier_exists:      "Email déjà utilisé. Connectez-vous ou utilisez une autre adresse.",
+          form_password_pwned:         "Mot de passe trop commun. Choisissez-en un plus sécurisé.",
+          form_password_too_short:     "Mot de passe trop court (minimum 8 caractères).",
+          form_param_format_invalid:   "Adresse email invalide.",
+          form_param_nil:              "Veuillez remplir tous les champs obligatoires.",
+          session_exists:              "Vous êtes déjà connecté(e).",
+          too_many_requests:           "Trop de tentatives. Réessayez dans quelques minutes.",
+          strategy_for_user_not_found: "Méthode de connexion non reconnue pour ce compte.",
+        };
+        setError(
+          translations[code] ??
+          clerkErr?.longMessage ??
+          clerkErr?.message ??
+          e.message ??
+          "Erreur lors de l'inscription. Vérifiez vos informations et réessayez."
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -92,13 +105,14 @@ export default function SignUpPage() {
     setLoading(true);
     setError(null);
     try {
-      await signUp.attemptEmailAddressVerification({ code: otp });
+      await clerkTimeout(signUp.attemptEmailAddressVerification({ code: otp }));
       if (signUp.status === "complete") {
-        await setActive({ session: signUp.createdSessionId });
+        await clerkTimeout(setActive({ session: signUp.createdSessionId }));
       }
     } catch (err: unknown) {
-      const e = err as { errors?: { longMessage?: string; message?: string }[] };
-      setError(e.errors?.[0]?.longMessage ?? e.errors?.[0]?.message ?? "Code invalide");
+      const e = err as { _timeout?: boolean; errors?: { longMessage?: string; message?: string }[] };
+      if (e._timeout) { setError("Réseau trop lent. Réessayez."); }
+      else { setError(e.errors?.[0]?.longMessage ?? e.errors?.[0]?.message ?? "Code invalide."); }
     } finally {
       setLoading(false);
     }
