@@ -10,7 +10,7 @@ interface FeedEntry { id: string; mult: number; amount: number; ts: number; key:
 interface BetEntry  { id: string; amount: number; ts: number; key: number }
 
 function fFC(n: number) {
-  return new Intl.NumberFormat("fr-FR").format(Math.round(n)).replace(/\s/g, ".");
+  return new Intl.NumberFormat("fr-FR").format(Math.round(n)).replace(/[\u00a0\s]/g, " ");
 }
 function fMult(m: number) { return m.toFixed(2) + "×"; }
 
@@ -795,6 +795,7 @@ export default function CrashGame() {
     if (syncing || phase !== "waiting" || betLoading) return;
     const amt = overrideAmt ?? parseInt(betInput.replace(/\D/g, ""), 10);
     if (!amt || amt < 100) return;
+    if (amt > 10_000) return;
     if (amt > balance) return;
     setBetLoading(true);
     setBetError(null);
@@ -1201,9 +1202,10 @@ export default function CrashGame() {
                 disabled={betPlaced}
                 className="flex-1 bg-transparent text-center font-black text-white outline-none disabled:opacity-50 text-[14px]"
                 min={100}
+                max={10000}
               />
               <button
-                onClick={() => setBetInput((v) => String((parseInt(v) || 0) + 500))}
+                onClick={() => setBetInput((v) => String(Math.min(10_000, (parseInt(v) || 0) + 500)))}
                 disabled={betPlaced}
                 className="w-9 h-9 flex items-center justify-center font-black text-lg transition-all active:scale-90 disabled:opacity-30"
                 style={{ color: "rgba(255,255,255,0.6)" }}
@@ -1225,7 +1227,7 @@ export default function CrashGame() {
               ))}
               {balance > 0 && (
                 <button
-                  onClick={() => setBetInput(String(Math.floor(balance)))}
+                  onClick={() => setBetInput(String(Math.min(10_000, Math.floor(balance))))}
                   disabled={betPlaced}
                   className="flex-1 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all active:scale-95 disabled:opacity-30"
                   style={{ background: "rgba(141,198,63,0.08)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.15)" }}

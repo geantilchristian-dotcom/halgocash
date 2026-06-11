@@ -110,7 +110,7 @@ router.get("/crash/round", (_req, res): void => {
 
 // ── POST /api/crash/bet ───────────────────────────────────────────────────────
 const BetBody = z.object({
-  amount:  z.number().int().min(100).max(10_000_000),
+  amount:  z.number().int().min(100).max(10_000),
   roundId: z.number().int().positive(),
 });
 
