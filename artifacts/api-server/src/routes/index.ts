@@ -20,6 +20,7 @@ import jackpotPosterRouter from "./jackpot-poster";
 import gameCoversRouter from "./game-covers";
 import crashRouter from "./crash";
 import rouletteRouter from "./roulette";
+import transferRouter from "./transfer";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use(jackpotPosterRouter);
 router.use(gameCoversRouter);
 router.use(crashRouter);
 router.use(rouletteRouter);
+router.use(transferRouter);
 
 export default router;

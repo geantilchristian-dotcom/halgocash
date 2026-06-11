@@ -282,6 +282,17 @@ export default function Home() {
   const [balanceHidden,     setBalanceHidden]     = useState(false);
   const [showNotifPanel,    setShowNotifPanel]    = useState(false);
 
+  // ── Send money ──
+  const [showActionSheet,  setShowActionSheet]  = useState(false);
+  const [showSendMoney,    setShowSendMoney]    = useState(false);
+  const [sendCode,         setSendCode]         = useState("");
+  const [sendAmount,       setSendAmount]       = useState("");
+  const [sendLoading,      setSendLoading]      = useState(false);
+  const [sendError,        setSendError]        = useState<string | null>(null);
+  const [sendSuccess,      setSendSuccess]      = useState<{ refId: string; amount: number } | null>(null);
+  const [sendCodeValid,    setSendCodeValid]    = useState<boolean | null>(null);
+  const [sendValidating,   setSendValidating]   = useState(false);
+
   // Notifications
   const [notifs,      setNotifs]      = useState<Notif[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -579,6 +590,54 @@ export default function Home() {
     void fetchBalance();
   };
   const openRetrait = () => { setRetraitAmount(""); setRetraitQR(null); setRetraitPaid(null); setRetraitError(null); setShowRetrait(true); };
+
+  // ── Send money helpers ──
+  const openSendMoney = () => {
+    setSendCode(""); setSendAmount(""); setSendError(null); setSendSuccess(null); setSendCodeValid(null);
+    setShowActionSheet(false);
+    setShowSendMoney(true);
+  };
+  const closeSendMoney = () => {
+    setShowSendMoney(false);
+    setSendCode(""); setSendAmount(""); setSendError(null); setSendSuccess(null); setSendCodeValid(null);
+  };
+
+  const validateSendCode = useCallback(async (rawCode: string) => {
+    const code = rawCode.trim().toUpperCase().replace(/-/g, "");
+    if (code.length < 3) { setSendCodeValid(null); return; }
+    setSendValidating(true);
+    try {
+      const res = await authFetch(`/api/transfer/validate/${encodeURIComponent(code)}`);
+      if (res.ok) {
+        const d = await res.json() as { exists: boolean };
+        setSendCodeValid(d.exists);
+      }
+    } catch { setSendCodeValid(null); }
+    finally { setSendValidating(false); }
+  }, [authFetch]);
+
+  const submitSend = async () => {
+    const code = sendCode.trim().toUpperCase().replace(/-/g, "");
+    const amt = parseFloat(sendAmount.replace(/\s/g, "").replace(",", "."));
+    if (!code) { setSendError("Entrez l'identifiant du destinataire"); return; }
+    if (!sendCodeValid) { setSendError("Identifiant introuvable"); return; }
+    if (!amt || amt <= 0) { setSendError("Entrez un montant valide"); return; }
+    if (amt < 1) { setSendError("Montant minimum : 1 FC"); return; }
+    if (balance !== null && amt > balance) { setSendError(`Solde insuffisant — vous avez ${Math.round(balance).toLocaleString("fr-FR")} FC`); return; }
+    setSendLoading(true); setSendError(null);
+    try {
+      const res = await authFetch("/api/transfer/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipientCode: code, amount: amt }),
+      });
+      const d = await res.json() as { ok?: boolean; error?: string; refId?: string };
+      if (!res.ok) { setSendError(d.error ?? "Erreur lors du transfert"); return; }
+      setSendSuccess({ refId: d.refId ?? "", amount: amt });
+      void fetchBalance();
+    } catch { setSendError("Erreur de connexion"); }
+    finally { setSendLoading(false); }
+  };
   const submitRetrait = async () => {
     const amt = parseFloat(retraitAmount.replace(/\s/g, "").replace(",", "."));
     if (!amt || amt <= 0) { setRetraitError("Entrez un montant valide"); return; }
@@ -753,9 +812,9 @@ export default function Home() {
             )}
           </div>
 
-          {/* Green "+" button — opens retrait */}
+          {/* Green "+" button — opens action sheet */}
           <button
-            onClick={openRetrait}
+            onClick={() => setShowActionSheet(true)}
             className="w-9 h-9 rounded-full flex items-center justify-center font-black text-xl transition-all active:scale-90"
             style={{
               background: "#8DC63F",
@@ -1497,6 +1556,241 @@ export default function Home() {
                 </button>
                 <p className="text-[10px] text-center pb-2" style={{ color: "rgba(255,255,255,0.3)" }}>
                   Minimum de retrait : 500 FC · Traitement sous 24h ouvrées
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════ ACTION SHEET — "+" button ═══════════════ */}
+      {showActionSheet && (
+        <div
+          className="fixed inset-0 z-[200] flex items-end justify-center"
+          style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)" }}
+          onClick={() => setShowActionSheet(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-t-3xl pb-8 pt-5 px-4 space-y-3"
+            style={{ background: "#0f1f12", border: "1px solid rgba(141,198,63,0.15)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <div className="w-10 h-1 rounded-full mx-auto mb-4" style={{ background: "rgba(255,255,255,0.15)" }} />
+
+            <p className="text-[11px] font-black uppercase tracking-widest text-center mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Que souhaitez-vous faire ?
+            </p>
+
+            {/* Retrait */}
+            <button
+              onClick={() => { setShowActionSheet(false); openRetrait(); }}
+              className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all active:scale-[0.97]"
+              style={{ background: "rgba(245,197,24,0.08)", border: "1px solid rgba(245,197,24,0.2)" }}
+            >
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(245,197,24,0.15)" }}>
+                <QrCode style={{ width: 20, height: 20, color: "#F5C518" }} />
+              </div>
+              <div className="text-left">
+                <p className="font-black text-white text-[14px] leading-tight">Retrait d'argent</p>
+                <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>Générer un QR code pour retirer en agence</p>
+              </div>
+            </button>
+
+            {/* Dédier à un ami */}
+            <button
+              onClick={openSendMoney}
+              className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all active:scale-[0.97]"
+              style={{ background: "rgba(141,198,63,0.08)", border: "1px solid rgba(141,198,63,0.2)" }}
+            >
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(141,198,63,0.15)" }}>
+                <Users style={{ width: 20, height: 20, color: "#8DC63F" }} />
+              </div>
+              <div className="text-left">
+                <p className="font-black text-white text-[14px] leading-tight">Dédier à un ami</p>
+                <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>Envoyer des FC directement sur le compte d'un ami</p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setShowActionSheet(false)}
+              className="w-full py-3 rounded-2xl font-bold text-[13px] mt-1 transition-all active:scale-[0.97]"
+              style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════ SEND MONEY MODAL ═══════════════ */}
+      {showSendMoney && (
+        <div
+          className="fixed inset-0 z-[200] flex items-end justify-center"
+          style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}
+          onClick={closeSendMoney}
+        >
+          <div
+            className="w-full max-w-sm rounded-t-3xl pb-8 pt-5"
+            style={{ background: "#0f1f12", border: "1px solid rgba(141,198,63,0.15)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ background: "rgba(255,255,255,0.15)" }} />
+
+            {sendSuccess ? (
+              /* ── Succès ── */
+              <div className="px-5 flex flex-col items-center gap-5 pb-2">
+                <div
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl"
+                  style={{ background: "rgba(141,198,63,0.12)", border: "1px solid rgba(141,198,63,0.3)" }}
+                >
+                  ✅
+                </div>
+                <div className="text-center">
+                  <p className="text-white font-black text-[20px] mb-1">Transfert réussi !</p>
+                  <p className="text-[13px]" style={{ color: "rgba(255,255,255,0.55)" }}>
+                    <span className="text-white font-black">{formatFC(sendSuccess.amount)} FC</span> ont été envoyés
+                  </p>
+                  <p className="text-[10px] mt-2 font-mono" style={{ color: "rgba(255,255,255,0.25)" }}>
+                    Réf : {sendSuccess.refId}
+                  </p>
+                </div>
+                <button
+                  onClick={closeSendMoney}
+                  className="w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-widest"
+                  style={{ background: "linear-gradient(135deg,#8DC63F,#6baa2a)", color: "#0a1f0e" }}
+                >
+                  Fermer
+                </button>
+              </div>
+            ) : (
+              /* ── Formulaire ── */
+              <div className="px-5 space-y-4">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-1">
+                  <div>
+                    <p className="text-white font-black text-[17px] leading-tight">Dédier à un ami</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                      Solde disponible : <span className="text-white font-bold">{balance !== null ? formatFC(balance) : "…"} FC</span>
+                    </p>
+                  </div>
+                  <button onClick={closeSendMoney} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "rgba(255,255,255,0.08)" }}>
+                    <X style={{ width: 15, height: 15, color: "rgba(255,255,255,0.5)" }} />
+                  </button>
+                </div>
+
+                {/* ID destinataire */}
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    ID Halgo du destinataire
+                  </p>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="ex: HLG-XXXXX"
+                      value={sendCode}
+                      onChange={(e) => {
+                        const v = e.target.value.toUpperCase();
+                        setSendCode(v);
+                        setSendCodeValid(null);
+                        setSendError(null);
+                        clearTimeout((window as unknown as { _scTimer?: ReturnType<typeof setTimeout> })._scTimer);
+                        (window as unknown as { _scTimer?: ReturnType<typeof setTimeout> })._scTimer = setTimeout(() => {
+                          void validateSendCode(v);
+                        }, 600);
+                      }}
+                      className="w-full px-4 py-3.5 rounded-xl font-black text-base outline-none border-2 transition-all pr-10"
+                      style={{
+                        background: "rgba(255,255,255,0.05)",
+                        borderColor: sendCodeValid === true ? "#8DC63F" : sendCodeValid === false ? "#ef4444" : "rgba(255,255,255,0.12)",
+                        color: "#fff",
+                        letterSpacing: "0.08em",
+                        fontFamily: "'Courier New', monospace",
+                      }}
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {sendValidating && <Loader2 style={{ width: 16, height: 16, color: "rgba(255,255,255,0.4)" }} className="animate-spin" />}
+                      {!sendValidating && sendCodeValid === true  && <CheckCircle style={{ width: 16, height: 16, color: "#8DC63F" }} />}
+                      {!sendValidating && sendCodeValid === false && <AlertCircle style={{ width: 16, height: 16, color: "#ef4444" }} />}
+                    </div>
+                  </div>
+                  {sendCodeValid === false && (
+                    <p className="text-[11px] mt-1" style={{ color: "#ef4444" }}>Aucun compte trouvé avec cet ID</p>
+                  )}
+                  {sendCodeValid === true && (
+                    <p className="text-[11px] mt-1" style={{ color: "#8DC63F" }}>✓ Compte trouvé</p>
+                  )}
+                  <p className="text-[10px] mt-1.5" style={{ color: "rgba(255,255,255,0.3)" }}>
+                    L'ID Halgo s'affiche en haut à gauche de l'appli, sous le nom <em>halgoCash</em>
+                  </p>
+                </div>
+
+                {/* Montant */}
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    Montant à envoyer (FC)
+                  </p>
+                  {/* Raccourcis */}
+                  {balance && balance > 0 && (
+                    <div className="grid grid-cols-4 gap-2 mb-2">
+                      {[0.1, 0.25, 0.5, 1].map((f, i) => {
+                        const amt = Math.floor(balance * f);
+                        return (
+                          <button
+                            key={i}
+                            onClick={() => { setSendAmount(String(amt)); setSendError(null); }}
+                            className="py-2 rounded-xl text-[11px] font-black transition-all active:scale-95"
+                            style={{
+                              background: sendAmount === String(amt) ? "linear-gradient(135deg,#8DC63F,#6baa2a)" : "rgba(255,255,255,0.07)",
+                              color: sendAmount === String(amt) ? "#0a1f0e" : "#fff",
+                            }}
+                          >
+                            {["10%","25%","50%","MAX"][i]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={1}
+                      inputMode="numeric"
+                      placeholder="0"
+                      value={sendAmount}
+                      onChange={(e) => { setSendAmount(e.target.value); setSendError(null); }}
+                      className="w-full px-4 py-3.5 rounded-xl font-black text-2xl outline-none border-2 transition-all pr-16"
+                      style={{
+                        background: "rgba(255,255,255,0.05)",
+                        borderColor: sendError ? "#ef4444" : "rgba(255,255,255,0.12)",
+                        color: "#fff",
+                      }}
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "rgba(255,255,255,0.4)" }}>FC</span>
+                  </div>
+                </div>
+
+                {sendError && (
+                  <p className="text-red-400 text-xs flex items-center gap-1.5">
+                    <AlertCircle style={{ width: 14, height: 14 }} className="shrink-0" />{sendError}
+                  </p>
+                )}
+
+                <button
+                  onClick={() => { void submitSend(); }}
+                  disabled={sendLoading || !sendCodeValid || !sendAmount}
+                  className="w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40"
+                  style={{ background: "linear-gradient(135deg,#8DC63F,#6baa2a)", color: "#0a1f0e", boxShadow: "0 4px 16px rgba(141,198,63,0.35)" }}
+                >
+                  {sendLoading
+                    ? <><Loader2 style={{ width: 16, height: 16 }} className="animate-spin" /> ENVOI…</>
+                    : <><Gift style={{ width: 16, height: 16 }} /> ENVOYER</>
+                  }
+                </button>
+
+                <p className="text-[10px] text-center pb-1" style={{ color: "rgba(255,255,255,0.25)" }}>
+                  Les transferts entre comptes Halgo sont instantanés et irréversibles
                 </p>
               </div>
             )}
