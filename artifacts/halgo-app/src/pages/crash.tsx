@@ -364,6 +364,7 @@ export default function CrashGame() {
 
   const [playerId] = useState<string>(() => getOrCreatePlayerId());
 
+  const [syncing, setSyncing]           = useState(true);
   const [phase, setPhase]               = useState<Phase>("waiting");
   const [multiplier, setMultiplier]     = useState(1.0);
   const [countdown, setCountdown]       = useState(BET_WINDOW_S);
@@ -766,14 +767,21 @@ export default function CrashGame() {
       .then((data: { roundId: number; crashPoint?: number; msIntoRound: number; serverMs: number; commitment?: string; betting?: boolean } | null) => {
         if (cancelled) return;
         if (data) {
-          const networkOffset = (Date.now() - data.serverMs) / 2;
-          const adjustedMs = Math.min(ROUND_MS - 1, data.msIntoRound + networkOffset);
+          // Compensate for one-way network latency so we fast-forward to the right position
+          const networkOffset = Math.max(0, (Date.now() - data.serverMs) / 2);
+          const adjustedMs = data.msIntoRound + networkOffset;
           startRound(data.roundId, adjustedMs, data.crashPoint);
         } else {
           startRound(currentRoundId(), undefined, 2.0);
         }
+        setSyncing(false);
       })
-      .catch(() => { if (!cancelled) startRound(currentRoundId(), undefined, 2.0); });
+      .catch(() => {
+        if (!cancelled) {
+          startRound(currentRoundId(), undefined, 2.0);
+          setSyncing(false);
+        }
+      });
 
     return cleanup;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -783,7 +791,7 @@ export default function CrashGame() {
   const [betLoading, setBetLoading] = useState(false);
 
   const placeBet = useCallback(async (overrideAmt?: number) => {
-    if (phase !== "waiting" || betLoading) return;
+    if (syncing || phase !== "waiting" || betLoading) return;
     const amt = overrideAmt ?? parseInt(betInput.replace(/\D/g, ""), 10);
     if (!amt || amt < 100) return;
     if (amt > balance) return;
@@ -800,7 +808,7 @@ export default function CrashGame() {
       setBalance(nb);
       if (user?.id) writeCachedBalance(user.id, nb);
     } catch { /* ignore */ } finally { setBetLoading(false); }
-  }, [phase, betLoading, betInput, balance, authFetch, user?.id]);
+  }, [syncing, phase, betLoading, betInput, balance, authFetch, user?.id]);
 
   const cancelBet = useCallback(async () => {
     if (phase !== "waiting" || !betRef.current.placed) return;
@@ -846,7 +854,7 @@ export default function CrashGame() {
   const color = phase === "crashed" ? lastFlightColorRef.current : multColor(multiplier);
   const quickAmounts = [500, 1000, 2000, 5000];
   const betAmt = parseInt(betInput) || 0;
-  const canBet = betAmt >= 100 && betAmt <= balance && !betLoading;
+  const canBet = !syncing && betAmt >= 100 && betAmt <= balance && !betLoading;
   const isBlocked = balanceLoaded && balance === 0;
 
   return (
@@ -903,6 +911,21 @@ export default function CrashGame() {
         style={{ height: 240, background: "#080f0a" }}
       >
         <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block" }} />
+
+        {/* Syncing overlay — shown until first server response */}
+        {syncing && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ background: "rgba(8,15,10,0.7)" }}>
+            <div className="flex flex-col items-center gap-2">
+              <div
+                className="rounded-full border-2 border-t-transparent animate-spin"
+                style={{ width: 28, height: 28, borderColor: "rgba(141,198,63,0.6)", borderTopColor: "transparent" }}
+              />
+              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "rgba(141,198,63,0.7)" }}>
+                Synchronisation…
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Multiplier overlay */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
