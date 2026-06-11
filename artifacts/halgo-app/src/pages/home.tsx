@@ -365,6 +365,21 @@ export default function Home() {
   // Game cover image errors — tracks which cover URLs returned 404 so we show fallback
   const [coverErrors, setCoverErrors] = useState<Record<string, boolean>>({});
 
+  // Live winner feed (real players from API, padded with simulated fallback)
+  interface LiveFeedEntry { name: string; amount: number; game: string; real: boolean; }
+  const [liveFeed, setLiveFeed] = useState<LiveFeedEntry[]>([]);
+  useEffect(() => {
+    const load = () => {
+      fetch("/api/live-feed")
+        .then(r => r.ok ? r.json() as Promise<LiveFeedEntry[]> : Promise.reject())
+        .then(data => { if (Array.isArray(data) && data.length > 0) setLiveFeed(data); })
+        .catch(() => {});
+    };
+    load();
+    const t = setInterval(load, 30_000); // refresh every 30s
+    return () => clearInterval(t);
+  }, []);
+
   // Parrainage
   const [referralCode,    setReferralCode]    = useState<string | null>(null);
   const [referralCount,   setReferralCount]   = useState(0);
@@ -944,22 +959,28 @@ export default function Home() {
 
         {/* ── Live Ticker ── */}
         {(() => {
-          const wins = [
-            { name: "Jean M.", amount: "45 000" }, { name: "Bijou K.", amount: "120 000" },
-            { name: "Paul T.", amount: "8 500" },  { name: "Grâce L.", amount: "250 000" },
-            { name: "Moise N.", amount: "15 000" }, { name: "Ruth B.", amount: "60 000" },
-            { name: "David M.", amount: "32 000" }, { name: "Esperance O.", amount: "500 000" },
+          const SIM_FALLBACK = [
+            { name: "Jean M.", amount: 45_000, game: "Crash", real: false },
+            { name: "Bijou K.", amount: 120_000, game: "Crash", real: false },
+            { name: "Paul T.", amount: 8_500, game: "Loterie", real: false },
+            { name: "Grâce L.", amount: 250_000, game: "Crash", real: false },
+            { name: "Moise N.", amount: 15_000, game: "Crash", real: false },
+            { name: "Ruth B.", amount: 60_000, game: "Mines", real: false },
+            { name: "David M.", amount: 32_000, game: "Crash", real: false },
+            { name: "Espérance O.", amount: 500_000, game: "Loterie", real: false },
           ];
+          const wins = liveFeed.length > 0 ? liveFeed : SIM_FALLBACK;
           return (
             <div className="overflow-hidden rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
               <div className="flex items-center" style={{ padding: "7px 0" }}>
                 <div style={{ display: "flex", animation: "liveMarquee 22s linear infinite", width: "max-content" }}>
                   {[...wins, ...wins].map((w, i) => (
                     <span key={i} className="flex items-center gap-1.5 px-4 whitespace-nowrap">
-                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#22c55e", boxShadow: "0 0 4px #22c55e" }} />
-                      <span className="text-[9.5px] font-black uppercase" style={{ color: "#22c55e" }}>LIVE</span>
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: w.real ? "#F5C518" : "#22c55e", boxShadow: w.real ? "0 0 4px #F5C518" : "0 0 4px #22c55e" }} />
+                      <span className="text-[9.5px] font-black uppercase" style={{ color: w.real ? "#F5C518" : "#22c55e" }}>{w.real ? "VRAI" : "LIVE"}</span>
                       <span className="text-[9.5px]" style={{ color: "rgba(255,255,255,0.55)" }}>{w.name} a gagné</span>
-                      <span className="text-[9.5px] font-black" style={{ color: "#F5C518" }}>+{w.amount} FC</span>
+                      <span className="text-[9.5px] font-black" style={{ color: "#F5C518" }}>+{formatFC(w.amount)} FC</span>
+                      <span className="text-[8px] px-1 rounded" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}>{w.game}</span>
                     </span>
                   ))}
                 </div>
