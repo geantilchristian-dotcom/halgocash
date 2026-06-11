@@ -1597,7 +1597,7 @@ export default function Home() {
               </div>
             </button>
 
-            {/* Dédier à un ami */}
+            {/* Envoyer à quelqu'un */}
             <button
               onClick={openSendMoney}
               className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all active:scale-[0.97]"
@@ -1607,8 +1607,8 @@ export default function Home() {
                 <Users style={{ width: 20, height: 20, color: "#8DC63F" }} />
               </div>
               <div className="text-left">
-                <p className="font-black text-white text-[14px] leading-tight">Dédier à un ami</p>
-                <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>Envoyer des FC directement sur le compte d'un ami</p>
+                <p className="font-black text-white text-[14px] leading-tight">Envoyer à quelqu'un</p>
+                <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>Envoyer des FC à n'importe quel compte Halgo</p>
               </div>
             </button>
 

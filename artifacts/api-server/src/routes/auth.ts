@@ -256,6 +256,11 @@ router.get("/auth/balance", balanceCheckRateLimit, async (req, res): Promise<voi
     return;
   }
 
+  // Ensure every Clerk-authenticated user has a player profile (for transfers)
+  if (clerkUserId) {
+    getOrCreateProfile(clerkUserId).catch(() => {});
+  }
+
   const [[winsRow], [paidRow], [pendingRow], [creditsRow]] = await Promise.all([
     db.select({ total: sum(ticketsTable.prizeAmount) }).from(ticketsTable)
       .where(and(eq(ticketsTable.registeredByClerkId, effectiveUserId), eq(ticketsTable.isWinner, true), isNotNull(ticketsTable.prizeAmount))),
