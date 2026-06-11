@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSignIn } from "@clerk/react";
 import { Link, useLocation } from "wouter";
 import { Eye, EyeOff, Loader2, AlertCircle, ArrowRight, ShieldCheck } from "lucide-react";
@@ -42,15 +42,38 @@ export default function SignInPage() {
   const [password, setPassword]     = useState("");
   const [showPwd, setShowPwd]       = useState(false);
   const [remember, setRemember]     = useState(false);
-  const [loading, setLoading]       = useState(false);
+  const [loading, setLoading]             = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [error, setError]           = useState<string | null>(null);
+  const [pendingGoogle, setPendingGoogle] = useState(false);
+  const [pendingSubmit, setPendingSubmit] = useState(false);
+  const [error, setError]                 = useState<string | null>(null);
+
+  // Si l'utilisateur a cliqué Google avant que Clerk soit prêt, on déclenche dès qu'il l'est
+  useEffect(() => {
+    if (pendingGoogle && isLoaded && signIn) {
+      setPendingGoogle(false);
+      void triggerGoogle();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingGoogle, isLoaded, signIn]);
+
+  // Idem pour le bouton Se connecter
+  useEffect(() => {
+    if (pendingSubmit && isLoaded && signIn) {
+      setPendingSubmit(false);
+      void handleSubmit();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingSubmit, isLoaded, signIn]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     setError(null);
-    if (!isLoaded) { setError("Chargement en cours, réessayez dans un instant."); return; }
-    if (!signIn)   { setError("Session invalide. Rechargez la page."); return; }
+    if (!isLoaded || !signIn) {
+      setLoading(true);
+      setPendingSubmit(true);
+      return;
+    }
     if (!identifier.trim() || !password.trim()) { setError("Veuillez remplir tous les champs."); return; }
     setLoading(true);
     try {
@@ -77,9 +100,8 @@ export default function SignInPage() {
     }
   };
 
-  const handleGoogle = async () => {
-    if (!isLoaded) { setError("Chargement en cours, réessayez dans un instant."); return; }
-    if (!signIn)   { setError("Session invalide. Rechargez la page."); return; }
+  const triggerGoogle = async () => {
+    if (!signIn) return;
     setGoogleLoading(true);
     setError(null);
     try {
@@ -93,6 +115,16 @@ export default function SignInPage() {
       setError(e.errors?.[0]?.message ?? "Erreur lors de la connexion Google.");
       setGoogleLoading(false);
     }
+  };
+
+  const handleGoogle = () => {
+    setError(null);
+    if (!isLoaded || !signIn) {
+      setGoogleLoading(true);
+      setPendingGoogle(true);
+      return;
+    }
+    void triggerGoogle();
   };
 
   return (
