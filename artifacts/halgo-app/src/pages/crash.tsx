@@ -852,22 +852,6 @@ export default function CrashGame() {
           )}
         </div>
 
-        {/* ARRÊTER button */}
-        {phase === "flying" && betPlaced && !cashedOut && (
-          <button
-            onClick={cashOut}
-            className="absolute bottom-3 left-3 right-3 py-3 rounded-2xl font-black uppercase tracking-wide text-[14px] transition-all active:scale-[0.97] flex items-center justify-center gap-3"
-            style={{
-              background: `linear-gradient(135deg,${color}dd,${color}99)`,
-              color: "#fff",
-              boxShadow: `0 4px 20px ${hexToRgba(color, 0.55)}`,
-              animation: "crashPulse 0.7s ease-in-out infinite",
-            }}
-          >
-            <span>🛑 ARRÊTER — {fMult(multiplier)}</span>
-            <span className="text-[12px] font-bold opacity-90">· +{fFC(Math.floor(betAmt * multiplier))} FC</span>
-          </button>
-        )}
 
         {phase === "flying" && betPlaced && cashedOut && cashoutMult !== null && (
           <div
@@ -1061,10 +1045,18 @@ export default function CrashGame() {
             </button>
           )}
           {phase === "flying" && betPlaced && !cashedOut && (
-            <div className="w-full py-2.5 rounded-2xl text-center text-[11px] font-bold"
-              style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.35)" }}>
-              ↑ Appuyez sur ARRÊTER pour encaisser
-            </div>
+            <button
+              onClick={cashOut}
+              className="w-full py-3 rounded-2xl font-black uppercase tracking-wide text-[13px] transition-all active:scale-[0.97] flex items-center justify-center gap-2"
+              style={{
+                background: `linear-gradient(135deg,${color}cc,${color}88)`,
+                color: "#fff",
+                boxShadow: `0 4px 20px ${hexToRgba(color, 0.4)}`,
+              }}
+            >
+              <span>🛑 ENCAISSER</span>
+              <span className="font-bold opacity-90">{fMult(multiplier)} · +{fFC(Math.floor(betAmt * multiplier))} FC</span>
+            </button>
           )}
           {phase === "flying" && betPlaced && cashedOut && (
             <button disabled className="w-full py-3 rounded-2xl font-black uppercase tracking-wide text-[13px]"
