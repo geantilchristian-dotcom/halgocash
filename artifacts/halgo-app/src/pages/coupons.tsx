@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser, useAuth } from "@clerk/react";
-import { CheckCircle, XCircle, Clock, Ticket, Trophy, Plus, X, Loader2, ScanLine } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Ticket, Trophy, Plus, X, Loader2, ScanLine, Eye, EyeOff } from "lucide-react";
 import { useTheme } from "@/lib/theme-context";
 import { QrScanner } from "@/components/qr-scanner";
 
@@ -33,13 +33,17 @@ function formatFC(n: number) {
 }
 
 export default function Coupons() {
-  const { isLoaded, isSignedIn } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
   const { getToken } = useAuth();
   const { isDark } = useTheme();
   const queryClient = useQueryClient();
 
+  // Balance
+  const [balance, setBalance]           = useState<number | null>(null);
+  const [balanceHidden, setBalanceHidden] = useState(false);
+
   // Auth-aware fetch — sends Clerk Bearer token required by /api/coupons routes
-  const authFetch = async (path: string, options?: RequestInit) => {
+  const authFetch = useCallback(async (path: string, options?: RequestInit) => {
     const token = await getToken();
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -47,7 +51,29 @@ export default function Coupons() {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error((body as { error?: string }).error ?? "Erreur reseau");
     return body;
-  };
+  }, [getToken]);
+
+  // Fetch balance once Clerk is ready
+  useEffect(() => {
+    if (!isLoaded) return;
+    const lsKey = user?.id ? `halgo_balance_${user.id}` : null;
+    // Pre-fill from localStorage cache
+    if (lsKey) {
+      try {
+        const v = localStorage.getItem(lsKey);
+        if (v !== null) setBalance(b => b === null ? parseFloat(v) : b);
+      } catch { /* ignore */ }
+    }
+    getToken().catch(() => null).then(token => {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      return fetch("/api/auth/balance", { headers, credentials: "include" });
+    }).then(r => r.ok ? r.json() as Promise<{ balance: number }> : null)
+      .then(d => { if (d !== null) setBalance(Math.max(0, d.balance)); })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded]);
+
   const [filter, setFilter] = useState<Filter>("tous");
   const [showAdd, setShowAdd] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
@@ -145,6 +171,28 @@ export default function Coupons() {
           <div>
             <h1 className="text-white font-black text-2xl uppercase tracking-wider">MES COUPONS</h1>
             <p className="text-white/60 text-sm mt-0.5">Historique de vos tickets de loterie</p>
+            {/* Balance pill */}
+            <div
+              className="inline-flex items-center gap-1.5 px-3 h-8 rounded-full mt-2"
+              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(141,198,63,0.25)" }}
+            >
+              <button
+                onClick={() => setBalanceHidden(h => !h)}
+                className="flex items-center justify-center transition-all active:scale-90"
+              >
+                {balanceHidden
+                  ? <EyeOff style={{ width: 13, height: 13, color: "rgba(255,255,255,0.45)" }} />
+                  : <Eye    style={{ width: 13, height: 13, color: "rgba(255,255,255,0.55)" }} />}
+              </button>
+              {balance === null ? (
+                <div className="h-3 w-12 rounded animate-pulse" style={{ background: "rgba(255,255,255,0.15)" }} />
+              ) : (
+                <span className="font-black text-[0.78rem] leading-none text-white whitespace-nowrap">
+                  {balanceHidden ? "•••" : formatFC(balance)}
+                  <span className="font-bold ml-1 text-[0.68rem]" style={{ color: "rgba(255,255,255,0.5)" }}>FC</span>
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex gap-2">
             <button
