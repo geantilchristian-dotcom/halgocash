@@ -37,9 +37,16 @@ export default function SignUpPage() {
   const [referralCode, setReferralCode] = useState(() => {
     try { return localStorage.getItem("halgo_pending_referral") ?? ""; } catch { return ""; }
   });
-  const [otp, setOtp]         = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
+  const [otp, setOtp]             = useState("");
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+  const [clerkTimedOut, setClerkTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (signUpLoaded) return;
+    const t = setTimeout(() => setClerkTimedOut(true), 12000);
+    return () => clearTimeout(t);
+  }, [signUpLoaded]);
 
   const pwdMatch = confirmPwd.length === 0 || password === confirmPwd;
 
@@ -444,20 +451,21 @@ export default function SignUpPage() {
                 )}
               </div>
 
-              {error && (
+              {(error || clerkTimedOut) && (
                 <div className="flex items-center gap-2 text-red-400 text-xs rounded-xl px-3 py-2.5"
                   style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />{error}
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {error ?? "Service d'authentification indisponible. Vérifiez votre connexion et rechargez la page."}
                 </div>
               )}
 
               <button
                 type="button"
                 onClick={() => { void handleSubmit(); }}
-                disabled={!signUpLoaded || loading}
+                disabled={!signUpLoaded || loading || clerkTimedOut}
                 className="w-full py-4 rounded-xl font-black text-[#0a2e14] text-base uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 mt-1"
                 style={{ background: "linear-gradient(135deg,#3aab3a,#4dc44d)", boxShadow: "0 4px 20px rgba(58,171,58,0.4)" }}>
-                {(!signUpLoaded || loading)
+                {loading
                   ? <Loader2 className="w-5 h-5 animate-spin" />
                   : <><span>S'INSCRIRE</span><ArrowRight className="w-5 h-5" /></>
                 }
