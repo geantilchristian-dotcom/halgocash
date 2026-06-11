@@ -31,34 +31,52 @@ function shuffle<T>(arr: T[]): T[] {
   return arr;
 }
 
+interface PrizeTiers {
+  jackpot:     { count: number; prize: number };
+  grand:       { count: number; prize: number };
+  moyen:       { count: number; prize: number };
+  petit:       { count: number; prize: number };
+  rembourse:   { count: number; prize: number };
+  consolation: { count: number; prize: number };
+  perdant:     { count: number };
+  totalWinners: number;
+  prizePool:    number;
+  companyRevenue: number;
+  winRate:      number;
+}
+
 /**
- * Build a prize distribution: exactly 70% of tickets win, 30% are losers.
+ * Build a prize distribution with configurable company margin %.
  *
- * Model:
- *   • Winners  = round(N × 0.70)   — 700 per 1 000 tickets
- *   • Losers   = N − Winners        — 300 per 1 000 tickets (company margin)
- *   • Prize pool = N × price × 0.70 (70% of revenue)
+ * Rules:
+ *   • losers    = round(N × margin)     — company keeps 100% of their ticket price
+ *   • winners   = N − losers
+ *   • prizePool = N × price × (1 − margin)
+ *   • consolation floor = max(50 FC, floor(price × 10%))
+ *     If budget can't afford the floor for all consolation slots, count is
+ *     reduced (extras become additional losers) rather than paying below floor.
  *
- * Prize tiers (counts scaled per 1 000 tickets):
- *   ┌────────────────┬──────────┬──────────────────────────┐
- *   │ Tier           │ Count/1k │ Prize amount             │
- *   ├────────────────┼──────────┼──────────────────────────┤
- *   │ Jackpot        │    1     │ min(200×P, 30% budget)   │
- *   │ Grand lot      │    2     │ min(40×P,  10% budget)   │
- *   │ Lot moyen      │    7     │ min(10×P,   4% budget)   │
- *   │ Petit lot      │   15     │ min(4×P,    2% budget)   │
- *   │ Remboursé      │   25     │ = price (money back)     │
- *   │ Consolation    │  650     │ (remaining budget / rem. winners) │
- *   │ Perdants       │  300     │ 0 (company keeps)        │
- *   └────────────────┴──────────┴──────────────────────────┘
- *
- * The consolation prize is calculated dynamically so that
- * sum(all prizes) ≈ 70% of revenue for any lot size and price.
+ * Prize tiers per 1 000 tickets (scaled by N/1000):
+ *   1  jackpot   = min(200×P, 30% prizePool)
+ *   2  grand     = min(40×P,  10% prizePool)
+ *   7  moyen     = min(10×P,   4% prizePool)
+ *  15  petit     = min(4×P,    2% prizePool)
+ *  25  remboursé = P exactly
+ * rem  consolation ≥ floor per winner
  */
-function buildPrizeDistribution(count: number, price: number): { prizeAmount: string | null; isWinner: boolean }[] {
+function buildPrizeDistribution(
+  count: number,
+  price: number,
+  marginPercent: number,
+): {
+  prizes: { prizeAmount: string | null; isWinner: boolean }[];
+  tiers: PrizeTiers;
+} {
+  const margin        = Math.max(0, Math.min(99, marginPercent)) / 100;
   const r             = count / 1000;
-  const totalBudget   = count * price * 0.70;
-  const targetWinners = Math.round(count * 0.70);
+  const prizePool     = Math.floor(count * price * (1 - margin));
+  const targetWinners = Math.round(count * (1 - margin));
+  const minWin        = Math.max(50, Math.floor(price * 0.10));
 
   // ── Tier counts (scaled by lot size) ────────────────────────────────────
   const jackpotCount   = count >= 100 ? Math.max(1, Math.round(1  * r)) : 0;
@@ -67,46 +85,62 @@ function buildPrizeDistribution(count: number, price: number): { prizeAmount: st
   const petitCount     = Math.max(0, Math.round(15 * r));
   const rembourseCount = Math.max(0, Math.round(25 * r));
 
-  // ── Prize amounts — multiples of price, capped as % of total budget ─────
-  // Caps prevent a single tier from consuming the whole pool in small lots.
-  const jackpotPrize  = Math.floor(Math.min(200 * price, totalBudget * 0.30));
-  const grandPrize    = Math.floor(Math.min(40  * price, totalBudget * 0.10));
-  const moyenPrize    = Math.floor(Math.min(10  * price, totalBudget * 0.04));
-  const petitPrize    = Math.floor(Math.min(4   * price, totalBudget * 0.02));
+  // ── Prize amounts — multiples of price, capped as % of prize pool ────────
+  const jackpotPrize   = Math.floor(Math.min(200 * price, prizePool * 0.30));
+  const grandPrize     = Math.floor(Math.min(40  * price, prizePool * 0.10));
+  const moyenPrize     = Math.floor(Math.min(10  * price, prizePool * 0.04));
+  const petitPrize     = Math.floor(Math.min(4   * price, prizePool * 0.02));
   const remboursePrize = price;
 
-  // ── Consolation fills remaining budget and remaining winner slots ────────
+  // ── Consolation ───────────────────────────────────────────────────────────
   const fixedSpend =
     jackpotCount * jackpotPrize + grandCount * grandPrize +
-    moyenCount   * moyenPrize  + petitCount * petitPrize +
+    moyenCount   * moyenPrize   + petitCount * petitPrize +
     rembourseCount * remboursePrize;
-
   const fixedWinners      = jackpotCount + grandCount + moyenCount + petitCount + rembourseCount;
-  const consolationCount  = Math.max(0, targetWinners - fixedWinners);
-  const consolationBudget = Math.max(0, totalBudget - fixedSpend);
-  const consolationPrize  = consolationCount > 0
+  const consolationBudget = Math.max(0, prizePool - fixedSpend);
+  let   consolationCount  = Math.max(0, targetWinners - fixedWinners);
+  let   consolationPrize  = consolationCount > 0
     ? Math.floor(consolationBudget / consolationCount)
     : 0;
 
-  const loserCount = Math.max(0, count - targetWinners);
+  // Enforce minimum — reduce count so each winner still gets at least minWin
+  if (consolationPrize < minWin) {
+    consolationCount = Math.floor(consolationBudget / minWin);
+    consolationPrize = consolationCount > 0 ? minWin : 0;
+  }
+
+  const totalWinners  = fixedWinners + consolationCount;
+  const loserCount    = count - totalWinners;
+  const companyRevenue = count * price - prizePool;
 
   // ── Assemble and shuffle ─────────────────────────────────────────────────
   const prizes: { prizeAmount: string | null; isWinner: boolean }[] = [
     ...Array<null>(jackpotCount).fill(null).map(() => ({ prizeAmount: String(jackpotPrize),   isWinner: true })),
-    ...Array<null>(grandCount).fill(null).map(() => ({ prizeAmount: String(grandPrize),       isWinner: true })),
-    ...Array<null>(moyenCount).fill(null).map(() => ({ prizeAmount: String(moyenPrize),       isWinner: true })),
-    ...Array<null>(petitCount).fill(null).map(() => ({ prizeAmount: String(petitPrize),       isWinner: true })),
+    ...Array<null>(grandCount).fill(null).map(() => ({ prizeAmount: String(grandPrize),        isWinner: true })),
+    ...Array<null>(moyenCount).fill(null).map(() => ({ prizeAmount: String(moyenPrize),        isWinner: true })),
+    ...Array<null>(petitCount).fill(null).map(() => ({ prizeAmount: String(petitPrize),        isWinner: true })),
     ...Array<null>(rembourseCount).fill(null).map(() => ({ prizeAmount: String(remboursePrize), isWinner: true })),
-    ...Array<null>(consolationCount > 0 && consolationPrize > 0 ? consolationCount : 0)
-      .fill(null).map(() => ({ prizeAmount: String(consolationPrize), isWinner: true })),
-    ...Array<null>(
-      // If consolation prize rounds to 0 (shouldn't happen), those become losers
-      consolationCount > 0 && consolationPrize === 0 ? consolationCount : 0
-    ).fill(null).map(() => ({ prizeAmount: null, isWinner: false })),
-    ...Array<null>(loserCount).fill(null).map(() => ({ prizeAmount: null, isWinner: false })),
+    ...Array<null>(consolationCount).fill(null).map(() => ({ prizeAmount: String(consolationPrize), isWinner: true })),
+    ...Array<null>(loserCount).fill(null).map(() => ({ prizeAmount: null,                      isWinner: false })),
   ];
 
-  return shuffle(prizes);
+  return {
+    prizes: shuffle(prizes),
+    tiers: {
+      jackpot:     { count: jackpotCount,   prize: jackpotPrize },
+      grand:       { count: grandCount,     prize: grandPrize },
+      moyen:       { count: moyenCount,     prize: moyenPrize },
+      petit:       { count: petitCount,     prize: petitPrize },
+      rembourse:   { count: rembourseCount, prize: remboursePrize },
+      consolation: { count: consolationCount, prize: consolationPrize },
+      perdant:     { count: loserCount },
+      totalWinners,
+      prizePool,
+      companyRevenue,
+      winRate: count > 0 ? Math.round((totalWinners / count) * 100) : 0,
+    },
+  };
 }
 
 // POST /api/admin/login
@@ -188,12 +222,13 @@ router.patch("/admin/users/:id", requireAdmin, async (req: Request, res: Respons
 
 // POST /api/admin/codes/generate
 router.post("/admin/codes/generate", requireAdmin, async (req: Request, res: Response): Promise<void> => {
-  const { count, price, series, drawId, vendorId } = req.body as {
+  const { count, price, series, drawId, vendorId, marginPercent } = req.body as {
     count: number;
     price: number;
     series: string;
     drawId?: number;
     vendorId?: number;
+    marginPercent?: number;
   };
 
   const qty = Number(count);
@@ -202,7 +237,8 @@ router.post("/admin/codes/generate", requireAdmin, async (req: Request, res: Res
     return;
   }
 
-  const ticketPrice = Number(price) || 500;
+  const ticketPrice  = Number(price)        || 500;
+  const marginPct    = Number(marginPercent) || 30;
 
   // Alphanumeric charset — no confusing chars (O/0/I/1/L)
   const CHARSET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -213,8 +249,8 @@ router.post("/admin/codes/generate", requireAdmin, async (req: Request, res: Res
   while (codesSet.size < qty * 2) codesSet.add(genCode());
   const candidateCodes = Array.from(codesSet);
 
-  // Build prize distribution
-  const prizes = buildPrizeDistribution(qty, ticketPrice);
+  // Build prize distribution with configurable margin
+  const { prizes, tiers } = buildPrizeDistribution(qty, ticketPrice, marginPct);
 
   const assignedVendorId = vendorId ? Number(vendorId) : null;
 
@@ -225,7 +261,7 @@ router.post("/admin/codes/generate", requireAdmin, async (req: Request, res: Res
     series: series ?? "A",
     drawId: drawId ?? null,
     vendorId: assignedVendorId,
-    isWinner: prizes[i]?.isWinner ?? false,
+    isWinner:    prizes[i]?.isWinner    ?? false,
     prizeAmount: prizes[i]?.prizeAmount ?? null,
   }));
 
@@ -236,44 +272,17 @@ router.post("/admin/codes/generate", requireAdmin, async (req: Request, res: Res
     .returning({ id: ticketsTable.id, code: ticketsTable.code, isWinner: ticketsTable.isWinner, prizeAmount: ticketsTable.prizeAmount });
 
   const finalBatch = inserted.slice(0, qty);
+  const actualWinners = finalBatch.filter((t) => t.isWinner).length;
 
-  logger.info({ count: finalBatch.length, series }, "Admin generated ticket codes");
+  logger.info({ count: finalBatch.length, series, marginPct, winners: actualWinners }, "Admin generated ticket codes");
 
-  // Rebuild prize amounts to reconstruct tier labels in the response
-  const prizes2 = buildPrizeDistribution(qty, ticketPrice);
-  const r2 = qty / 1000;
-  const budget2 = qty * ticketPrice * 0.70;
-  const jackpotPrize2  = Math.floor(Math.min(200 * ticketPrice, budget2 * 0.30));
-  const grandPrize2    = Math.floor(Math.min(40  * ticketPrice, budget2 * 0.10));
-  const moyenPrize2    = Math.floor(Math.min(10  * ticketPrice, budget2 * 0.04));
-  const petitPrize2    = Math.floor(Math.min(4   * ticketPrice, budget2 * 0.02));
-  const jackpotCount2  = qty >= 100 ? Math.max(1, Math.round(1  * r2)) : 0;
-  const grandCount2    = qty >= 200 ? Math.max(0, Math.round(2  * r2)) : 0;
-  const moyenCount2    = Math.max(0, Math.round(7  * r2));
-  const petitCount2    = Math.max(0, Math.round(15 * r2));
-  const rembourseCount2 = Math.max(0, Math.round(25 * r2));
-  const fixedWinners2  = jackpotCount2 + grandCount2 + moyenCount2 + petitCount2 + rembourseCount2;
-  const consolationCount2 = Math.max(0, Math.round(qty * 0.70) - fixedWinners2);
-  const fixedSpend2 = jackpotCount2*jackpotPrize2 + grandCount2*grandPrize2 + moyenCount2*moyenPrize2 + petitCount2*petitPrize2 + rembourseCount2*ticketPrice;
-  const consolationPrize2 = consolationCount2 > 0 ? Math.floor(Math.max(0, budget2 - fixedSpend2) / consolationCount2) : 0;
-  void prizes2;
-
-  const winners = finalBatch.filter((t) => t.isWinner).length;
   res.json({
-    generated: finalBatch.length,
-    winners,
-    losers: finalBatch.filter((t) => !t.isWinner).length,
-    winRate: `${Math.round((winners / finalBatch.length) * 100)}%`,
-    codes: finalBatch.map((t) => t.code),
-    distribution: {
-      jackpot:      { count: finalBatch.filter((t) => t.prizeAmount === String(jackpotPrize2)).length,  prize: jackpotPrize2 },
-      grand:        { count: finalBatch.filter((t) => t.prizeAmount === String(grandPrize2)).length,    prize: grandPrize2 },
-      moyen:        { count: finalBatch.filter((t) => t.prizeAmount === String(moyenPrize2)).length,    prize: moyenPrize2 },
-      petit:        { count: finalBatch.filter((t) => t.prizeAmount === String(petitPrize2)).length,    prize: petitPrize2 },
-      rembourse:    { count: finalBatch.filter((t) => t.prizeAmount === String(ticketPrice) && t.isWinner).length, prize: ticketPrice },
-      consolation:  { count: finalBatch.filter((t) => t.prizeAmount === String(consolationPrize2) && consolationPrize2 > 0).length, prize: consolationPrize2 },
-      perdant:      { count: finalBatch.filter((t) => !t.isWinner).length, prize: 0 },
-    },
+    generated:  finalBatch.length,
+    winners:    actualWinners,
+    losers:     finalBatch.filter((t) => !t.isWinner).length,
+    winRate:    `${Math.round((actualWinners / finalBatch.length) * 100)}%`,
+    codes:      finalBatch.map((t) => t.code),
+    distribution: tiers,
   });
 });
 
