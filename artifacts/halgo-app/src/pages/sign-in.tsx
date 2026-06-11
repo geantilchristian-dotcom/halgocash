@@ -107,12 +107,12 @@ export default function SignInPage() {
     try {
       await signIn.authenticateWithRedirect({
         strategy: "oauth_google",
-        redirectUrl: `${basePath}/sso-callback`,
-        redirectUrlComplete: `${basePath}/app`,
+        redirectUrl: `${window.location.origin}${basePath}/sso-callback`,
+        redirectUrlComplete: `${window.location.origin}${basePath}/app`,
       });
     } catch (err: unknown) {
       const e = err as { errors?: { message?: string }[] };
-      setError(e.errors?.[0]?.message ?? "Erreur lors de la connexion Google.");
+      setError(e.errors?.[0]?.message ?? "Erreur lors de la connexion Google. Réessayez.");
       setGoogleLoading(false);
     }
   };
