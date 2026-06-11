@@ -8,29 +8,62 @@ import { crashBetRateLimit, cashoutRateLimit } from "../middlewares/rateLimiters
 
 const router = Router();
 
-const ROUND_MS        = 30_000;
-const FLIGHT_START_MS = 12_000; // 2s crash-show + 10s bet-window
+const CRASH_SHOW_MS  = 2_000;
+const BET_WINDOW_MS  = 10_000;
+const FLIGHT_START_MS = CRASH_SHOW_MS + BET_WINDOW_MS; // 12 000 ms
 
-// ── Server-only HMAC crash point ─────────────────────────────────────────────
-// Uses SESSION_SECRET — clients can NEVER reproduce this without the secret.
+// ── HMAC crash point (server-secret, unpredictable by clients) ───────────────
 const CRASH_SECRET = process.env.SESSION_SECRET ?? "halgo-crash-secret-fallback";
 
-function hmacCrashPoint(roundId: number): number {
-  const hash = createHmac("sha256", CRASH_SECRET).update(String(roundId)).digest("hex");
+function hmacCrashPoint(cycleId: number): number {
+  const hash = createHmac("sha256", CRASH_SECRET).update(String(cycleId)).digest("hex");
   const r = parseInt(hash.slice(0, 8), 16) / 0xffffffff;
   if (r < 0.03) return 1.0;
   return Math.min(1000, Math.max(1.01, Math.floor((0.99 / (1 - r)) * 100) / 100));
 }
 
-/**
- * Commitment hash — proves the server committed to this crash point BEFORE
- * any bets were placed. Players can verify after the round:
- *   SHA-256("halgo-crash:" + roundId + ":" + crashPoint.toFixed(2)) === commitment
- */
-function commitmentHash(roundId: number, crashPoint: number): string {
+function commitmentHash(cycleId: number, crashPoint: number): string {
   return createHash("sha256")
-    .update(`halgo-crash:${roundId}:${crashPoint.toFixed(2)}`)
+    .update(`halgo-crash:${cycleId}:${crashPoint.toFixed(2)}`)
     .digest("hex");
+}
+
+// ── Flight physics (mirror of client) ────────────────────────────────────────
+const K = 0.07;
+function mToT(m: number): number { return Math.log(Math.max(1, m)) / K; }
+
+// ── Server-side cycle management ──────────────────────────────────────────────
+// One cycle per game round. Cycles advance automatically when the flight would
+// have crashed. Cycle ID = floor(startedAt / 1000) — seconds-precision.
+// Minimum cycle duration is 12s so IDs never collide.
+
+interface Cycle {
+  id: number;        // seconds-timestamp of cycle start — stored as roundId in DB
+  startedAt: number; // ms timestamp
+  crashPoint: number;
+}
+
+let activeCycle: Cycle = { id: 0, startedAt: 0, crashPoint: 2.0 };
+let cycleTimer: ReturnType<typeof setTimeout> | null = null;
+
+function startCycle(): void {
+  const startedAt = Date.now();
+  const id = Math.floor(startedAt / 1000);
+  const crashPoint = hmacCrashPoint(id);
+  activeCycle = { id, startedAt, crashPoint };
+
+  // Schedule next cycle: flight starts at FLIGHT_START_MS, then lasts mToT(cp)*1000 ms
+  const flightMs = mToT(crashPoint) * 1000;
+  const cycleMs  = FLIGHT_START_MS + flightMs;
+
+  if (cycleTimer) clearTimeout(cycleTimer);
+  cycleTimer = setTimeout(startCycle, cycleMs);
+}
+
+startCycle(); // boot
+
+function msIntoCycle(): number {
+  return Date.now() - activeCycle.startedAt;
 }
 
 // ── Balance helper ────────────────────────────────────────────────────────────
@@ -52,27 +85,22 @@ async function getBalance(clerkId: string): Promise<number> {
   return Math.max(0, wins + credits - paid - pending);
 }
 
-// GET /api/crash/round
-// ─ During betting window  → returns commitment hash only (NO crash point).
-//   A player who calls this API before betting CANNOT know when the plane crashes.
-// ─ During flight          → reveals crash point (betting is already closed, no advantage).
+// ── GET /api/crash/round ──────────────────────────────────────────────────────
+// During betting window  → returns commitment (NO crash point — can't be predicted)
+// During flight / crash  → reveals crash point for animation
 router.get("/crash/round", (_req, res): void => {
-  const now        = Date.now();
-  const roundId    = Math.floor(now / ROUND_MS);
-  const msInto     = now % ROUND_MS;
-  const crashPoint = hmacCrashPoint(roundId);
-  const commitment = commitmentHash(roundId, crashPoint);
+  const { id, crashPoint } = activeCycle;
+  const ms         = msIntoCycle();
+  const commitment = commitmentHash(id, crashPoint);
 
-  if (msInto < FLIGHT_START_MS) {
-    // Betting window — do NOT reveal the crash point
-    res.json({ roundId, msIntoRound: msInto, serverMs: now, commitment, betting: true });
+  if (ms < FLIGHT_START_MS) {
+    res.json({ roundId: id, msIntoRound: ms, serverMs: Date.now(), commitment, betting: true });
   } else {
-    // Flight in progress — reveal crash point for animation rendering
-    res.json({ roundId, crashPoint, msIntoRound: msInto, serverMs: now, commitment, betting: false });
+    res.json({ roundId: id, crashPoint, msIntoRound: ms, serverMs: Date.now(), commitment, betting: false });
   }
 });
 
-// POST /api/crash/bet — validate timing, deduct balance, record in DB
+// ── POST /api/crash/bet ───────────────────────────────────────────────────────
 const BetBody = z.object({
   amount:  z.number().int().min(100).max(10_000_000),
   roundId: z.number().int().positive(),
@@ -86,11 +114,13 @@ router.post("/crash/bet", crashBetRateLimit, async (req, res): Promise<void> => 
   if (!parsed.success) { res.status(400).json({ error: "Montant invalide" }); return; }
   const { amount, roundId } = parsed.data;
 
-  // Server-side window check — the betting window must still be open
-  const now         = Date.now();
-  const serverRound = Math.floor(now / ROUND_MS);
-  const msInto      = now % ROUND_MS;
-  if (roundId !== serverRound || msInto >= FLIGHT_START_MS) {
+  // Validate against the current server cycle
+  const ms = msIntoCycle();
+  if (roundId !== activeCycle.id) {
+    res.status(400).json({ error: "La fenêtre de mise est fermée" });
+    return;
+  }
+  if (ms < CRASH_SHOW_MS || ms >= FLIGHT_START_MS) {
     res.status(400).json({ error: "La fenêtre de mise est fermée" });
     return;
   }
@@ -101,13 +131,13 @@ router.post("/crash/bet", crashBetRateLimit, async (req, res): Promise<void> => 
     return;
   }
 
-  // One bet per round per user (enforced by unique DB index)
+  // One bet per cycle per user
   const [existing] = await db.select({ id: crashBetsTable.id })
     .from(crashBetsTable)
     .where(and(eq(crashBetsTable.clerkId, clerkId), eq(crashBetsTable.roundId, roundId)))
     .limit(1);
   if (existing) {
-    res.status(409).json({ error: "Vous avez déjà misé dans ce round" });
+    res.status(409).json({ error: "Vous avez déjà misé dans ce cycle" });
     return;
   }
 
@@ -115,14 +145,14 @@ router.post("/crash/bet", crashBetRateLimit, async (req, res): Promise<void> => 
     clerkId,
     amount: String(-amount),
     reason: "crash_bet",
-    refId: `RND-${roundId}`,
+    refId: `CYC-${roundId}`,
   });
   await db.insert(crashBetsTable).values({ clerkId, roundId, amount, status: "placed" });
 
   res.json({ ok: true, newBalance: Math.max(0, currentBalance - amount) });
 });
 
-// POST /api/crash/cancel-bet
+// ── POST /api/crash/cancel-bet ────────────────────────────────────────────────
 const CancelBetBody = z.object({
   roundId: z.number().int().positive(),
 });
@@ -135,10 +165,9 @@ router.post("/crash/cancel-bet", async (req, res): Promise<void> => {
   if (!parsed.success) { res.status(400).json({ error: "Données invalides" }); return; }
   const { roundId } = parsed.data;
 
-  // Can only cancel during betting window
-  const now    = Date.now();
-  const msInto = now % ROUND_MS;
-  if (msInto >= FLIGHT_START_MS) {
+  // Only cancellable if still in betting window of the active cycle
+  const ms = msIntoCycle();
+  if (roundId !== activeCycle.id || ms >= FLIGHT_START_MS) {
     res.status(400).json({ error: "L'annulation n'est plus possible, le vol a commencé" });
     return;
   }
@@ -167,7 +196,7 @@ router.post("/crash/cancel-bet", async (req, res): Promise<void> => {
   res.json({ ok: true, newBalance });
 });
 
-// POST /api/crash/cashout — server validates mult < crashPoint and computes winnings
+// ── POST /api/crash/cashout ───────────────────────────────────────────────────
 const CashoutBody = z.object({
   roundId:     z.number().int().positive(),
   cashoutMult: z.number().min(1.0).max(1000),
@@ -182,7 +211,7 @@ router.post("/crash/cashout", cashoutRateLimit, async (req, res): Promise<void> 
   if (!parsed.success) { res.status(400).json({ error: "Données invalides" }); return; }
   const { roundId, cashoutMult, betType } = parsed.data;
 
-  // Server-side crash point check — impossible to forge without SESSION_SECRET
+  // The crash point for this cycle is deterministic via HMAC
   const crashPoint = hmacCrashPoint(roundId);
   if (cashoutMult > crashPoint + 0.05) {
     res.status(400).json({ error: "Cashout refusé : l'avion avait déjà crashé" });
