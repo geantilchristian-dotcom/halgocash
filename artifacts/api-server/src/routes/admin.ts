@@ -953,6 +953,30 @@ router.post("/admin/players/:clerkId/message", requireAdmin, async (req: Request
   res.json({ ok: true });
 });
 
+// GET /api/admin/pending-counts — lightweight endpoint for sidebar badges
+router.get("/admin/pending-counts", requireAdmin, async (_req: Request, res: Response): Promise<void> => {
+  const [wRow] = await db
+    .select({ cnt: sql<number>`COUNT(*)` })
+    .from(withdrawalsTable)
+    .where(eq(withdrawalsTable.status, "pending"));
+
+  const [kRow] = await db
+    .select({ cnt: sql<number>`COUNT(*)` })
+    .from(kycTable)
+    .where(eq(kycTable.status, "pending"));
+
+  const [sRow] = await db
+    .select({ cnt: sql<number>`COUNT(*)` })
+    .from(supportMessagesTable)
+    .where(and(eq(supportMessagesTable.fromAdmin, false), eq(supportMessagesTable.isRead, false)));
+
+  res.json({
+    pendingWithdrawals: Number(wRow?.cnt ?? 0),
+    pendingKyc: Number(kRow?.cnt ?? 0),
+    unreadSupport: Number(sRow?.cnt ?? 0),
+  });
+});
+
 // DELETE /api/admin/players/:clerkId — admin deletes player account data
 router.delete("/admin/players/:clerkId", requireAdmin, async (req: Request, res: Response): Promise<void> => {
   const clerkId = String(req.params["clerkId"] ?? "");
