@@ -35,8 +35,8 @@ export default function SignUpPage() {
   const pwdMatch = confirmPwd.length === 0 || password === confirmPwd;
 
   /* ── Step 1 : créer le compte ─────────────────────────────── */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setError(null);
     if (!signUpLoaded) { setError("Chargement en cours, réessayez dans un instant."); return; }
     if (!signUp) { setError("Session invalide. Rechargez la page."); return; }
@@ -439,8 +439,9 @@ export default function SignUpPage() {
               )}
 
               <button
-                type="submit"
-                disabled={loading || !signUpLoaded || !signUp || !pwdMatch}
+                type="button"
+                onClick={() => { void handleSubmit(); }}
+                disabled={loading}
                 className="w-full py-4 rounded-xl font-black text-[#0a2e14] text-base uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 mt-1"
                 style={{ background: "linear-gradient(135deg,#3aab3a,#4dc44d)", boxShadow: "0 4px 20px rgba(58,171,58,0.4)" }}>
                 {loading
