@@ -23,6 +23,7 @@ import rouletteRouter from "./roulette";
 import transferRouter from "./transfer";
 import jackpotRouter from "./jackpot";
 import accountRouter from "./account";
+import minesRouter from "./mines";
 
 const router: IRouter = Router();
 
@@ -50,5 +51,6 @@ router.use(rouletteRouter);
 router.use(transferRouter);
 router.use(jackpotRouter);
 router.use(accountRouter);
+router.use(minesRouter);
 
 export default router;

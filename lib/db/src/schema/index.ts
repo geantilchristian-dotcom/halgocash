@@ -212,6 +212,21 @@ export const playerModerationTable = pgTable("player_moderation", {
 
 export type PlayerModeration = typeof playerModerationTable.$inferSelect;
 
+export const minesGamesTable = pgTable("mines_games", {
+  id: serial("id").primaryKey(),
+  clerkId: varchar("clerk_id", { length: 255 }).notNull(),
+  betAmount: integer("bet_amount").notNull(),
+  mineCount: integer("mine_count").notNull(),
+  minePositions: json("mine_positions").$type<number[]>().notNull(),
+  revealedCells: json("revealed_cells").$type<number[]>().notNull().$default(() => []),
+  status: text("status").notNull().default("active"),
+  cashoutAmount: integer("cashout_amount"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  endedAt: timestamp("ended_at"),
+});
+
+export type MinesGame = typeof minesGamesTable.$inferSelect;
+
 export const insertVendorSchema = createInsertSchema(vendorsTable).omit({ id: true, createdAt: true });
 export const insertDrawSchema = createInsertSchema(drawsTable).omit({ id: true, createdAt: true, drawnAt: true, winningTicketCode: true, winningNumbers: true, prizePool: true });
 export const insertTicketSchema = createInsertSchema(ticketsTable).omit({ id: true, createdAt: true });

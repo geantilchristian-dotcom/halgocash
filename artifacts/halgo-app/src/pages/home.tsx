@@ -25,7 +25,7 @@ function currentWeekId(): string {
   return `${now.getFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
-function JackpotBanner({ countdown, onParticiper, participated }: { countdown: string; onParticiper: () => void; participated: boolean }) {
+function JackpotBanner({ countdown, onParticiper, participated, prizeLabel = "5 000 000 FC" }: { countdown: string; onParticiper: () => void; participated: boolean; prizeLabel?: string }) {
   const [imgOk, setImgOk] = useState<boolean | null>(null);
   const ts = useRef(Date.now());
 
@@ -57,7 +57,7 @@ function JackpotBanner({ countdown, onParticiper, participated }: { countdown: s
             JACKPOT HEBDOMADAIRE
           </p>
           <p className="font-black leading-none text-white" style={{ fontFamily: "'Oswald', sans-serif", fontSize: "2.1rem", letterSpacing: "0.04em" }}>
-            5 000 000 <span className="text-2xl">CDF</span>
+            {prizeLabel}
           </p>
         </div>
       )}
@@ -192,6 +192,7 @@ const GAMES: GameDef[] = [
     players: "987",
     multiplier: null,
     accent: "#1abc9c",
+    route: "/app/mines",
   },
 ];
 
@@ -310,6 +311,13 @@ export default function Home() {
     "Valable sur tous les jeux : Crash, Roulette, Paris Sportifs",
     "Activé automatiquement pour tout compte Halgo Cash actif",
   ]);
+  const [jackpotPrizeLabel,  setJackpotPrizeLabel]  = useState("5 000 000 FC");
+  const [cashbackRate,       setCashbackRate]       = useState(10);
+  const [cashbackTitle,      setCashbackTitle]      = useState("Cashback 10%");
+  const [bonusAmount,        setBonusAmount]        = useState("50 000 FC");
+  const [bonusSubtitle,      setBonusSubtitle]      = useState("100% jusqu'à 50 000 FC");
+  const [bonusConditions,    setBonusConditions]    = useState("Obtenez jusqu'à 50 000 FC de bonus. Parrainez vos amis pour débloquer des récompenses supplémentaires.");
+  const [showBonusModal,     setShowBonusModal]     = useState(false);
 
   // ── Send money ──
   const [showActionSheet,  setShowActionSheet]  = useState(false);
@@ -531,11 +539,21 @@ export default function Home() {
   // ── Fetch jackpot settings ──
   useEffect(() => {
     fetch("/api/jackpot-settings")
-      .then(r => r.ok ? r.json() as Promise<{ minAmount?: number; cashbackLines?: string[] }> : null)
+      .then(r => r.ok ? r.json() as Promise<{
+        minAmount?: number; cashbackLines?: string[]; prizeLabel?: string;
+        cashbackRate?: number; cashbackTitle?: string;
+        bonusAmount?: string; bonusSubtitle?: string; bonusConditions?: string;
+      }> : null)
       .then(cfg => {
         if (!cfg) return;
         if (typeof cfg.minAmount === "number" && cfg.minAmount >= 100) setJackpotMinAmount(cfg.minAmount);
         if (Array.isArray(cfg.cashbackLines) && cfg.cashbackLines.length) setCashbackLines(cfg.cashbackLines);
+        if (cfg.prizeLabel) setJackpotPrizeLabel(cfg.prizeLabel);
+        if (typeof cfg.cashbackRate === "number") setCashbackRate(cfg.cashbackRate);
+        if (cfg.cashbackTitle) setCashbackTitle(cfg.cashbackTitle);
+        if (cfg.bonusAmount) setBonusAmount(cfg.bonusAmount);
+        if (cfg.bonusSubtitle) setBonusSubtitle(cfg.bonusSubtitle);
+        if (cfg.bonusConditions) setBonusConditions(cfg.bonusConditions);
       })
       .catch(() => {});
   }, []);
@@ -916,6 +934,7 @@ export default function Home() {
         <JackpotBanner
           countdown={countdown}
           participated={jackpotParticipated}
+          prizeLabel={jackpotPrizeLabel}
           onParticiper={() => {
             setParticipeTab("ticket");
             if (!jackpotParticipated) setJackpotBetDone(false);
@@ -1131,7 +1150,7 @@ export default function Home() {
             {/* ── Bonus de Bienvenue ── */}
             <div
               className="rounded-2xl flex flex-col items-center pt-3 pb-3 px-2 gap-1.5 cursor-pointer transition-all active:scale-[0.97]"
-              onClick={() => navigate("/app/parrainage")}
+              onClick={() => setShowBonusModal(true)}
               style={{
                 background: "linear-gradient(160deg,#0e2a12 0%,#163d1c 60%,#0a1f0e 100%)",
                 border: "1px solid rgba(34,197,94,0.25)",
@@ -1150,7 +1169,7 @@ export default function Home() {
                 <Gift style={{ width: 28, height: 28, color: "#fff", filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.5))" }} strokeWidth={1.8} />
               </div>
               <p className="text-[9.5px] font-black text-white text-center leading-tight tracking-wide uppercase">BONUS DE<br/>BIENVENUE</p>
-              <p className="text-[8px] text-center leading-tight" style={{ color: "rgba(255,255,255,0.5)" }}>100% jusqu'à<br/>50 000 FC</p>
+              <p className="text-[8px] text-center leading-tight" style={{ color: "rgba(255,255,255,0.5)" }}>{bonusSubtitle}</p>
               <button
                 className="w-full py-2 rounded-xl text-[8.5px] font-black uppercase tracking-wide mt-auto"
                 style={{ background: "linear-gradient(135deg,#1a6b2f,#22a84a)", color: "#fff", boxShadow: "0 3px 10px rgba(22,107,47,0.5)" }}
@@ -1212,7 +1231,7 @@ export default function Home() {
                 <Trophy style={{ width: 28, height: 28, color: "#3a1f00", filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.4))" }} strokeWidth={2} />
               </div>
               <p className="text-[9.5px] font-black text-white text-center leading-tight tracking-wide uppercase">JACKPOT<br/>DU SAMEDI</p>
-              <p className="text-[8px] text-center leading-tight" style={{ color: "rgba(255,255,255,0.5)" }}>5 000 000 FC<br/>à gagner</p>
+              <p className="text-[8px] text-center leading-tight" style={{ color: "rgba(255,255,255,0.5)" }}>{jackpotPrizeLabel}<br/>à gagner</p>
               <button
                 className="w-full py-2 rounded-xl text-[8.5px] font-black uppercase tracking-wide mt-auto"
                 style={{ background: "rgba(141,198,63,0.15)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.35)", boxShadow: "0 2px 8px rgba(141,198,63,0.2)" }}
@@ -2098,7 +2117,7 @@ export default function Home() {
             <div className="flex items-center justify-between px-5 pt-4 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full flex items-center justify-center font-black text-[14px]" style={{ background: "radial-gradient(circle at 38% 32%,#f5d060,#d4a017 55%,#8a6500)", boxShadow: "0 0 12px rgba(245,197,24,0.5)" }}>%</div>
-                <span className="font-black text-[13px] uppercase tracking-wide text-white">Cashback 10%</span>
+                <span className="font-black text-[13px] uppercase tracking-wide text-white">{cashbackTitle}</span>
               </div>
               <button onClick={() => setShowCashbackModal(false)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "rgba(255,255,255,0.08)" }}>
                 <X style={{ width: 15, height: 15, color: "rgba(255,255,255,0.6)" }} />
@@ -2107,7 +2126,7 @@ export default function Home() {
             <div className="px-5 py-5 flex flex-col gap-4">
               {/* Big highlight */}
               <div className="rounded-2xl p-5 flex flex-col items-center gap-2" style={{ background: "linear-gradient(160deg,#1e1400,#2e1e00)", border: "1px solid rgba(245,197,24,0.3)" }}>
-                <span className="text-5xl font-black" style={{ color: "#F5C518", textShadow: "0 0 24px rgba(245,197,24,0.4)" }}>10%</span>
+                <span className="text-5xl font-black" style={{ color: "#F5C518", textShadow: "0 0 24px rgba(245,197,24,0.4)" }}>{cashbackRate}%</span>
                 <p className="text-[11px] font-bold text-center" style={{ color: "rgba(255,255,255,0.6)" }}>
                   du montant misé chaque semaine,<br/>crédité <strong className="text-white">automatiquement</strong>
                 </p>
@@ -2125,6 +2144,40 @@ export default function Home() {
                 style={{ background: "linear-gradient(135deg,#c8960a,#F5C518)", color: "#3a1f00" }}
               >
                 J'ai compris — Allons jouer !
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ BONUS DE BIENVENUE MODAL ══ */}
+      {showBonusModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center pb-6 px-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowBonusModal(false)} />
+          <div className="relative w-full max-w-sm rounded-3xl overflow-hidden" style={{ background: "#0d1f14", boxShadow: "0 8px 60px rgba(0,0,0,0.8)" }}>
+            <div className="flex items-center justify-between px-5 pt-4 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "radial-gradient(circle at 38% 32%,#3ecf6a,#1a7a36 55%,#0b4a1f)", boxShadow: "0 0 12px rgba(34,197,94,0.5)" }}>
+                  <Gift style={{ width: 16, height: 16, color: "#fff" }} strokeWidth={2} />
+                </div>
+                <span className="font-black text-[13px] uppercase tracking-wide text-white">Bonus de Bienvenue</span>
+              </div>
+              <button onClick={() => setShowBonusModal(false)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "rgba(255,255,255,0.08)" }}>
+                <X style={{ width: 15, height: 15, color: "rgba(255,255,255,0.6)" }} />
+              </button>
+            </div>
+            <div className="px-5 py-5 flex flex-col gap-4">
+              <div className="rounded-2xl p-5 flex flex-col items-center gap-2" style={{ background: "linear-gradient(160deg,#0e2a12,#163d1c)", border: "1px solid rgba(34,197,94,0.3)" }}>
+                <span className="text-4xl font-black" style={{ color: "#22c55e", textShadow: "0 0 24px rgba(34,197,94,0.4)" }}>{bonusAmount}</span>
+                <p className="text-[11px] font-bold text-center" style={{ color: "rgba(255,255,255,0.6)" }}>{bonusSubtitle}</p>
+              </div>
+              <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>{bonusConditions}</p>
+              <button
+                onClick={() => { setShowBonusModal(false); navigate("/app/parrainage"); }}
+                className="w-full py-3.5 rounded-2xl font-black text-[13px] uppercase tracking-wide"
+                style={{ background: "linear-gradient(135deg,#1a6b2f,#22a84a)", color: "#fff", boxShadow: "0 4px 16px rgba(22,107,47,0.4)" }}
+              >
+                Parrainer mes amis
               </button>
             </div>
           </div>

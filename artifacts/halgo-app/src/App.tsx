@@ -16,6 +16,7 @@ import ParrainagePage from "@/pages/parrainage";
 import CrashGame from "@/pages/crash";
 import RoulettePage from "@/pages/roulette";
 import SportPage from "@/pages/sport";
+import MinesPage from "@/pages/mines";
 import DrawsPage from "@/pages/draws";
 import WinnersPage from "@/pages/winners";
 import JackpotPage from "@/pages/jackpot";
@@ -110,6 +111,7 @@ const AppContent = (
         <Route path="/app/crash" component={CrashGame} />
         <Route path="/app/roulette" component={RoulettePage} />
         <Route path="/app/sport" component={SportPage} />
+        <Route path="/app/mines" component={MinesPage} />
         <Route path="/app/draws" component={DrawsPage} />
         <Route path="/app/winners" component={WinnersPage} />
         <Route path="/app/jackpot" component={JackpotPage} />
