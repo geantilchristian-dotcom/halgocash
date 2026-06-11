@@ -8,7 +8,7 @@ function userKey(req: Request): string {
     const auth = getAuth(req);
     if (auth.userId) return `u:${auth.userId}`;
   } catch { /* not yet authenticated */ }
-  return ipKeyGenerator(req);
+  return ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? "unknown");
 }
 
 // ── Auth / Admin ───────────────────────────────────────────────────────────

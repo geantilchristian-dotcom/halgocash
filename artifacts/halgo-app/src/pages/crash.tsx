@@ -789,6 +789,7 @@ export default function CrashGame() {
 
   // ── Bet actions ───────────────────────────────────────────────────────────
   const [betLoading, setBetLoading] = useState(false);
+  const [betError, setBetError] = useState<string | null>(null);
 
   const placeBet = useCallback(async (overrideAmt?: number) => {
     if (syncing || phase !== "waiting" || betLoading) return;
@@ -796,18 +797,20 @@ export default function CrashGame() {
     if (!amt || amt < 100) return;
     if (amt > balance) return;
     setBetLoading(true);
+    setBetError(null);
     try {
       const res = await authFetch("/api/crash/bet", { method: "POST", body: JSON.stringify({ amount: amt, roundId: currentRoundRef.current }) });
       const data = await res.json() as { ok?: boolean; error?: string; newBalance?: number };
-      if (!res.ok) return;
+      if (!res.ok) { setBetError(data.error ?? "Erreur lors de la mise"); return; }
       betRef.current.placed = true;
       betRef.current.amount = amt;
       betRef.current.cashedOut = false;
       setBetPlaced(true);
+      setBetError(null);
       const nb = data.newBalance !== undefined ? data.newBalance : Math.max(0, balance - amt);
       setBalance(nb);
       if (user?.id) writeCachedBalance(user.id, nb);
-    } catch { /* ignore */ } finally { setBetLoading(false); }
+    } catch { setBetError("Erreur réseau, réessayez"); } finally { setBetLoading(false); }
   }, [syncing, phase, betLoading, betInput, balance, authFetch, user?.id]);
 
   const cancelBet = useCallback(async () => {
@@ -1250,15 +1253,20 @@ export default function CrashGame() {
               <span className="px-2 text-[11px] font-bold" style={{ color: "rgba(255,255,255,0.3)" }}>×</span>
             </div>
 
+            {/* Bet error */}
+            {betError && (
+              <p className="text-[11px] font-bold text-red-400 text-center px-1">{betError}</p>
+            )}
+
             {/* Action button */}
             {phase === "waiting" && !betPlaced && (
               <button
-                onClick={() => placeBet()}
+                onClick={() => { setBetError(null); void placeBet(); }}
                 disabled={!canBet}
                 className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[15px] transition-all active:scale-[0.97] disabled:opacity-40"
                 style={{ background: "linear-gradient(135deg,#1a6b2f,#22a84a)", color: "#fff", boxShadow: "0 4px 20px rgba(34,168,74,0.35)" }}
               >
-                PLACER · {fFC(betAmt)} FC
+                {betLoading ? "…" : `PLACER · ${fFC(betAmt)} FC`}
               </button>
             )}
             {phase === "waiting" && betPlaced && (

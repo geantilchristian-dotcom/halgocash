@@ -3,3 +3,4 @@
 - [Vendor-context provider order](vendor-context-order.md) — VendorProvider must be nested inside AuthProvider; HMR invalidation warnings on context hooks are cosmetic and do not affect runtime.
 - [Expo web Metro fixes](expo-web-metro-fixes.md) — Two Metro resolver overrides required for Expo Router web: (1) _ctx literal string, (2) worklets web mock to prevent native JSI crash.
 - [Crash game HMAC security](crash-hmac-security.md) — seededCrashPoint replaced with HMAC(SESSION_SECRET, roundId); client fetches crash point from server; cashout validated server-side.
+- [Crash dual-auth pattern](crash-dual-auth.md) — crash bet/cashout routes use resolveUserId(req) which tries Clerk first then session fallback; ipKeyGenerator expects a string (IP), not a Request object.

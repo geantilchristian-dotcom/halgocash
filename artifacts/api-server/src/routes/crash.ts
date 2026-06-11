@@ -1,10 +1,18 @@
 import { createHmac, createHash } from "crypto";
-import { Router } from "express";
+import { Router, Request } from "express";
 import { getAuth } from "@clerk/express";
 import { db, creditAdjustmentsTable, ticketsTable, withdrawalsTable, crashBetsTable } from "@workspace/db";
 import { eq, and, sum, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { crashBetRateLimit, cashoutRateLimit } from "../middlewares/rateLimiters";
+
+/** Resolve userId from Clerk token or Express session (10-digit code flow) */
+function resolveUserId(req: Request): string | null {
+  const { userId: clerkId } = getAuth(req);
+  if (clerkId) return clerkId;
+  const sessionId = (req.session as unknown as Record<string, unknown>)["userId"] as string | undefined;
+  return sessionId ? `local:${sessionId}` : null;
+}
 
 const router = Router();
 
@@ -67,16 +75,16 @@ function msIntoCycle(): number {
 }
 
 // ── Balance helper ────────────────────────────────────────────────────────────
-async function getBalance(clerkId: string): Promise<number> {
+async function getBalance(userId: string): Promise<number> {
   const [[winsRow], [paidRow], [pendingRow], [creditsRow]] = await Promise.all([
     db.select({ total: sum(ticketsTable.prizeAmount) }).from(ticketsTable)
-      .where(and(eq(ticketsTable.registeredByClerkId, clerkId), eq(ticketsTable.isWinner, true), isNotNull(ticketsTable.prizeAmount))),
+      .where(and(eq(ticketsTable.registeredByClerkId, userId), eq(ticketsTable.isWinner, true), isNotNull(ticketsTable.prizeAmount))),
     db.select({ total: sum(withdrawalsTable.amount) }).from(withdrawalsTable)
-      .where(and(eq(withdrawalsTable.clerkId, clerkId), eq(withdrawalsTable.status, "paid"))),
+      .where(and(eq(withdrawalsTable.clerkId, userId), eq(withdrawalsTable.status, "paid"))),
     db.select({ total: sum(withdrawalsTable.amount) }).from(withdrawalsTable)
-      .where(and(eq(withdrawalsTable.clerkId, clerkId), eq(withdrawalsTable.status, "pending"))),
+      .where(and(eq(withdrawalsTable.clerkId, userId), eq(withdrawalsTable.status, "pending"))),
     db.select({ total: sum(creditAdjustmentsTable.amount) }).from(creditAdjustmentsTable)
-      .where(eq(creditAdjustmentsTable.clerkId, clerkId)),
+      .where(eq(creditAdjustmentsTable.clerkId, userId)),
   ]);
   const wins    = winsRow?.total    ? parseFloat(String(winsRow.total))    : 0;
   const paid    = paidRow?.total    ? parseFloat(String(paidRow.total))    : 0;
@@ -107,7 +115,7 @@ const BetBody = z.object({
 });
 
 router.post("/crash/bet", crashBetRateLimit, async (req, res): Promise<void> => {
-  const { userId: clerkId } = getAuth(req);
+  const clerkId = resolveUserId(req);
   if (!clerkId) { res.status(401).json({ error: "Non authentifié" }); return; }
 
   const parsed = BetBody.safeParse(req.body);
@@ -158,7 +166,7 @@ const CancelBetBody = z.object({
 });
 
 router.post("/crash/cancel-bet", async (req, res): Promise<void> => {
-  const { userId: clerkId } = getAuth(req);
+  const clerkId = resolveUserId(req);
   if (!clerkId) { res.status(401).json({ error: "Non authentifié" }); return; }
 
   const parsed = CancelBetBody.safeParse(req.body);
@@ -204,7 +212,7 @@ const CashoutBody = z.object({
 });
 
 router.post("/crash/cashout", cashoutRateLimit, async (req, res): Promise<void> => {
-  const { userId: clerkId } = getAuth(req);
+  const clerkId = resolveUserId(req);
   if (!clerkId) { res.status(401).json({ error: "Non authentifié" }); return; }
 
   const parsed = CashoutBody.safeParse(req.body);
