@@ -18,6 +18,7 @@ import RoulettePage from "@/pages/roulette";
 import SportPage from "@/pages/sport";
 import DrawsPage from "@/pages/draws";
 import WinnersPage from "@/pages/winners";
+import JackpotPage from "@/pages/jackpot";
 import NotFound from "@/pages/not-found";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
@@ -111,6 +112,7 @@ const AppContent = (
         <Route path="/app/sport" component={SportPage} />
         <Route path="/app/draws" component={DrawsPage} />
         <Route path="/app/winners" component={WinnersPage} />
+        <Route path="/app/jackpot" component={JackpotPage} />
         <Route path="/app/*?" component={NotFound} />
       </Switch>
     </Layout>

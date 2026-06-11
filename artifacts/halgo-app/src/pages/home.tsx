@@ -15,10 +15,10 @@ import { QrScanner } from "@/components/qr-scanner";
 import { SupportChat } from "@/components/support-chat";
 
 function formatFC(amount: number): string {
-  return new Intl.NumberFormat("fr-FR").format(Math.round(amount)).replace(/\s/g, ".");
+  return new Intl.NumberFormat("fr-FR").format(Math.round(amount)).replace(/[\u00a0\s]/g, " ");
 }
 
-function JackpotBanner({ countdown }: { countdown: string }) {
+function JackpotBanner({ countdown, onParticiper }: { countdown: string; onParticiper: () => void }) {
   const [imgOk, setImgOk] = useState<boolean | null>(null);
   const ts = useRef(Date.now());
 
@@ -27,8 +27,9 @@ function JackpotBanner({ countdown }: { countdown: string }) {
       className="relative rounded-2xl overflow-hidden"
       style={{
         background: "linear-gradient(135deg,#0d3320 0%,#165c2a 50%,#1a7a36 100%)",
-        border: "1px solid rgba(141,198,63,0.3)",
+        border: "1px solid rgba(141,198,63,0.35)",
         boxShadow: "0 8px 32px rgba(22,92,40,0.5)",
+        animation: "jackpotGlow 3s ease-in-out infinite",
         minHeight: imgOk ? undefined : undefined,
       }}
     >
@@ -65,8 +66,9 @@ function JackpotBanner({ countdown }: { countdown: string }) {
           <span className="text-[11px] font-black text-white">{countdown}</span>
         </div>
         <button
-          className="flex items-center gap-1 px-4 py-2 rounded-xl font-black text-[11px] uppercase tracking-wide"
-          style={{ background: "rgba(255,255,255,0.13)", color: "#fff", border: "1px solid rgba(255,255,255,0.22)" }}
+          onClick={onParticiper}
+          className="flex items-center gap-1 px-4 py-2 rounded-xl font-black text-[11px] uppercase tracking-wide transition-all active:scale-95"
+          style={{ background: "linear-gradient(135deg,#1a6b2f,#22a84a)", color: "#fff", border: "1px solid rgba(255,255,255,0.15)", boxShadow: "0 2px 12px rgba(34,168,74,0.45)", animation: "participerPulse 2.5s ease-in-out infinite" }}
         >
           PARTICIPER <ChevronRight style={{ width: 13, height: 13 }} />
         </button>
@@ -281,6 +283,12 @@ export default function Home() {
   const [showTicketInput,   setShowTicketInput]   = useState(false);
   const [balanceHidden,     setBalanceHidden]     = useState(false);
   const [showNotifPanel,    setShowNotifPanel]    = useState(false);
+  const [showParticipeModal, setShowParticipeModal] = useState(false);
+  const [showCashbackModal,  setShowCashbackModal]  = useState(false);
+  const [participeTab,       setParticipeTab]       = useState<"ticket" | "balance">("ticket");
+  const [jackpotBetAmt,      setJackpotBetAmt]      = useState("500");
+  const [jackpotBetLoading,  setJackpotBetLoading]  = useState(false);
+  const [jackpotBetDone,     setJackpotBetDone]     = useState(false);
 
   // ── Send money ──
   const [showActionSheet,  setShowActionSheet]  = useState(false);
@@ -872,7 +880,33 @@ export default function Home() {
       <div className="flex-1 px-4 pb-28 space-y-4 mt-3 overflow-y-auto">
 
         {/* ── Jackpot Banner ── */}
-        <JackpotBanner countdown={countdown} />
+        <JackpotBanner countdown={countdown} onParticiper={() => { setParticipeTab("ticket"); setJackpotBetDone(false); setShowParticipeModal(true); }} />
+
+        {/* ── Live Ticker ── */}
+        {(() => {
+          const wins = [
+            { name: "Jean M.", amount: "45 000" }, { name: "Bijou K.", amount: "120 000" },
+            { name: "Paul T.", amount: "8 500" },  { name: "Grâce L.", amount: "250 000" },
+            { name: "Moise N.", amount: "15 000" }, { name: "Ruth B.", amount: "60 000" },
+            { name: "David M.", amount: "32 000" }, { name: "Esperance O.", amount: "500 000" },
+          ];
+          return (
+            <div className="overflow-hidden rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="flex items-center" style={{ padding: "7px 0" }}>
+                <div style={{ display: "flex", animation: "liveMarquee 22s linear infinite", width: "max-content" }}>
+                  {[...wins, ...wins].map((w, i) => (
+                    <span key={i} className="flex items-center gap-1.5 px-4 whitespace-nowrap">
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#22c55e", boxShadow: "0 0 4px #22c55e" }} />
+                      <span className="text-[9.5px] font-black uppercase" style={{ color: "#22c55e" }}>LIVE</span>
+                      <span className="text-[9.5px]" style={{ color: "rgba(255,255,255,0.55)" }}>{w.name} a gagné</span>
+                      <span className="text-[9.5px] font-black" style={{ color: "#F5C518" }}>+{w.amount} FC</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── Jeux Populaires ── */}
         <div>
@@ -1055,20 +1089,21 @@ export default function Home() {
           <div className="grid grid-cols-3 gap-2">
             {/* ── Bonus de Bienvenue ── */}
             <div
-              className="rounded-2xl flex flex-col items-center pt-3 pb-3 px-2 gap-1.5"
+              className="rounded-2xl flex flex-col items-center pt-3 pb-3 px-2 gap-1.5 cursor-pointer transition-all active:scale-[0.97]"
+              onClick={() => navigate("/app/profile")}
               style={{
                 background: "linear-gradient(160deg,#0e2a12 0%,#163d1c 60%,#0a1f0e 100%)",
                 border: "1px solid rgba(34,197,94,0.25)",
                 boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
               }}
             >
-              {/* 3D medal */}
               <div
                 className="relative w-14 h-14 rounded-full flex items-center justify-center mb-0.5"
                 style={{
                   background: "radial-gradient(circle at 38% 32%, #3ecf6a, #1a7a36 55%, #0b4a1f)",
                   boxShadow: "0 0 18px rgba(34,197,94,0.55), 0 0 36px rgba(34,197,94,0.2), inset 0 2px 5px rgba(255,255,255,0.18), inset 0 -3px 6px rgba(0,0,0,0.35)",
                   border: "1.5px solid rgba(34,197,94,0.55)",
+                  animation: "promoFloat 4s ease-in-out infinite",
                 }}
               >
                 <Gift style={{ width: 28, height: 28, color: "#fff", filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.5))" }} strokeWidth={1.8} />
@@ -1085,37 +1120,27 @@ export default function Home() {
 
             {/* ── Cashback 10% ── */}
             <div
-              className="rounded-2xl flex flex-col items-center pt-3 pb-3 px-2 gap-1.5"
+              className="rounded-2xl flex flex-col items-center pt-3 pb-3 px-2 gap-1.5 cursor-pointer transition-all active:scale-[0.97]"
+              onClick={() => setShowCashbackModal(true)}
               style={{
                 background: "linear-gradient(160deg,#1e1400 0%,#2e1e00 60%,#1a1000 100%)",
                 border: "1px solid rgba(245,197,24,0.35)",
                 boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
               }}
             >
-              {/* 3D gold coin */}
               <div
                 className="relative w-14 h-14 rounded-full flex items-center justify-center mb-0.5"
                 style={{
                   background: "radial-gradient(circle at 38% 32%, #f5d060, #d4a017 55%, #8a6500)",
                   boxShadow: "0 0 18px rgba(245,197,24,0.6), 0 0 36px rgba(245,197,24,0.25), inset 0 2px 5px rgba(255,255,255,0.3), inset 0 -3px 6px rgba(0,0,0,0.4)",
                   border: "1.5px solid rgba(245,197,24,0.7)",
+                  animation: "promoFloat 4s ease-in-out infinite 0.8s",
                 }}
               >
-                {/* % symbol in gold coin style */}
-                <span
-                  className="font-black select-none"
-                  style={{
-                    fontSize: "1.4rem",
-                    color: "#7a4800",
-                    textShadow: "0 1px 3px rgba(0,0,0,0.4), 0 -1px 0 rgba(255,255,255,0.25)",
-                    lineHeight: 1,
-                  }}
-                >
-                  %
-                </span>
+                <span className="font-black select-none" style={{ fontSize: "1.4rem", color: "#7a4800", textShadow: "0 1px 3px rgba(0,0,0,0.4), 0 -1px 0 rgba(255,255,255,0.25)", lineHeight: 1 }}>%</span>
               </div>
               <p className="text-[9.5px] font-black text-center leading-tight tracking-wide uppercase" style={{ color: "#F5C518" }}>CASHBACK<br/>10%</p>
-              <p className="text-[8px] text-center leading-tight" style={{ color: "rgba(255,255,255,0.5)" }}>chaque semaine<br/>sur vos pertes</p>
+              <p className="text-[8px] text-center leading-tight" style={{ color: "rgba(255,255,255,0.5)" }}>chaque semaine<br/>sur vos mises</p>
               <button
                 className="w-full py-2 rounded-xl text-[8.5px] font-black uppercase tracking-wide mt-auto"
                 style={{ background: "linear-gradient(135deg,#c8960a,#F5C518)", color: "#3a1f00", boxShadow: "0 3px 10px rgba(200,150,10,0.5)" }}
@@ -1126,20 +1151,21 @@ export default function Home() {
 
             {/* ── Jackpot du Samedi ── */}
             <div
-              className="rounded-2xl flex flex-col items-center pt-3 pb-3 px-2 gap-1.5"
+              className="rounded-2xl flex flex-col items-center pt-3 pb-3 px-2 gap-1.5 cursor-pointer transition-all active:scale-[0.97]"
+              onClick={() => navigate("/app/jackpot")}
               style={{
                 background: "linear-gradient(160deg,#0e2a12 0%,#163d1c 60%,#0a1f0e 100%)",
                 border: "1px solid rgba(245,197,24,0.3)",
                 boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
               }}
             >
-              {/* 3D gold trophy */}
               <div
                 className="relative w-14 h-14 rounded-full flex items-center justify-center mb-0.5"
                 style={{
                   background: "radial-gradient(circle at 38% 32%, #f5d060, #c8960a 55%, #7a5800)",
                   boxShadow: "0 0 18px rgba(245,197,24,0.55), 0 0 36px rgba(245,197,24,0.2), inset 0 2px 5px rgba(255,255,255,0.25), inset 0 -3px 6px rgba(0,0,0,0.4)",
                   border: "1.5px solid rgba(245,197,24,0.6)",
+                  animation: "promoFloat 4s ease-in-out infinite 1.6s",
                 }}
               >
                 <Trophy style={{ width: 28, height: 28, color: "#3a1f00", filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.4))" }} strokeWidth={2} />
@@ -1896,10 +1922,222 @@ export default function Home() {
         ))}
       </nav>
 
+      {/* ══ PARTICIPER MODAL ══ */}
+      {showParticipeModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center pb-6 px-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowParticipeModal(false)} />
+          <div className="relative w-full max-w-sm rounded-3xl overflow-hidden" style={{ background: "#0d1f14", boxShadow: "0 8px 60px rgba(0,0,0,0.8)" }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-4 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(245,197,24,0.15)" }}>
+                  <Trophy style={{ width: 16, height: 16, color: "#F5C518" }} />
+                </div>
+                <span className="font-black text-[13px] uppercase tracking-wide text-white">Participer au Jackpot</span>
+              </div>
+              <button onClick={() => setShowParticipeModal(false)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "rgba(255,255,255,0.08)" }}>
+                <X style={{ width: 15, height: 15, color: "rgba(255,255,255,0.6)" }} />
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-2 px-5 pt-4">
+              {[
+                { key: "ticket", label: "🎟 Gratter un ticket" },
+                { key: "balance", label: "💰 Miser mon solde" },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => { setParticipeTab(key as "ticket" | "balance"); setJackpotBetDone(false); }}
+                  className="flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all"
+                  style={participeTab === key
+                    ? { background: "linear-gradient(135deg,#1a6b2f,#22a84a)", color: "#fff", boxShadow: "0 3px 12px rgba(34,168,74,0.4)" }
+                    : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.08)" }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab content */}
+            <div className="px-5 pt-4 pb-6">
+              {participeTab === "ticket" ? (
+                <div className="flex flex-col gap-3">
+                  <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
+                    Entrez le code à 10 chiffres de votre ticket Halgo Cash. Chaque ticket activé = <strong className="text-white">1 participation</strong> au tirage du samedi.
+                  </p>
+                  <button
+                    onClick={() => { setShowParticipeModal(false); setShowTicketInput(true); }}
+                    className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[13px] transition-all active:scale-[0.98]"
+                    style={{ background: "linear-gradient(135deg,#8DC63F,#6baa2a)", color: "#0a1f0e", boxShadow: "0 4px 16px rgba(141,198,63,0.4)" }}
+                  >
+                    <span className="flex items-center justify-center gap-2">
+                      <Ticket style={{ width: 16, height: 16 }} />
+                      OUVRIR LE CLAVIER
+                    </span>
+                  </button>
+                </div>
+              ) : jackpotBetDone ? (
+                <div className="flex flex-col items-center gap-3 py-2">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg,#22c55e,#16a34a)", boxShadow: "0 0 32px rgba(34,197,94,0.4)" }}>
+                    <CheckCircle style={{ width: 32, height: 32, color: "#fff" }} />
+                  </div>
+                  <p className="font-black text-base text-white text-center">Participation enregistrée !</p>
+                  <p className="text-[11px] text-center" style={{ color: "rgba(255,255,255,0.5)" }}>
+                    Vous participez au tirage de <strong className="text-white">samedi à minuit</strong>. Bonne chance 🍀
+                  </p>
+                  <button onClick={() => setShowParticipeModal(false)} className="w-full py-3 rounded-2xl font-black text-[12px]" style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.7)" }}>
+                    Fermer
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                    <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.45)" }}>Solde disponible</span>
+                    <span className="font-black text-[12px] text-white">{balance !== null ? `${formatFC(balance)} FC` : "—"}</span>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wide mb-1.5 block" style={{ color: "rgba(255,255,255,0.5)" }}>
+                      Montant à miser (min. 500 FC)
+                    </label>
+                    <div className="flex items-center gap-2 px-4 py-3 rounded-xl" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                      <input
+                        type="number"
+                        min="500"
+                        value={jackpotBetAmt}
+                        onChange={e => setJackpotBetAmt(e.target.value)}
+                        className="flex-1 bg-transparent text-white font-black text-[14px] outline-none"
+                        placeholder="500"
+                      />
+                      <span className="font-bold text-[11px]" style={{ color: "rgba(255,255,255,0.4)" }}>FC</span>
+                    </div>
+                    <p className="text-[9px] mt-1.5" style={{ color: "rgba(255,255,255,0.35)" }}>
+                      Chaque tranche de 500 FC = 1 participation supplémentaire
+                    </p>
+                  </div>
+                  <button
+                    disabled={jackpotBetLoading || !jackpotBetAmt || Number(jackpotBetAmt) < 500}
+                    onClick={async () => {
+                      const amt = Number(jackpotBetAmt);
+                      if (!amt || amt < 500) return;
+                      setJackpotBetLoading(true);
+                      try {
+                        const res = await authFetch("/api/jackpot/enter", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: amt }) });
+                        if (res.ok) {
+                          setJackpotBetDone(true);
+                          void fetchBalance();
+                        } else {
+                          const d = await res.json().catch(() => ({})) as { error?: string };
+                          alert(d.error ?? "Erreur — veuillez réessayer");
+                        }
+                      } catch { alert("Erreur de connexion"); }
+                      finally { setJackpotBetLoading(false); }
+                    }}
+                    className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[13px] transition-all active:scale-[0.98] disabled:opacity-50"
+                    style={{ background: "linear-gradient(135deg,#c8960a,#F5C518)", color: "#3a1f00", boxShadow: "0 4px 16px rgba(200,150,10,0.4)" }}
+                  >
+                    {jackpotBetLoading
+                      ? <Loader2 style={{ width: 18, height: 18 }} className="animate-spin mx-auto" />
+                      : <span className="flex items-center justify-center gap-2"><Zap style={{ width: 16, height: 16 }} />CONFIRMER LA MISE</span>}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ CASHBACK INFO MODAL ══ */}
+      {showCashbackModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center pb-6 px-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowCashbackModal(false)} />
+          <div className="relative w-full max-w-sm rounded-3xl overflow-hidden" style={{ background: "#0d1f14", boxShadow: "0 8px 60px rgba(0,0,0,0.8)" }}>
+            <div className="flex items-center justify-between px-5 pt-4 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center font-black text-[14px]" style={{ background: "radial-gradient(circle at 38% 32%,#f5d060,#d4a017 55%,#8a6500)", boxShadow: "0 0 12px rgba(245,197,24,0.5)" }}>%</div>
+                <span className="font-black text-[13px] uppercase tracking-wide text-white">Cashback 10%</span>
+              </div>
+              <button onClick={() => setShowCashbackModal(false)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "rgba(255,255,255,0.08)" }}>
+                <X style={{ width: 15, height: 15, color: "rgba(255,255,255,0.6)" }} />
+              </button>
+            </div>
+            <div className="px-5 py-5 flex flex-col gap-4">
+              {/* Big highlight */}
+              <div className="rounded-2xl p-5 flex flex-col items-center gap-2" style={{ background: "linear-gradient(160deg,#1e1400,#2e1e00)", border: "1px solid rgba(245,197,24,0.3)" }}>
+                <span className="text-5xl font-black" style={{ color: "#F5C518", textShadow: "0 0 24px rgba(245,197,24,0.4)" }}>10%</span>
+                <p className="text-[11px] font-bold text-center" style={{ color: "rgba(255,255,255,0.6)" }}>
+                  du montant misé chaque semaine,<br/>crédité <strong className="text-white">automatiquement</strong>
+                </p>
+              </div>
+              {/* How it works */}
+              {[
+                { icon: "📅", text: "Chaque lundi, on calcule vos mises des 7 jours précédents" },
+                { icon: "💰", text: "10% de ce montant est crédité sur votre solde le lundi à 8h" },
+                { icon: "🎯", text: "Valable sur tous les jeux : Crash, Roulette, Paris Sportifs" },
+                { icon: "✅", text: "Activé automatiquement pour tout compte Halgo Cash actif" },
+              ].map(({ icon, text }, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <span className="text-[18px] flex-shrink-0">{icon}</span>
+                  <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.6)" }}>{text}</p>
+                </div>
+              ))}
+              <button
+                onClick={() => setShowCashbackModal(false)}
+                className="w-full py-3.5 rounded-2xl font-black text-[13px] uppercase tracking-wide"
+                style={{ background: "linear-gradient(135deg,#c8960a,#F5C518)", color: "#3a1f00" }}
+              >
+                J'ai compris — Allons jouer !
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <SupportChat />
+
+      {/* ═══════════════ BOTTOM NAV ═══════════════ */}
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-30 flex items-stretch"
+        style={{ background: "#0a1a0e", borderTop: "1px solid rgba(255,255,255,0.06)", height: 68 }}
+      >
+        {[
+          { icon: HomeIcon, label: "ACCUEIL",  path: "/app",          active: true  },
+          { icon: Ticket,   label: "TICKETS",  path: "/app/tickets",  active: false },
+          { icon: UserPlus, label: "PARRAIN",  path: "/app/parrainage", active: false },
+          { icon: User,     label: "PROFIL",   path: "/app/profile",  active: false },
+        ].map(({ icon: Icon, label, path, active }) => (
+          <button key={label} onClick={() => navigate(path)}
+            className="flex-1 flex flex-col items-center justify-center gap-0.5 transition-all active:scale-90">
+            <Icon style={{ width: 20, height: 20, color: active ? "#F5C518" : "rgba(255,255,255,0.35)" }} />
+            <span className="text-[9px] font-black uppercase tracking-wide leading-none"
+              style={{ color: active ? "#F5C518" : "rgba(255,255,255,0.3)" }}>
+              {label}
+            </span>
+            {active && <div className="w-5 h-0.5 rounded-full mt-0.5" style={{ background: "#F5C518" }} />}
+          </button>
+        ))}
+      </nav>
+
       <style>{`
         @keyframes slideUp {
           from { opacity: 0; transform: translateX(-50%) translateY(16px); }
           to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        @keyframes jackpotGlow {
+          0%,100% { box-shadow: 0 8px 32px rgba(22,92,40,0.5), 0 0 0 0 rgba(141,198,63,0.0); }
+          50%      { box-shadow: 0 8px 32px rgba(22,92,40,0.5), 0 0 24px 4px rgba(141,198,63,0.22); }
+        }
+        @keyframes participerPulse {
+          0%,100% { box-shadow: 0 2px 12px rgba(34,168,74,0.45); }
+          50%      { box-shadow: 0 2px 20px rgba(34,168,74,0.75), 0 0 0 3px rgba(34,168,74,0.15); }
+        }
+        @keyframes promoFloat {
+          0%,100% { transform: translateY(0); }
+          50%     { transform: translateY(-4px); }
+        }
+        @keyframes liveMarquee {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
         }
       `}</style>
     </div>
