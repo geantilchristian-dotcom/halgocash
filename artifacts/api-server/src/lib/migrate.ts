@@ -267,6 +267,50 @@ export async function runMigrations() {
       )
     `);
 
+    // Crash game bets
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS crash_bets (
+        id SERIAL PRIMARY KEY,
+        clerk_id VARCHAR(255) NOT NULL,
+        round_id INTEGER NOT NULL,
+        amount INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'placed',
+        cashout_mult DECIMAL(8,2),
+        won_amount INTEGER,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Player moderation records
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS player_moderation (
+        clerk_id VARCHAR(255) PRIMARY KEY,
+        status TEXT NOT NULL DEFAULT 'active',
+        blocked_email TEXT,
+        blocked_ip TEXT,
+        warn_count INTEGER NOT NULL DEFAULT 0,
+        admin_notes TEXT,
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Mines game sessions
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS mines_games (
+        id SERIAL PRIMARY KEY,
+        clerk_id VARCHAR(255) NOT NULL,
+        bet_amount INTEGER NOT NULL,
+        mine_count INTEGER NOT NULL,
+        mine_positions JSON NOT NULL,
+        revealed_cells JSON NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'active',
+        cashout_amount INTEGER,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        ended_at TIMESTAMP
+      )
+    `);
+
     logger.info("Database migrations completed successfully");
   } finally {
     client.release();
