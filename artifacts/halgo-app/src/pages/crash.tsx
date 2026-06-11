@@ -853,8 +853,18 @@ export default function CrashGame() {
 
         // ── Phase mismatch: server flying but client isn't → force sync ───────
         if (sPhase === "flying" && state.crashPoint && phaseRef.current !== "flying") {
-          lastRoundId = roundId;
-          startRoundRef.current(roundId, adjustedMs, state.crashPoint);
+          // Always update the crash point so the animation is correct
+          crashPointRef.current = state.crashPoint;
+          currentRoundRef.current = roundId;
+          const msIntoFlight = Math.max(0, adjustedMs - FLIGHT_START_MS);
+          if (msIntoFlight > 1500) {
+            // > 1.5s into flight and still not flying → page reload mid-flight.
+            // Betting is already closed so there's no active bet to preserve.
+            lastRoundId = roundId;
+            startRoundRef.current(roundId, adjustedMs, state.crashPoint);
+          }
+          // ≤ 1.5s: betting→flying boundary. The local countdown fires within ~1s.
+          // Don't call startRound here — it would reset betPlaced and lose the user's bet.
           return;
         }
 
