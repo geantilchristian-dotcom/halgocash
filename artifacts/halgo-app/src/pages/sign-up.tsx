@@ -46,11 +46,25 @@ export default function SignUpPage() {
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
       setStep("verify");
     } catch (err: unknown) {
-      const e = err as { errors?: { longMessage?: string; message?: string }[] };
+      const e = err as { errors?: { longMessage?: string; message?: string; code?: string; meta?: { paramName?: string } }[]; message?: string };
+      const clerkErr = e.errors?.[0];
+      const code = clerkErr?.code ?? "";
+      const translations: Record<string, string> = {
+        form_identifier_exists:      "Cette adresse email est déjà utilisée. Connectez-vous ou utilisez une autre email.",
+        form_password_pwned:         "Ce mot de passe est trop commun. Choisissez-en un plus sécurisé.",
+        form_password_too_short:     "Mot de passe trop court (minimum 8 caractères).",
+        form_param_format_invalid:   "Adresse email invalide.",
+        form_param_nil:              "Veuillez remplir tous les champs obligatoires.",
+        session_exists:              "Vous êtes déjà connecté(e).",
+        too_many_requests:           "Trop de tentatives. Réessayez dans quelques minutes.",
+        strategy_for_user_not_found: "Méthode de connexion non reconnue pour ce compte.",
+      };
       setError(
-        e.errors?.[0]?.longMessage ??
-        e.errors?.[0]?.message ??
-        "Erreur lors de l'inscription"
+        translations[code] ??
+        clerkErr?.longMessage ??
+        clerkErr?.message ??
+        e.message ??
+        "Erreur lors de l'inscription. Vérifiez vos informations et réessayez."
       );
     } finally {
       setLoading(false);
