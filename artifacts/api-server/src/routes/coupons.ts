@@ -58,60 +58,66 @@ router.get("/coupons", async (req, res): Promise<void> => {
 
 // POST /api/coupons/register — register a ticket code to current user
 router.post("/coupons/register", async (req, res): Promise<void> => {
-  const { userId } = getAuth(req);
-  if (!userId) {
-    res.status(401).json({ error: "Non authentifié" });
-    return;
-  }
-
-  const { code } = req.body as { code: string };
-  if (!code || typeof code !== "string" || code.trim().length === 0) {
-    res.status(400).json({ error: "Code requis" });
-    return;
-  }
-
-  const trimmed = code.trim();
-
-  const [ticket] = await db
-    .select()
-    .from(ticketsTable)
-    .where(eq(ticketsTable.code, trimmed))
-    .limit(1);
-
-  if (!ticket) {
-    res.status(404).json({ error: "Code de coupon introuvable" });
-    return;
-  }
-
-  if (ticket.registeredByClerkId) {
-    if (ticket.registeredByClerkId === userId) {
-      res.status(400).json({ error: "Vous avez déjà enregistré ce coupon" });
-    } else {
-      res.status(400).json({ error: "Ce coupon a déjà été utilisé par quelqu'un d'autre" });
+  try {
+    const { userId } = getAuth(req);
+    if (!userId) {
+      res.status(401).json({ error: "Non authentifié" });
+      return;
     }
-    return;
-  }
 
-  await db
-    .update(ticketsTable)
-    .set({ registeredByClerkId: userId, registeredAt: new Date() })
-    .where(eq(ticketsTable.id, ticket.id));
+    const { code } = req.body as { code: string };
+    if (!code || typeof code !== "string" || code.trim().length === 0) {
+      res.status(400).json({ error: "Code requis" });
+      return;
+    }
 
-  let drawNumber: number | null = null;
-  if (ticket.drawId) {
-    const [draw] = await db
-      .select({ drawNumber: drawsTable.drawNumber })
-      .from(drawsTable)
-      .where(eq(drawsTable.id, ticket.drawId))
+    const trimmed = code.trim().toUpperCase();
+
+    const [ticket] = await db
+      .select()
+      .from(ticketsTable)
+      .where(eq(ticketsTable.code, trimmed))
       .limit(1);
-    drawNumber = draw?.drawNumber ?? null;
-  }
 
-  res.status(201).json(formatTicket({ ...ticket, registeredByClerkId: userId, registeredAt: new Date() }, drawNumber));
+    if (!ticket) {
+      res.status(404).json({ error: "Code de coupon introuvable — vérifiez les caractères" });
+      return;
+    }
+
+    if (ticket.registeredByClerkId) {
+      if (ticket.registeredByClerkId === userId) {
+        res.status(400).json({ error: "Vous avez déjà enregistré ce coupon" });
+      } else {
+        res.status(400).json({ error: "Ce coupon a déjà été utilisé par quelqu'un d'autre" });
+      }
+      return;
+    }
+
+    await db
+      .update(ticketsTable)
+      .set({ registeredByClerkId: userId, registeredAt: new Date() })
+      .where(eq(ticketsTable.id, ticket.id));
+
+    let drawNumber: number | null = null;
+    if (ticket.drawId) {
+      const [draw] = await db
+        .select({ drawNumber: drawsTable.drawNumber })
+        .from(drawsTable)
+        .where(eq(drawsTable.id, ticket.drawId))
+        .limit(1);
+      drawNumber = draw?.drawNumber ?? null;
+    }
+
+    res.status(201).json(formatTicket({ ...ticket, registeredByClerkId: userId, registeredAt: new Date() }, drawNumber));
+  } catch (err) {
+    req.log.error({ err }, "coupons/register error");
+    res.status(500).json({ error: "Erreur lors de l'enregistrement du coupon" });
+  }
 });
 
 // POST /api/tickets/activate — reveal a ticket result and link to user
 router.post("/tickets/activate", async (req, res): Promise<void> => {
+  try {
   const { userId: clerkUserId } = getAuth(req);
   const sessionUserId = req.session.userId;
   // Prefer Clerk auth; fall back to session user stored as "local:<id>"
@@ -204,6 +210,10 @@ router.post("/tickets/activate", async (req, res): Promise<void> => {
     alreadyActivated: false,
     newBalance,
   });
+  } catch (err) {
+    req.log.error({ err }, "tickets/activate error");
+    res.status(500).json({ error: "Erreur lors de la vérification du ticket" });
+  }
 });
 
 export default router;

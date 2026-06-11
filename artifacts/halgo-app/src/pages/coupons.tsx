@@ -89,8 +89,9 @@ export default function Coupons() {
       const param = url.searchParams.get("code");
       if (param) code = param;
     } catch { /* not a URL — use raw value */ }
-    code = code.replace(/\D/g, "").slice(0, 10);
-    if (code.length === 10) {
+    // Ticket codes are alphanumeric (e.g. RPWH46TH5B) — do NOT strip letters
+    code = code.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20);
+    if (code.length >= 5) {
       setNewCode(code);
       setShowAdd(true);
       setAddError(null);
@@ -127,9 +128,10 @@ export default function Coupons() {
 
   const handleRegister = () => {
     setAddError(null);
-    const trimmed = newCode.trim().replace(/\D/g, "");
-    if (trimmed.length !== 10) {
-      setAddError("Le code doit contenir exactement 10 chiffres");
+    // Ticket codes are alphanumeric — keep letters AND digits, just strip spaces/hyphens
+    const trimmed = newCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (trimmed.length < 5) {
+      setAddError("Code trop court — vérifiez les caractères");
       return;
     }
     registerMutation.mutate(trimmed);
