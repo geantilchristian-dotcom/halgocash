@@ -18,6 +18,8 @@ async function requireAdmin(req: Request, res: Response): Promise<boolean> {
   return true;
 }
 
+// ── Promo Banner ──────────────────────────────────────────────────────────────
+
 export interface PromoBannerConfig {
   bgColor1: string;
   bgColor2: string;
@@ -101,4 +103,91 @@ router.put("/admin/promo-banner", async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
+// ── Jackpot Config ─────────────────────────────────────────────────────────────
+
+export interface JackpotConfig {
+  minAmount: number;
+  prizeLabel: string;
+  subtitle: string;
+  howTo: string;
+  cashbackRate: number;
+  cashbackTitle: string;
+  cashbackLines: string[];
+  bonusAmount: string;
+  bonusSubtitle: string;
+  bonusConditions: string;
+}
+
+const DEFAULT_JACKPOT: JackpotConfig = {
+  minAmount: 500,
+  prizeLabel: "5 000 000 FC",
+  subtitle: "Participez au tirage chaque samedi !",
+  howTo: "Grattez un ticket ou misez sur votre solde. Chaque tranche de 500 FC = 1 participation supplémentaire.",
+  cashbackRate: 10,
+  cashbackTitle: "Cashback 10%",
+  cashbackLines: [
+    "Chaque lundi, on calcule vos mises des 7 jours précédents",
+    "10% de ce montant est crédité sur votre solde le lundi à 8h",
+    "Valable sur tous les jeux : Crash, Roulette, Paris Sportifs",
+    "Activé automatiquement pour tout compte Halgo Cash actif",
+  ],
+  bonusAmount: "50 000 FC",
+  bonusSubtitle: "100% jusqu'à 50 000 FC",
+  bonusConditions: "Obtenez jusqu'à 50 000 FC de bonus. Parrainez vos amis pour débloquer des récompenses supplémentaires.",
+};
+
+async function getJackpotConfig(): Promise<JackpotConfig> {
+  const [row] = await db
+    .select()
+    .from(siteSettingsTable)
+    .where(eq(siteSettingsTable.key, "jackpot_config"))
+    .limit(1);
+  if (!row) return DEFAULT_JACKPOT;
+  try {
+    return { ...DEFAULT_JACKPOT, ...(JSON.parse(row.value) as Partial<JackpotConfig>) };
+  } catch {
+    return DEFAULT_JACKPOT;
+  }
+}
+
+router.get("/jackpot-settings", async (_req, res): Promise<void> => {
+  res.json(await getJackpotConfig());
+});
+
+router.get("/admin/jackpot-settings", async (req, res): Promise<void> => {
+  if (!await requireAdmin(req, res)) return;
+  res.json(await getJackpotConfig());
+});
+
+router.put("/admin/jackpot-settings", async (req: Request, res: Response): Promise<void> => {
+  if (!await requireAdmin(req, res)) return;
+  const patch = req.body as Partial<JackpotConfig>;
+  if (!patch || typeof patch !== "object") {
+    res.status(400).json({ error: "Données invalides" });
+    return;
+  }
+  const current = await getJackpotConfig();
+  const updated: JackpotConfig = { ...current, ...patch };
+  if (updated.minAmount < 100 || updated.minAmount > 100000) {
+    res.status(400).json({ error: "Montant minimum invalide (100 – 100 000 FC)" });
+    return;
+  }
+  const jsonStr = JSON.stringify(updated);
+  const [existing] = await db
+    .select({ key: siteSettingsTable.key })
+    .from(siteSettingsTable)
+    .where(eq(siteSettingsTable.key, "jackpot_config"))
+    .limit(1);
+  if (existing) {
+    await db
+      .update(siteSettingsTable)
+      .set({ value: jsonStr, updatedAt: new Date() })
+      .where(eq(siteSettingsTable.key, "jackpot_config"));
+  } else {
+    await db.insert(siteSettingsTable).values({ key: "jackpot_config", value: jsonStr });
+  }
+  res.json({ ok: true, config: updated });
+});
+
+export { getJackpotConfig };
 export default router;

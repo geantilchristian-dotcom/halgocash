@@ -303,6 +303,13 @@ export default function Home() {
   const [jackpotBetAmt,      setJackpotBetAmt]      = useState("500");
   const [jackpotBetLoading,  setJackpotBetLoading]  = useState(false);
   const [jackpotBetDone,     setJackpotBetDone]     = useState(false);
+  const [jackpotMinAmount,   setJackpotMinAmount]   = useState(500);
+  const [cashbackLines,      setCashbackLines]      = useState<string[]>([
+    "Chaque lundi, on calcule vos mises des 7 jours précédents",
+    "10% de ce montant est crédité sur votre solde le lundi à 8h",
+    "Valable sur tous les jeux : Crash, Roulette, Paris Sportifs",
+    "Activé automatiquement pour tout compte Halgo Cash actif",
+  ]);
 
   // ── Send money ──
   const [showActionSheet,  setShowActionSheet]  = useState(false);
@@ -520,6 +527,18 @@ export default function Home() {
     const id = setInterval(ping, 60_000);
     return () => clearInterval(id);
   }, [user?.id]);
+
+  // ── Fetch jackpot settings ──
+  useEffect(() => {
+    fetch("/api/jackpot-settings")
+      .then(r => r.ok ? r.json() as Promise<{ minAmount?: number; cashbackLines?: string[] }> : null)
+      .then(cfg => {
+        if (!cfg) return;
+        if (typeof cfg.minAmount === "number" && cfg.minAmount >= 100) setJackpotMinAmount(cfg.minAmount);
+        if (Array.isArray(cfg.cashbackLines) && cfg.cashbackLines.length) setCashbackLines(cfg.cashbackLines);
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Poll support unread count every 15 s — detects incoming transfers ──────
   useEffect(() => {
@@ -1242,12 +1261,12 @@ export default function Home() {
             setShowQrScanner(false);
             // Try to extract a 10-digit code from the raw value
             let code = "";
-            // 1. URL with ?code= param
-            try { const url = new URL(raw); const p = url.searchParams.get("code"); if (p) code = p.replace(/\D/g, "").slice(0, 10); } catch { /* not a URL */ }
-            // 2. 10 consecutive digits anywhere in the string
-            if (code.length !== 10) { const m = raw.replace(/\s/g, "").match(/\d{10}/); if (m) code = m[0]; }
-            // 3. fallback: keep digits only, take first 10
-            if (code.length !== 10) { code = raw.replace(/\D/g, "").slice(0, 10); }
+            // 1. URL with ?code= param (tickets embed alphanumeric codes)
+            try { const url = new URL(raw); const p = url.searchParams.get("code"); if (p) code = p.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10); } catch { /* not a URL */ }
+            // 2. 10-char alphanumeric sequence (ticket code format: ABCDEFGHJK...)
+            if (code.length !== 10) { const m = raw.replace(/\s/g, "").toUpperCase().match(/[A-Z0-9]{10}/); if (m) code = m[0]; }
+            // 3. fallback: strip non-alphanumeric, take first 10
+            if (code.length !== 10) { code = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10); }
             if (!code) return;
             setTicketCode(code);
             setActivationError(null);
@@ -2020,28 +2039,28 @@ export default function Home() {
                   </div>
                   <div>
                     <label className="text-[10px] font-bold uppercase tracking-wide mb-1.5 block" style={{ color: "rgba(255,255,255,0.5)" }}>
-                      Montant à miser (min. 500 FC)
+                      Montant à miser (min. {jackpotMinAmount} FC)
                     </label>
                     <div className="flex items-center gap-2 px-4 py-3 rounded-xl" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
                       <input
                         type="number"
-                        min="500"
+                        min={jackpotMinAmount}
                         value={jackpotBetAmt}
                         onChange={e => setJackpotBetAmt(e.target.value)}
                         className="flex-1 bg-transparent text-white font-black text-[14px] outline-none"
-                        placeholder="500"
+                        placeholder={String(jackpotMinAmount)}
                       />
                       <span className="font-bold text-[11px]" style={{ color: "rgba(255,255,255,0.4)" }}>FC</span>
                     </div>
                     <p className="text-[9px] mt-1.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-                      Chaque tranche de 500 FC = 1 participation supplémentaire
+                      Chaque tranche de {jackpotMinAmount} FC = 1 participation supplémentaire
                     </p>
                   </div>
                   <button
-                    disabled={jackpotBetLoading || !jackpotBetAmt || Number(jackpotBetAmt) < 500}
+                    disabled={jackpotBetLoading || !jackpotBetAmt || Number(jackpotBetAmt) < jackpotMinAmount}
                     onClick={async () => {
                       const amt = Number(jackpotBetAmt);
-                      if (!amt || amt < 500) return;
+                      if (!amt || amt < jackpotMinAmount) return;
                       setJackpotBetLoading(true);
                       try {
                         const res = await authFetch("/api/jackpot/enter", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: amt }) });
@@ -2094,14 +2113,9 @@ export default function Home() {
                 </p>
               </div>
               {/* How it works */}
-              {[
-                { icon: "📅", text: "Chaque lundi, on calcule vos mises des 7 jours précédents" },
-                { icon: "💰", text: "10% de ce montant est crédité sur votre solde le lundi à 8h" },
-                { icon: "🎯", text: "Valable sur tous les jeux : Crash, Roulette, Paris Sportifs" },
-                { icon: "✅", text: "Activé automatiquement pour tout compte Halgo Cash actif" },
-              ].map(({ icon, text }, i) => (
+              {cashbackLines.map((text, i) => (
                 <div key={i} className="flex items-start gap-3">
-                  <span className="text-[18px] flex-shrink-0">{icon}</span>
+                  <span className="text-[18px] flex-shrink-0">{(["📅","💰","🎯","✅","⭐","🔥"] as string[])[i] ?? "•"}</span>
                   <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.6)" }}>{text}</p>
                 </div>
               ))}
@@ -2116,31 +2130,6 @@ export default function Home() {
           </div>
         </div>
       )}
-
-      <SupportChat />
-
-      {/* ═══════════════ BOTTOM NAV ═══════════════ */}
-      <nav
-        className="fixed bottom-0 left-0 right-0 z-30 flex items-stretch"
-        style={{ background: "#0a1a0e", borderTop: "1px solid rgba(255,255,255,0.06)", height: 68 }}
-      >
-        {[
-          { icon: HomeIcon, label: "ACCUEIL",  path: "/app",          active: true  },
-          { icon: Ticket,   label: "TICKETS",  path: "/app/tickets",  active: false },
-          { icon: UserPlus, label: "PARRAIN",  path: "/app/parrainage", active: false },
-          { icon: User,     label: "PROFIL",   path: "/app/profile",  active: false },
-        ].map(({ icon: Icon, label, path, active }) => (
-          <button key={label} onClick={() => navigate(path)}
-            className="flex-1 flex flex-col items-center justify-center gap-0.5 transition-all active:scale-90">
-            <Icon style={{ width: 20, height: 20, color: active ? "#F5C518" : "rgba(255,255,255,0.35)" }} />
-            <span className="text-[9px] font-black uppercase tracking-wide leading-none"
-              style={{ color: active ? "#F5C518" : "rgba(255,255,255,0.3)" }}>
-              {label}
-            </span>
-            {active && <div className="w-5 h-0.5 rounded-full mt-0.5" style={{ background: "#F5C518" }} />}
-          </button>
-        ))}
-      </nav>
 
       <style>{`
         @keyframes slideUp {

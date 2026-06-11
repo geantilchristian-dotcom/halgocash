@@ -18,6 +18,7 @@ import WinnersPage from "@/pages/winners";
 import KycAdmin from "@/pages/kyc-admin";
 import SupportAdmin from "@/pages/support-admin";
 import SportBetsAdmin from "@/pages/sport-bets-admin";
+import JackpotSettings from "@/pages/jackpot-settings";
 import GameCovers from "@/pages/game-covers";
 import Vendors from "@/pages/vendors";
 import { AppLayout } from "@/components/layout/app-layout";
@@ -72,6 +73,7 @@ function ProtectedRouter() {
         <Route path="/sport-bets" component={SportBetsAdmin} />
         <Route path="/game-covers" component={GameCovers} />
         <Route path="/vendors" component={Vendors} />
+        <Route path="/jackpot-settings" component={JackpotSettings} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>

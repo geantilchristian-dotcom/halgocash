@@ -100,7 +100,7 @@ export function SupportChat() {
         <div className="fixed inset-0 z-50 flex items-end justify-center px-0">
           <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
           <div className="relative w-full max-w-sm rounded-t-3xl flex flex-col"
-            style={{ background: "#0d1f12", height: "65vh", boxShadow: "0 -8px 40px rgba(0,0,0,0.6)" }}>
+            style={{ background: "#0d1f12", height: "65dvh", maxHeight: "75dvh", boxShadow: "0 -8px 40px rgba(0,0,0,0.6)" }}>
 
             {/* Header */}
             <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.08)" }}>

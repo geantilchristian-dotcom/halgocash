@@ -1,6 +1,6 @@
 import { Router, Request } from "express";
 import { getAuth } from "@clerk/express";
-import { db, creditAdjustmentsTable, ticketsTable, withdrawalsTable } from "@workspace/db";
+import { db, creditAdjustmentsTable, ticketsTable, withdrawalsTable, siteSettingsTable } from "@workspace/db";
 import { eq, and, sum, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 
@@ -32,8 +32,23 @@ async function computeBalance(userId: string): Promise<number> {
 }
 
 const enterSchema = z.object({
-  amount: z.number().int().min(500, "Montant minimum 500 FC"),
+  amount: z.number().int().positive("Montant invalide"),
 });
+
+async function getMinAmount(): Promise<number> {
+  try {
+    const [row] = await db
+      .select()
+      .from(siteSettingsTable)
+      .where(eq(siteSettingsTable.key, "jackpot_config"))
+      .limit(1);
+    if (row) {
+      const cfg = JSON.parse(row.value) as { minAmount?: number };
+      if (cfg.minAmount && cfg.minAmount >= 100) return cfg.minAmount;
+    }
+  } catch { /* fall through */ }
+  return 500;
+}
 
 // POST /api/jackpot/enter — bet from balance to participate in Saturday jackpot
 router.post("/jackpot/enter", async (req, res): Promise<void> => {
@@ -50,6 +65,13 @@ router.post("/jackpot/enter", async (req, res): Promise<void> => {
   }
 
   const { amount } = parsed.data;
+  const minAmount = await getMinAmount();
+
+  if (amount < minAmount) {
+    res.status(400).json({ error: `Montant minimum ${minAmount} FC` });
+    return;
+  }
+
   const balance = await computeBalance(userId);
 
   if (balance < amount) {
@@ -57,8 +79,8 @@ router.post("/jackpot/enter", async (req, res): Promise<void> => {
     return;
   }
 
-  // Calculate number of entries (1 per 500 FC tranche)
-  const entries = Math.floor(amount / 500);
+  // Calculate number of entries (1 per minAmount FC tranche)
+  const entries = Math.floor(amount / minAmount);
 
   // Get current week identifier (year-week)
   const now = new Date();
@@ -74,7 +96,7 @@ router.post("/jackpot/enter", async (req, res): Promise<void> => {
     refId: `jackpot-${weekId}-${Date.now()}`,
   });
 
-  req.log?.info({ userId, amount, entries, weekId }, "jackpot entry recorded");
+  req.log?.info({ userId, amount, entries, weekId, minAmount }, "jackpot entry recorded");
 
   res.json({ ok: true, entries, weekId, message: `${entries} participation${entries > 1 ? "s" : ""} enregistrée${entries > 1 ? "s" : ""} pour le jackpot du samedi` });
 });
