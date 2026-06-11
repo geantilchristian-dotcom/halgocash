@@ -1,7 +1,7 @@
 import { SignIn } from "@clerk/react";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
-const logoUrl = `${import.meta.env.BASE_URL}logo-halgo-cash-nobg.webp`;
+const logoUrl = `${import.meta.env.BASE_URL}halgo-cash-logo.jpg`;
 
 const signInAppearance = {
   cssLayerName: "clerk",

@@ -27,7 +27,7 @@ import SignUpPage from "@/pages/sign-up";
 import { AgeGate } from "@/components/age-gate";
 import { Loader2 } from "lucide-react";
 
-const logoUrl = `${import.meta.env.BASE_URL}logo-halgo-cash-nobg.webp`;
+const logoUrl = `${import.meta.env.BASE_URL}halgo-cash-logo.jpg`;
 
 // ── Splash screen ─────────────────────────────────────────────────────────────
 function SplashScreen({ onDone }: { onDone: () => void }) {
