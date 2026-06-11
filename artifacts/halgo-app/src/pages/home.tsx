@@ -18,7 +18,14 @@ function formatFC(amount: number): string {
   return new Intl.NumberFormat("fr-FR").format(Math.round(amount)).replace(/[\u00a0\s]/g, " ");
 }
 
-function JackpotBanner({ countdown, onParticiper }: { countdown: string; onParticiper: () => void }) {
+function currentWeekId(): string {
+  const now = new Date();
+  const onejan = new Date(now.getFullYear(), 0, 1);
+  const week = Math.ceil(((now.getTime() - onejan.getTime()) / 86400000 + onejan.getDay() + 1) / 7);
+  return `${now.getFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+function JackpotBanner({ countdown, onParticiper, participated }: { countdown: string; onParticiper: () => void; participated: boolean }) {
   const [imgOk, setImgOk] = useState<boolean | null>(null);
   const ts = useRef(Date.now());
 
@@ -67,10 +74,14 @@ function JackpotBanner({ countdown, onParticiper }: { countdown: string; onParti
         </div>
         <button
           onClick={onParticiper}
-          className="flex items-center gap-1 px-4 py-2 rounded-xl font-black text-[11px] uppercase tracking-wide transition-all active:scale-95"
-          style={{ background: "linear-gradient(135deg,#1a6b2f,#22a84a)", color: "#fff", border: "1px solid rgba(255,255,255,0.15)", boxShadow: "0 2px 12px rgba(34,168,74,0.45)", animation: "participerPulse 2.5s ease-in-out infinite" }}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-[11px] uppercase tracking-wide transition-all active:scale-95"
+          style={participated
+            ? { background: "rgba(141,198,63,0.12)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.35)", boxShadow: "none" }
+            : { background: "linear-gradient(135deg,#1a6b2f,#22a84a)", color: "#fff", border: "1px solid rgba(255,255,255,0.15)", boxShadow: "0 2px 12px rgba(34,168,74,0.45)", animation: "participerPulse 2.5s ease-in-out infinite" }}
         >
-          PARTICIPER <ChevronRight style={{ width: 13, height: 13 }} />
+          {participated
+            ? <><CheckCircle style={{ width: 12, height: 12 }} /> DÉJÀ PARTICIPÉ</>
+            : <>PARTICIPER <ChevronRight style={{ width: 13, height: 13 }} /></>}
         </button>
       </div>
     </div>
@@ -286,6 +297,9 @@ export default function Home() {
   const [showParticipeModal, setShowParticipeModal] = useState(false);
   const [showCashbackModal,  setShowCashbackModal]  = useState(false);
   const [participeTab,       setParticipeTab]       = useState<"ticket" | "balance">("ticket");
+  const [jackpotParticipated, setJackpotParticipated] = useState(() => {
+    try { return localStorage.getItem(`jackpot_p_${currentWeekId()}`) === "1"; } catch { return false; }
+  });
   const [jackpotBetAmt,      setJackpotBetAmt]      = useState("500");
   const [jackpotBetLoading,  setJackpotBetLoading]  = useState(false);
   const [jackpotBetDone,     setJackpotBetDone]     = useState(false);
@@ -731,15 +745,15 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-dvh flex flex-col" style={{ background: "#0b1612" }}>
+    <div className="h-dvh flex flex-col overflow-hidden" style={{ background: "#0b1612" }}>
 
       {/* ── Age gate overlay (first visit only) ── */}
       {!ageConfirmed && <AgeGateModal onConfirm={handleAgeConfirm} onDeny={handleAgeDeny} />}
 
       {/* ═══════════════ HEADER — style betPawa ═══════════════ */}
       <header
-        className="flex items-center justify-between px-4 pt-4 pb-3 gap-3"
-        style={{ background: "#0f1f12" }}
+        className="flex items-center justify-between px-4 pt-4 pb-3 gap-3 shrink-0"
+        style={{ background: "#0f1f12", position: "sticky", top: 0, zIndex: 40 }}
       >
         {/* Left: logo + player ID */}
         <div className="flex flex-col gap-1 select-none shrink-0">
@@ -880,7 +894,15 @@ export default function Home() {
       <div className="flex-1 px-4 pb-28 space-y-4 mt-3 overflow-y-auto">
 
         {/* ── Jackpot Banner ── */}
-        <JackpotBanner countdown={countdown} onParticiper={() => { setParticipeTab("ticket"); setJackpotBetDone(false); setShowParticipeModal(true); }} />
+        <JackpotBanner
+          countdown={countdown}
+          participated={jackpotParticipated}
+          onParticiper={() => {
+            setParticipeTab("ticket");
+            if (!jackpotParticipated) setJackpotBetDone(false);
+            setShowParticipeModal(true);
+          }}
+        />
 
         {/* ── Live Ticker ── */}
         {(() => {
@@ -1090,7 +1112,7 @@ export default function Home() {
             {/* ── Bonus de Bienvenue ── */}
             <div
               className="rounded-2xl flex flex-col items-center pt-3 pb-3 px-2 gap-1.5 cursor-pointer transition-all active:scale-[0.97]"
-              onClick={() => navigate("/app/profile")}
+              onClick={() => navigate("/app/parrainage")}
               style={{
                 background: "linear-gradient(160deg,#0e2a12 0%,#163d1c 60%,#0a1f0e 100%)",
                 border: "1px solid rgba(34,197,94,0.25)",
@@ -2025,6 +2047,8 @@ export default function Home() {
                         const res = await authFetch("/api/jackpot/enter", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: amt }) });
                         if (res.ok) {
                           setJackpotBetDone(true);
+                          setJackpotParticipated(true);
+                          try { localStorage.setItem(`jackpot_p_${currentWeekId()}`, "1"); } catch { /* */ }
                           void fetchBalance();
                         } else {
                           const d = await res.json().catch(() => ({})) as { error?: string };
@@ -2082,7 +2106,7 @@ export default function Home() {
                 </div>
               ))}
               <button
-                onClick={() => setShowCashbackModal(false)}
+                onClick={() => { setShowCashbackModal(false); navigate("/app"); }}
                 className="w-full py-3.5 rounded-2xl font-black text-[13px] uppercase tracking-wide"
                 style={{ background: "linear-gradient(135deg,#c8960a,#F5C518)", color: "#3a1f00" }}
               >

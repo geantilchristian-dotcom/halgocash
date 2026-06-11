@@ -47,7 +47,7 @@ export const withdrawalRateLimit = rateLimit({
 // Max 2 attempts per round (retries allowed), window long enough to cover the round.
 export const crashBetRateLimit = rateLimit({
   windowMs: 5 * 60 * 1000,
-  max: 2,
+  max: 5,
   standardHeaders: "draft-7",
   legacyHeaders: false,
   keyGenerator: (req: Request): string => {
