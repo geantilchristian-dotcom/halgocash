@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSignIn } from "@clerk/react";
 import { Link, useLocation } from "wouter";
 import { Eye, EyeOff, Loader2, AlertCircle, ArrowRight, ShieldCheck } from "lucide-react";
@@ -44,36 +44,12 @@ export default function SignInPage() {
   const [remember, setRemember]     = useState(false);
   const [loading, setLoading]             = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [pendingGoogle, setPendingGoogle] = useState(false);
-  const [pendingSubmit, setPendingSubmit] = useState(false);
   const [error, setError]                 = useState<string | null>(null);
-
-  // Si l'utilisateur a cliqué Google avant que Clerk soit prêt, on déclenche dès qu'il l'est
-  useEffect(() => {
-    if (pendingGoogle && isLoaded && signIn) {
-      setPendingGoogle(false);
-      void triggerGoogle();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingGoogle, isLoaded, signIn]);
-
-  // Idem pour le bouton Se connecter
-  useEffect(() => {
-    if (pendingSubmit && isLoaded && signIn) {
-      setPendingSubmit(false);
-      void handleSubmit();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingSubmit, isLoaded, signIn]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     setError(null);
-    if (!isLoaded || !signIn) {
-      setLoading(true);
-      setPendingSubmit(true);
-      return;
-    }
+    if (!isLoaded || !signIn) return;
     if (!identifier.trim() || !password.trim()) { setError("Veuillez remplir tous les champs."); return; }
     setLoading(true);
     try {
@@ -119,11 +95,7 @@ export default function SignInPage() {
 
   const handleGoogle = () => {
     setError(null);
-    if (!isLoaded || !signIn) {
-      setGoogleLoading(true);
-      setPendingGoogle(true);
-      return;
-    }
+    if (!isLoaded || !signIn) return;
     void triggerGoogle();
   };
 
@@ -279,15 +251,15 @@ export default function SignInPage() {
               <button
                 type="button"
                 onClick={() => { void handleSubmit(); }}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 rounded-2xl font-bold transition-all active:scale-[0.98]"
+                disabled={!isLoaded || loading}
+                className="w-full flex items-center justify-center gap-2 rounded-2xl font-bold transition-all active:scale-[0.98] disabled:opacity-60"
                 style={{
                   height: 56, fontSize: "1rem", letterSpacing: "0.01em",
-                  background: loading ? "rgba(58,171,58,0.6)" : "linear-gradient(135deg,#3aab3a 0%,#4dc44d 100%)",
-                  color: "#fff", border: "none", cursor: loading ? "default" : "pointer",
+                  background: (!isLoaded || loading) ? "rgba(58,171,58,0.6)" : "linear-gradient(135deg,#3aab3a 0%,#4dc44d 100%)",
+                  color: "#fff", border: "none", cursor: (!isLoaded || loading) ? "default" : "pointer",
                   boxShadow: "0 4px 20px rgba(58,171,58,0.4)",
                 }}>
-                {loading
+                {(!isLoaded || loading)
                   ? <Loader2 className="w-5 h-5 animate-spin" />
                   : <><span>Se connecter</span><ArrowRight className="w-5 h-5" /></>}
               </button>
@@ -303,15 +275,15 @@ export default function SignInPage() {
               <button
                 type="button"
                 onClick={handleGoogle}
-                disabled={googleLoading}
-                className="w-full flex items-center justify-center gap-3 rounded-2xl font-semibold transition-all active:scale-[0.98]"
+                disabled={!isLoaded || googleLoading}
+                className="w-full flex items-center justify-center gap-3 rounded-2xl font-semibold transition-all active:scale-[0.98] disabled:opacity-60"
                 style={{
                   height: 56, fontSize: "0.95rem",
-                  background: googleLoading ? "rgba(255,255,255,0.85)" : "#ffffff",
-                  color: "#1a1a1a", border: "none", cursor: googleLoading ? "default" : "pointer",
+                  background: (!isLoaded || googleLoading) ? "rgba(255,255,255,0.85)" : "#ffffff",
+                  color: "#1a1a1a", border: "none", cursor: (!isLoaded || googleLoading) ? "default" : "pointer",
                   boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
                 }}>
-                {googleLoading ? <Loader2 className="w-5 h-5 animate-spin text-gray-500" /> : <GoogleIcon />}
+                {(!isLoaded || googleLoading) ? <Loader2 className="w-5 h-5 animate-spin text-gray-500" /> : <GoogleIcon />}
                 <span>Continuer avec Google</span>
               </button>
 
