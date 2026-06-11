@@ -27,15 +27,9 @@ const SEED_HISTORY: HistoryEntry[] = [
   { mult: 2, color: "#0891b2" }, { mult: 0, color: "#374151" }, { mult: 25, color: "#db2777" },
 ];
 
-const PROBS = ["0.5%", "1.5%", "3%", "5%", "10%", "15%", "20%", "45%"];
 
 function fFC(n: number) {
   return new Intl.NumberFormat("fr-FR").format(Math.round(n)).replace(/\s/g, ".") + " FC";
-}
-function fFCShort(n: number) {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M FC";
-  if (n >= 1_000)     return (n / 1_000).toFixed(0) + "K FC";
-  return n + " FC";
 }
 
 // ── Canvas wheel ─────────────────────────────────────────────────────────────
@@ -231,7 +225,6 @@ export default function RouletteGame() {
   const [error, setError]             = useState<string | null>(null);
   const [liveCount, setLiveCount]     = useState(() => 220 + Math.floor(Math.random() * 80));
   const [showHowTo, setShowHowTo]     = useState(false);
-  const [showDistrib, setShowDistrib] = useState(false);
 
   const canvasRef    = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -419,7 +412,7 @@ export default function RouletteGame() {
           {!balanceLoaded
             ? <Loader2 style={{ width: 13, height: 13, color: "#F5C518" }} className="animate-spin" />
             : <span className="font-black text-[11px]" style={{ color: balFlash ? "#F5C518" : "#fff" }}>
-                {fFCShort(balance)}
+                {fFC(balance)}
               </span>
           }
         </div>
@@ -595,42 +588,6 @@ export default function RouletteGame() {
             </button>
           )}
         </div>
-      </div>
-
-      {/* ── Répartition collapsible ── */}
-      <div
-        className="mx-4 mb-3 rounded-2xl overflow-hidden shrink-0"
-        style={{ background: "rgba(22,13,0,0.7)", border: "1px solid rgba(245,197,24,0.1)" }}
-      >
-        <button
-          className="w-full flex items-center justify-between px-4 py-3"
-          onClick={() => setShowDistrib(v => !v)}
-        >
-          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.4)" }}>
-            Répartition des gains
-          </span>
-          {showDistrib
-            ? <ChevronUp style={{ width: 14, height: 14, color: "rgba(245,197,24,0.6)" }} />
-            : <ChevronDown style={{ width: 14, height: 14, color: "rgba(245,197,24,0.6)" }} />}
-        </button>
-        {showDistrib && (
-          <div className="px-4 pb-3 grid grid-cols-2 gap-x-4 gap-y-1.5">
-            {SEGMENTS.map((seg, i) => (
-              <div key={i} className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: seg.color }} />
-                  <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.55)" }}>
-                    ×{seg.mult}
-                  </span>
-                </div>
-                <span className="text-[10px] font-black" style={{ color: "#F5C518" }}>{PROBS[i]}</span>
-              </div>
-            ))}
-            <div className="col-span-2 pt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-              <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>RTP: 95.00%</span>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── Comment jouer — collapsible ── */}
