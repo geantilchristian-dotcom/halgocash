@@ -1,24 +1,24 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "@clerk/react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Loader2, Trophy, RotateCcw } from "lucide-react";
+import { ArrowLeft, Loader2, Trophy, RotateCcw, BookOpen, Gem } from "lucide-react";
 
 function formatFC(n: number): string {
   return new Intl.NumberFormat("fr-FR").format(Math.round(n)).replace(/[\u00a0\s]/g, " ");
 }
 
-// Map a raw multiplier to display info
 function tier(mult: number) {
-  if (mult === 0)   return { label: "Vide",       color: "#ef4444", bg: "rgba(239,68,68,0.18)",    glow: "#ef444460", emoji: "💸", textLabel: "Perdu" };
-  if (mult <= 1.09) return { label: "×1",         color: "#eab308", bg: "rgba(234,179,8,0.18)",    glow: "#eab30860", emoji: "🔄", textLabel: "Remboursé" };
-  if (mult <= 1.6)  return { label: "×1.5",       color: "#22c55e", bg: "rgba(34,197,94,0.18)",    glow: "#22c55e60", emoji: "✨", textLabel: "Petit gain" };
-  if (mult <= 3.1)  return { label: "×3",         color: "#3b82f6", bg: "rgba(59,130,246,0.18)",   glow: "#3b82f660", emoji: "🌟", textLabel: "Bon gain" };
-  return              { label: "×5 JACKPOT", color: "#F5C518", bg: "rgba(245,197,24,0.25)",   glow: "#F5C51880", emoji: "🏆", textLabel: "JACKPOT !" };
+  if (mult === 0)   return { label: "Vide",        color: "#ef4444", glow: "#ef444480", emoji: "💸", win: false };
+  if (mult <= 1.09) return { label: "×1",           color: "#eab308", glow: "#eab30880", emoji: "🔄", win: true  };
+  if (mult <= 1.6)  return { label: "×1.5",         color: "#22c55e", glow: "#22c55e80", emoji: "💎", win: true  };
+  if (mult <= 3.1)  return { label: "×3",           color: "#3b82f6", glow: "#3b82f680", emoji: "🌟", win: true  };
+  return              { label: "×5 JACKPOT",  color: "#F5C518", glow: "#F5C51880", emoji: "🏆", win: true  };
 }
 
 const BET_PRESETS = [500, 1_000, 2_000, 5_000, 10_000, 50_000];
 
 type Phase = "setup" | "picking" | "revealing" | "result";
+type BottomTab = "mise" | "regles" | "gains";
 
 interface PickResult {
   prizes: number[];
@@ -28,113 +28,182 @@ interface PickResult {
   win: boolean;
 }
 
-// ── Single briefcase card ────────────────────────────────────────────────────
-function BriefcaseCard({
-  index, phase, prizes, chosenIndex, revealed,
+// ── Beautiful briefcase drawn with CSS ───────────────────────────────────────
+function Briefcase({
+  state,
+  label,
+  prize,
   onClick,
 }: {
-  index: number;
-  phase: Phase;
-  prizes: number[] | null;
-  chosenIndex: number | null;
-  revealed: number; // how many are revealed so far (for stagger)
+  state: "idle" | "pickable" | "chosen" | "result-open" | "result-closed";
+  label: number;
+  prize?: number;
   onClick?: () => void;
 }) {
-  const isChosen = chosenIndex === index;
-  const isRevealed = prizes !== null && index < revealed;
-  const prizeVal = prizes?.[index] ?? 0;
-  const t = tier(prizeVal);
-  const isLoss = prizeVal === 0;
+  const isOpen     = state === "result-open";
+  const pickable   = state === "pickable";
+  const chosen     = state === "chosen" || state === "result-open";
+  const dimmed     = state === "result-closed";
+  const t          = prize !== undefined ? tier(prize) : null;
 
-  const canClick = phase === "picking" && chosenIndex === null;
+  const bodyColor   = chosen   ? (t?.color ?? "#F5C518") : pickable ? "#c8921a" : "#7a5c15";
+  const borderColor = chosen   ? (t?.color ?? "#F5C518")
+                    : pickable ? "#F5C518"
+                    : dimmed   ? "rgba(255,255,255,0.06)"
+                    : "rgba(245,197,24,0.3)";
 
   return (
     <button
-      disabled={!canClick}
-      onClick={canClick ? onClick : undefined}
-      className="relative flex flex-col items-center transition-all duration-300"
+      onClick={pickable ? onClick : undefined}
+      disabled={!pickable}
+      className="flex flex-col items-center gap-1.5 transition-all duration-300 select-none focus:outline-none"
       style={{
-        background: isRevealed ? t.bg : "rgba(255,255,255,0.04)",
-        border: `1.5px solid ${isRevealed ? t.color : isChosen ? "#F5C518" : "rgba(245,197,24,0.25)"}`,
-        borderRadius: 14,
-        padding: "12px 8px 10px",
-        boxShadow: isChosen && isRevealed
-          ? `0 0 24px ${t.glow}, 0 0 8px ${t.glow}`
-          : canClick
-          ? "0 0 0px transparent"
-          : "none",
-        transform: isChosen && isRevealed ? "scale(1.08)" : "scale(1)",
-        cursor: canClick ? "pointer" : "default",
-        opacity: isRevealed && !isChosen && isLoss ? 0.55 : 1,
+        opacity: dimmed ? 0.32 : 1,
+        transform: chosen && !isOpen ? "scale(1.06)" : "scale(1)",
+        filter: dimmed ? "grayscale(0.6)" : "none",
         WebkitTapHighlightColor: "transparent",
+        cursor: pickable ? "pointer" : "default",
       }}
     >
-      {/* Handle */}
-      <div style={{
-        position: "absolute",
-        top: -9,
-        left: "50%",
-        transform: "translateX(-50%)",
-        width: "36%",
-        height: 9,
-        borderRadius: "5px 5px 0 0",
-        background: isRevealed ? t.color : "rgba(245,197,24,0.55)",
-        border: `1.5px solid ${isRevealed ? t.color : "rgba(245,197,24,0.3)"}`,
-        borderBottom: "none",
-      }} />
+      {/* Briefcase body */}
+      <div style={{ position: "relative", width: 72, height: 64 }}>
 
-      {/* Latch */}
-      <div style={{
-        width: 16, height: 6,
-        borderRadius: 4,
-        background: isRevealed ? t.color : "rgba(245,197,24,0.4)",
-        marginBottom: 6,
-      }} />
-
-      {/* Body content */}
-      <div className="flex flex-col items-center gap-1" style={{ minHeight: 52 }}>
-        {isRevealed ? (
-          <>
-            <span style={{ fontSize: 26, lineHeight: 1 }}>{t.emoji}</span>
-            <span className="font-black text-[11px] text-center" style={{ color: t.color }}>
-              {t.label}
-            </span>
-          </>
-        ) : (
-          <>
-            <span style={{ fontSize: 26, lineHeight: 1, filter: "grayscale(0.2)" }}>🧳</span>
-            {canClick && (
-              <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "rgba(245,197,24,0.5)" }}>
-                Ouvrir
-              </span>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Chosen badge */}
-      {isChosen && isRevealed && (
+        {/* Handle */}
         <div style={{
           position: "absolute",
-          top: -18,
+          top: 0,
           left: "50%",
           transform: "translateX(-50%)",
-          background: t.color,
-          color: "#000",
-          fontSize: 8,
-          fontWeight: 900,
-          padding: "2px 6px",
-          borderRadius: 4,
-          whiteSpace: "nowrap",
+          width: 30,
+          height: 12,
+          border: `2.5px solid ${bodyColor}`,
+          borderBottom: "none",
+          borderRadius: "8px 8px 0 0",
+          boxShadow: chosen ? `0 0 8px ${borderColor}` : "none",
+          transition: "all 0.3s",
+          zIndex: 2,
+        }} />
+
+        {/* Body container */}
+        <div style={{
+          position: "absolute",
+          top: 10,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          borderRadius: 10,
+          border: `2px solid ${borderColor}`,
+          overflow: "hidden",
+          background: isOpen
+            ? "linear-gradient(180deg,rgba(0,0,0,0.9) 0%,rgba(0,0,0,0.7) 100%)"
+            : `linear-gradient(160deg,${bodyColor}cc 0%,${bodyColor}88 100%)`,
+          boxShadow: chosen
+            ? `0 0 20px ${t?.glow ?? "rgba(245,197,24,0.5)"}, inset 0 1px 0 rgba(255,255,255,0.12)`
+            : pickable
+            ? "0 0 10px rgba(245,197,24,0.3)"
+            : "inset 0 1px 0 rgba(255,255,255,0.05)",
+          transition: "all 0.35s cubic-bezier(0.34,1.56,0.64,1)",
         }}>
-          MA MALETTE
+          {/* Horizontal stripe (lid-base separator) */}
+          {!isOpen && (
+            <div style={{
+              position: "absolute",
+              top: "42%",
+              left: 0,
+              right: 0,
+              height: 2,
+              background: `${bodyColor}55`,
+            }} />
+          )}
+
+          {/* Latch */}
+          {!isOpen && (
+            <div style={{
+              position: "absolute",
+              top: "calc(42% - 5px)",
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: 14,
+              height: 10,
+              borderRadius: 3,
+              background: chosen ? (t?.color ?? "#F5C518") : "rgba(245,197,24,0.6)",
+              border: `1px solid ${chosen ? "rgba(255,255,255,0.3)" : "rgba(245,197,24,0.3)"}`,
+              boxShadow: chosen ? `0 0 6px ${t?.glow ?? "rgba(245,197,24,0.4)"}` : "none",
+            }} />
+          )}
+
+          {/* Corner rivets */}
+          {!isOpen && [
+            { top: 6, left: 6 }, { top: 6, right: 6 },
+            { bottom: 6, left: 6 }, { bottom: 6, right: 6 },
+          ].map((pos, i) => (
+            <div key={i} style={{
+              position: "absolute",
+              width: 4, height: 4,
+              borderRadius: "50%",
+              background: `${bodyColor}aa`,
+              border: "1px solid rgba(255,255,255,0.12)",
+              ...pos,
+            }} />
+          ))}
+
+          {/* Open state — prize reveal */}
+          {isOpen && t && (
+            <div style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 2,
+            }}>
+              <span style={{ fontSize: 22, lineHeight: 1, filter: `drop-shadow(0 0 8px ${t.glow})` }}>
+                {t.emoji}
+              </span>
+              <span style={{
+                fontSize: 9,
+                fontWeight: 900,
+                color: t.color,
+                letterSpacing: "0.04em",
+                textAlign: "center",
+                textShadow: `0 0 8px ${t.glow}`,
+              }}>
+                {t.label}
+              </span>
+            </div>
+          )}
+
+          {/* Pickable shimmer */}
+          {pickable && (
+            <div
+              className="malette-shimmer"
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: "linear-gradient(90deg,transparent 0%,rgba(245,197,24,0.08) 50%,transparent 100%)",
+                backgroundSize: "200% 100%",
+              }}
+            />
+          )}
         </div>
-      )}
+      </div>
+
+      {/* Label */}
+      <span style={{
+        fontSize: 10,
+        fontWeight: 900,
+        letterSpacing: "0.06em",
+        color: chosen ? (t?.color ?? "#F5C518") : pickable ? "rgba(245,197,24,0.7)" : "rgba(255,255,255,0.25)",
+        transition: "color 0.3s",
+      }}>
+        N°{label}
+      </span>
     </button>
   );
 }
 
-// ── Main game page ───────────────────────────────────────────────────────────
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function MalettePage() {
   const [, navigate] = useLocation();
   const { getToken } = useAuth();
@@ -149,15 +218,16 @@ export default function MalettePage() {
     return fetch(url, { ...opts, headers });
   }, [getToken]);
 
-  const [phase, setPhase] = useState<Phase>("setup");
+  const [phase,    setPhase]    = useState<Phase>("setup");
   const [betInput, setBetInput] = useState("1000");
-  const [gameId, setGameId] = useState<number | null>(null);
-  const [betAmount, setBetAmount] = useState(0);
-  const [result, setResult] = useState<PickResult | null>(null);
-  const [revealed, setRevealed] = useState(0);
-  const [balance, setBalance] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [gameId,   setGameId]   = useState<number | null>(null);
+  const [betAmount,setBetAmount]= useState(0);
+  const [result,   setResult]   = useState<PickResult | null>(null);
+  const [balance,  setBalance]  = useState<number | null>(null);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState<string | null>(null);
+  const [tab,      setTab]      = useState<BottomTab>("mise");
+  const resultRef = useRef<HTMLDivElement>(null);
 
   const fetchBalance = useCallback(() => {
     authFetch("/api/auth/balance")
@@ -168,7 +238,7 @@ export default function MalettePage() {
 
   useEffect(() => { fetchBalance(); }, [fetchBalance]);
 
-  // Check for active game on mount
+  // Resume active game
   useEffect(() => {
     authFetch("/api/malette/active")
       .then(r => r.ok ? r.json() : null)
@@ -197,6 +267,7 @@ export default function MalettePage() {
       setGameId(data.gameId);
       setBetAmount(data.betAmount!);
       setPhase("picking");
+      setTab("mise"); // hide tabs during game
     } finally {
       setLoading(false);
     }
@@ -213,18 +284,13 @@ export default function MalettePage() {
       const data = await res.json() as PickResult & { error?: string };
       if (!res.ok || !data.prizes) { setError(data.error ?? "Erreur"); setPhase("picking"); return; }
       setResult(data);
-      // Stagger reveal: 100ms per briefcase
-      let n = 0;
-      const tick = () => {
-        n++;
-        setRevealed(n);
-        if (n < 6) setTimeout(tick, 140);
-        else {
-          setPhase("result");
-          fetchBalance();
-        }
-      };
-      setTimeout(tick, 200);
+      // Small delay then show result
+      setTimeout(() => {
+        setPhase("result");
+        fetchBalance();
+        // Scroll to result
+        setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 100);
+      }, 400);
     } catch {
       setError("Erreur réseau");
       setPhase("picking");
@@ -235,23 +301,33 @@ export default function MalettePage() {
     setPhase("setup");
     setGameId(null);
     setResult(null);
-    setRevealed(0);
     setError(null);
+    setTab("mise");
+  };
+
+  // Compute briefcase states
+  const getBriefcaseState = (i: number): { state: "idle" | "pickable" | "chosen" | "result-open" | "result-closed"; prize?: number } => {
+    if (phase === "setup") return { state: "idle" };
+    if (phase === "picking") return { state: "pickable" };
+    if (phase === "revealing") return { state: i === (result?.chosenIndex ?? -1) ? "chosen" : "pickable" };
+    // result phase
+    if (result) {
+      if (i === result.chosenIndex) return { state: "result-open", prize: result.prizes[i] };
+      return { state: "result-closed" };
+    }
+    return { state: "idle" };
   };
 
   const resultTier = result ? tier(result.prizes[result.chosenIndex] ?? 0) : null;
-  const isJackpot  = result && (result.prizes[result.chosenIndex] ?? 0) >= 4.9;
+  const inGame = phase === "picking" || phase === "revealing" || phase === "result";
 
   return (
     <div
       className="min-h-dvh flex flex-col"
-      style={{
-        background: "linear-gradient(160deg,#06130a 0%,#0a2010 45%,#071510 100%)",
-        paddingBottom: 32,
-      }}
+      style={{ background: "linear-gradient(160deg,#060d0a 0%,#0b1e12 50%,#060d0a 100%)" }}
     >
       {/* ── Header ── */}
-      <div className="flex items-center gap-3 px-4 pt-5 pb-4">
+      <div className="flex items-center gap-3 px-4 pt-5 pb-3 shrink-0">
         <button
           onClick={() => navigate("/app")}
           className="flex items-center justify-center rounded-xl active:scale-95 transition-transform"
@@ -261,7 +337,9 @@ export default function MalettePage() {
         </button>
         <div>
           <p className="text-white font-black text-[17px] leading-tight tracking-tight">MALETTE SECRÈTE</p>
-          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#F5C518" }}>Halgo Cash</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#F5C518" }}>
+            {inGame ? `Mise: ${formatFC(betAmount)} FC` : "Choisissez votre malette"}
+          </p>
         </div>
         <div className="ml-auto">
           {balance !== null ? (
@@ -275,184 +353,304 @@ export default function MalettePage() {
         </div>
       </div>
 
-      <div className="flex-1 px-4 flex flex-col gap-5">
+      {/* ── Briefcase Grid (always shown) ── */}
+      <div className="flex-1 px-4 flex flex-col justify-center py-4">
 
-        {/* ── Prize legend ── */}
-        <div
-          className="rounded-2xl px-4 py-3"
-          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
-        >
-          <p className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: "rgba(255,255,255,0.45)" }}>
-            Contenu possible des malettes
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { mult: 0,   label: "Vide",    emoji: "💸", color: "#ef4444" },
-              { mult: 1,   label: "×1",      emoji: "🔄", color: "#eab308" },
-              { mult: 1.5, label: "×1.5",    emoji: "✨", color: "#22c55e" },
-              { mult: 3,   label: "×3",      emoji: "🌟", color: "#3b82f6" },
-              { mult: 5,   label: "×5 JACKPOT", emoji: "🏆", color: "#F5C518" },
-            ].map(p => (
-              <span key={p.mult} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: "rgba(255,255,255,0.05)", color: p.color }}>
-                <span>{p.emoji}</span> {p.label}
-              </span>
-            ))}
-          </div>
+        {/* Instruction / status */}
+        <div className="text-center mb-5">
+          {phase === "setup" && (
+            <p className="text-[13px] font-semibold" style={{ color: "rgba(255,255,255,0.45)" }}>
+              Fixez votre mise ci-dessous, puis choisissez votre malette
+            </p>
+          )}
+          {phase === "picking" && (
+            <p className="text-[14px] font-black" style={{ color: "rgba(255,255,255,0.85)" }}>
+              👇 Tapez sur une malette pour l'ouvrir
+            </p>
+          )}
+          {phase === "revealing" && (
+            <p className="text-[14px] font-black animate-pulse" style={{ color: "#F5C518" }}>
+              Ouverture en cours…
+            </p>
+          )}
+          {phase === "result" && resultTier && (
+            <p className="text-[14px] font-black" style={{ color: resultTier.color }}>
+              {result?.win ? "✨ Félicitations !" : "😔 Pas de chance cette fois"}
+            </p>
+          )}
         </div>
 
-        {/* ══════════════ SETUP PHASE ══════════════ */}
-        {phase === "setup" && (
-          <div className="flex flex-col gap-5">
-            {/* Description */}
-            <div
-              className="rounded-2xl px-4 py-4 flex flex-col gap-1"
-              style={{ background: "rgba(245,197,24,0.07)", border: "1px solid rgba(245,197,24,0.2)" }}
-            >
-              <p className="text-white font-black text-[15px]">🧳 Comment jouer ?</p>
-              <p className="text-[12px] leading-relaxed" style={{ color: "rgba(255,255,255,0.6)" }}>
-                6 malettes secrètes. Chaque malette cache une surprise différente.
-                Tu n'as le droit d'en ouvrir <span className="text-white font-black">qu'une seule</span> — à toi de choisir la bonne !
-              </p>
-            </div>
-
-            {/* Bet input */}
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-wider mb-2" style={{ color: "rgba(255,255,255,0.5)" }}>
-                Montant de la mise
-              </p>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {BET_PRESETS.map(p => (
-                  <button
-                    key={p}
-                    onClick={() => setBetInput(String(p))}
-                    className="px-3 py-1.5 rounded-xl text-[11px] font-black transition-all active:scale-95"
-                    style={{
-                      background: betInput === String(p) ? "rgba(245,197,24,0.2)" : "rgba(255,255,255,0.06)",
-                      border: `1px solid ${betInput === String(p) ? "#F5C518" : "rgba(255,255,255,0.1)"}`,
-                      color: betInput === String(p) ? "#F5C518" : "rgba(255,255,255,0.7)",
-                    }}
-                  >
-                    {formatFC(p)} FC
-                  </button>
-                ))}
-              </div>
-              <input
-                type="number"
-                value={betInput}
-                onChange={e => setBetInput(e.target.value)}
-                placeholder="Montant personnalisé"
-                className="w-full rounded-xl px-4 py-3 text-white font-bold text-[14px] outline-none"
-                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}
-              />
-              {error && <p className="text-[11px] mt-1.5" style={{ color: "#ef4444" }}>{error}</p>}
-            </div>
-
-            {/* Start button */}
-            <button
-              onClick={() => { void handleStart(); }}
-              disabled={loading}
-              className="w-full py-4 rounded-2xl font-black text-[15px] uppercase tracking-wider flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
-              style={{
-                background: loading ? "rgba(245,197,24,0.3)" : "linear-gradient(135deg,#d4a017 0%,#F5C518 50%,#d4a017 100%)",
-                color: "#000",
-                boxShadow: loading ? "none" : "0 4px 20px rgba(245,197,24,0.4)",
-              }}
-            >
-              {loading ? <Loader2 className="animate-spin" style={{ width: 20, height: 20 }} /> : <>🧳 Choisir ma malette</>}
-            </button>
-          </div>
-        )}
-
-        {/* ══════════════ PICKING / REVEALING / RESULT PHASE ══════════════ */}
-        {(phase === "picking" || phase === "revealing" || phase === "result") && (
-          <div className="flex flex-col gap-4">
-
-            {/* Bet recap */}
-            <div className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.5)" }}>Mise</span>
-              <span className="font-black text-[13px]" style={{ color: "#F5C518" }}>{formatFC(betAmount)} FC</span>
-            </div>
-
-            {/* Instructions */}
-            {phase === "picking" && (
-              <p className="text-center font-bold text-[13px]" style={{ color: "rgba(255,255,255,0.7)" }}>
-                👇 Choisissez <span style={{ color: "#F5C518" }}>une seule</span> malette
-              </p>
-            )}
-            {phase === "revealing" && (
-              <p className="text-center font-bold text-[13px] animate-pulse" style={{ color: "rgba(255,255,255,0.6)" }}>
-                Révélation en cours…
-              </p>
-            )}
-
-            {/* 6 briefcases — 3 columns × 2 rows */}
-            <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <BriefcaseCard
-                  key={i}
-                  index={i}
-                  phase={phase}
-                  prizes={result?.prizes ?? null}
-                  chosenIndex={result?.chosenIndex ?? null}
-                  revealed={revealed}
+        {/* 3 × 2 grid */}
+        <div
+          className="grid gap-4 mx-auto"
+          style={{ gridTemplateColumns: "repeat(3, 1fr)", maxWidth: 300 }}
+        >
+          {Array.from({ length: 6 }).map((_, i) => {
+            const { state, prize } = getBriefcaseState(i);
+            return (
+              <div key={i} className="flex justify-center">
+                <Briefcase
+                  state={state}
+                  label={i + 1}
+                  prize={prize}
                   onClick={() => { void handlePick(i); }}
                 />
-              ))}
-            </div>
+              </div>
+            );
+          })}
+        </div>
 
-            {/* ── Result banner ── */}
-            {phase === "result" && result && resultTier && (
-              <div
-                className="rounded-2xl px-4 py-5 flex flex-col items-center gap-2 mt-2"
-                style={{
-                  background: result.win ? resultTier.bg : "rgba(239,68,68,0.12)",
-                  border: `1.5px solid ${result.win ? resultTier.color : "#ef4444"}`,
-                  boxShadow: result.win ? `0 0 24px ${resultTier.glow}` : "none",
-                }}
-              >
-                {isJackpot && (
-                  <div className="flex items-center gap-1">
-                    <Trophy style={{ width: 20, height: 20, color: "#F5C518" }} />
-                    <span className="font-black text-[13px] uppercase tracking-wider" style={{ color: "#F5C518" }}>
-                      JACKPOT !
-                    </span>
-                    <Trophy style={{ width: 20, height: 20, color: "#F5C518" }} />
-                  </div>
-                )}
-                <span style={{ fontSize: 36 }}>{resultTier.emoji}</span>
-                <p className="font-black text-[20px]" style={{ color: resultTier.color }}>
-                  {result.win ? `+${formatFC(result.wonAmount)} FC` : "Perdu"}
-                </p>
-                <p className="text-[12px] text-center" style={{ color: "rgba(255,255,255,0.55)" }}>
-                  {result.win
-                    ? `Vous avez remporté ${resultTier.label} de votre mise`
-                    : "Malchance — tentez encore votre chance !"}
-                </p>
-
-                <button
-                  onClick={handleReset}
-                  className="mt-2 flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-[13px] uppercase active:scale-95 transition-transform"
-                  style={{
-                    background: "rgba(255,255,255,0.08)",
-                    border: "1px solid rgba(255,255,255,0.15)",
-                    color: "rgba(255,255,255,0.9)",
-                  }}
-                >
-                  <RotateCcw style={{ width: 14, height: 14 }} />
-                  Rejouer
-                </button>
+        {/* Result card */}
+        {phase === "result" && result && resultTier && (
+          <div
+            ref={resultRef}
+            className="mt-6 rounded-2xl px-4 py-5 flex flex-col items-center gap-2"
+            style={{
+              background: result.win ? `${resultTier.color}12` : "rgba(239,68,68,0.1)",
+              border: `1.5px solid ${result.win ? resultTier.color : "#ef4444"}`,
+              boxShadow: result.win ? `0 0 28px ${resultTier.glow}` : "none",
+            }}
+          >
+            {result.wonMult >= 4.9 && (
+              <div className="flex items-center gap-1.5">
+                <Trophy style={{ width: 18, height: 18, color: "#F5C518" }} />
+                <span className="font-black text-[12px] uppercase tracking-wider" style={{ color: "#F5C518" }}>JACKPOT !</span>
+                <Trophy style={{ width: 18, height: 18, color: "#F5C518" }} />
               </div>
             )}
+            <span style={{ fontSize: 38, filter: `drop-shadow(0 0 12px ${resultTier.glow})` }}>{resultTier.emoji}</span>
+            <p className="font-black text-[22px]" style={{ color: resultTier.color }}>
+              {result.win ? `+${formatFC(result.wonAmount)} FC` : "Perdu"}
+            </p>
+            <p className="text-[11px] text-center" style={{ color: "rgba(255,255,255,0.45)" }}>
+              {result.win
+                ? `Malette N°${result.chosenIndex + 1} · ${resultTier.label} de votre mise`
+                : "La malette était vide — retentez votre chance !"}
+            </p>
           </div>
         )}
       </div>
 
+      {/* ── Bottom Panel ── */}
+      <div
+        className="shrink-0 rounded-t-3xl px-4 pt-3 pb-safe"
+        style={{
+          background: "rgba(10,20,14,0.96)",
+          border: "1px solid rgba(255,255,255,0.07)",
+          borderBottom: "none",
+          backdropFilter: "blur(16px)",
+          paddingBottom: "max(16px, env(safe-area-inset-bottom))",
+        }}
+      >
+        {/* Tab bar — only before game starts or after result */}
+        {(phase === "setup" || phase === "result") && (
+          <div
+            className="flex gap-1 mb-3 p-1 rounded-xl"
+            style={{ background: "rgba(255,255,255,0.04)" }}
+          >
+            {([
+              { id: "mise" as BottomTab,   label: "💰 Mise",   show: phase === "setup"  },
+              { id: "regles" as BottomTab, label: "📖 Règles", show: true               },
+              { id: "gains" as BottomTab,  label: "🏅 Gains",  show: true               },
+            ] as const).filter(t => t.show || phase !== "setup").map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className="flex-1 py-2 rounded-lg text-[11px] font-black uppercase tracking-wide transition-all"
+                style={{
+                  background: tab === t.id ? "rgba(245,197,24,0.18)" : "transparent",
+                  color: tab === t.id ? "#F5C518" : "rgba(255,255,255,0.35)",
+                  border: tab === t.id ? "1px solid rgba(245,197,24,0.3)" : "1px solid transparent",
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ── Tab: Mise (setup only) ── */}
+        {(tab === "mise" || phase === "picking" || phase === "revealing") && phase === "setup" && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-1.5">
+              {BET_PRESETS.map(p => (
+                <button
+                  key={p}
+                  onClick={() => setBetInput(String(p))}
+                  className="px-3 py-1.5 rounded-xl text-[11px] font-black transition-all active:scale-95"
+                  style={{
+                    background: betInput === String(p) ? "rgba(245,197,24,0.2)" : "rgba(255,255,255,0.05)",
+                    border: `1px solid ${betInput === String(p) ? "#F5C518" : "rgba(255,255,255,0.1)"}`,
+                    color: betInput === String(p) ? "#F5C518" : "rgba(255,255,255,0.6)",
+                  }}
+                >
+                  {formatFC(p)} FC
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="number"
+                value={betInput}
+                onChange={e => setBetInput(e.target.value)}
+                placeholder="Montant (FC)"
+                className="flex-1 rounded-xl px-4 py-3 text-white font-bold text-[14px] outline-none"
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                }}
+              />
+              <button
+                onClick={() => { void handleStart(); }}
+                disabled={loading}
+                className="px-5 py-3 rounded-xl font-black text-[13px] uppercase tracking-wide flex items-center gap-2 active:scale-95 transition-transform disabled:opacity-50"
+                style={{
+                  background: "linear-gradient(135deg,#c8921a 0%,#F5C518 100%)",
+                  color: "#000",
+                  boxShadow: "0 4px 16px rgba(245,197,24,0.35)",
+                  minWidth: 96,
+                }}
+              >
+                {loading
+                  ? <Loader2 className="animate-spin" style={{ width: 18, height: 18 }} />
+                  : <>🧳 Jouer</>}
+              </button>
+            </div>
+            {error && <p className="text-[11px]" style={{ color: "#ef4444" }}>{error}</p>}
+          </div>
+        )}
+
+        {/* Picking phase bottom */}
+        {(phase === "picking" || phase === "revealing") && (
+          <div
+            className="py-3 px-4 rounded-2xl text-center"
+            style={{ background: "rgba(245,197,24,0.07)", border: "1px solid rgba(245,197,24,0.15)" }}
+          >
+            <p className="text-[12px] font-bold" style={{ color: "rgba(245,197,24,0.7)" }}>
+              {phase === "picking"
+                ? `Mise : ${formatFC(betAmount)} FC · Choisissez votre malette`
+                : `Ouverture de la malette…`}
+            </p>
+          </div>
+        )}
+
+        {/* Result phase bottom */}
+        {phase === "result" && (
+          <>
+            {tab === "mise" && (
+              <button
+                onClick={handleReset}
+                className="w-full py-3.5 rounded-2xl font-black text-[14px] uppercase tracking-wide flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+                style={{
+                  background: "linear-gradient(135deg,#c8921a 0%,#F5C518 100%)",
+                  color: "#000",
+                  boxShadow: "0 4px 16px rgba(245,197,24,0.35)",
+                }}
+              >
+                <RotateCcw style={{ width: 16, height: 16 }} />
+                Rejouer
+              </button>
+            )}
+
+            {/* Règles tab in result */}
+            {tab === "regles" && <RulesTab />}
+            {tab === "gains" && <GainsTab betAmount={betAmount} />}
+          </>
+        )}
+
+        {/* ── Tab: Règles (setup) ── */}
+        {phase === "setup" && tab === "regles" && <RulesTab />}
+
+        {/* ── Tab: Gains (setup) ── */}
+        {phase === "setup" && tab === "gains" && <GainsTab betAmount={parseInt(betInput.replace(/\s/g, ""), 10) || 1000} />}
+      </div>
+
       <style>{`
-        @keyframes malettePulse {
-          0%, 100% { box-shadow: 0 0 8px rgba(245,197,24,0.3); }
-          50%       { box-shadow: 0 0 18px rgba(245,197,24,0.6); }
+        @keyframes shimmer {
+          0%   { background-position: -200% center; }
+          100% { background-position: 200% center; }
         }
+        .malette-shimmer {
+          animation: shimmer 2.4s ease-in-out infinite;
+          background: linear-gradient(90deg,transparent 0%,rgba(245,197,24,0.1) 50%,transparent 100%);
+          background-size: 200% 100%;
+        }
+        .pb-safe { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
       `}</style>
+    </div>
+  );
+}
+
+// ── Rules tab ─────────────────────────────────────────────────────────────────
+function RulesTab() {
+  return (
+    <div className="space-y-2.5 py-1">
+      <div className="flex items-center gap-2 mb-1">
+        <BookOpen style={{ width: 14, height: 14, color: "#F5C518" }} />
+        <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: "#F5C518" }}>Comment jouer</p>
+      </div>
+      {[
+        { n: "1", text: "Fixez votre mise (minimum 100 FC)" },
+        { n: "2", text: "6 malettes secrètes apparaissent — chaque malette cache une récompense différente" },
+        { n: "3", text: "Choisissez une seule malette et tapez dessus pour l'ouvrir" },
+        { n: "4", text: "Le gain est crédité instantanément sur votre solde" },
+      ].map(s => (
+        <div key={s.n} className="flex items-start gap-2.5">
+          <div style={{
+            width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
+            background: "rgba(245,197,24,0.15)", border: "1px solid rgba(245,197,24,0.3)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 9, fontWeight: 900, color: "#F5C518",
+          }}>
+            {s.n}
+          </div>
+          <p className="text-[12px] leading-snug" style={{ color: "rgba(255,255,255,0.6)" }}>{s.text}</p>
+        </div>
+      ))}
+      <p className="text-[10px] mt-2 pt-2" style={{ color: "rgba(255,255,255,0.25)", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        ⚠️ Une seule malette par partie. Aucun remboursement possible.
+      </p>
+    </div>
+  );
+}
+
+// ── Gains tab ─────────────────────────────────────────────────────────────────
+function GainsTab({ betAmount }: { betAmount: number }) {
+  const prizes = [
+    { mult: 0,   emoji: "💸", label: "Vide",       desc: "Malette vide",     qty: 2, color: "#ef4444" },
+    { mult: 1,   emoji: "🔄", label: "×1",         desc: "Mise remboursée",  qty: 1, color: "#eab308" },
+    { mult: 1.5, emoji: "💎", label: "×1.5",       desc: "Petit gain",       qty: 1, color: "#22c55e" },
+    { mult: 3,   emoji: "🌟", label: "×3",         desc: "Bon gain",         qty: 1, color: "#3b82f6" },
+    { mult: 5,   emoji: "🏆", label: "×5",         desc: "JACKPOT !",        qty: 1, color: "#F5C518" },
+  ];
+  const safe = isNaN(betAmount) || betAmount < 100 ? 1000 : betAmount;
+
+  return (
+    <div className="space-y-2 py-1">
+      <div className="flex items-center gap-2 mb-1">
+        <Gem style={{ width: 14, height: 14, color: "#F5C518" }} />
+        <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: "#F5C518" }}>
+          Gains possibles · Mise {formatFC(safe)} FC
+        </p>
+      </div>
+      {prizes.map(p => (
+        <div key={p.mult} className="flex items-center gap-2.5 py-1.5 px-2.5 rounded-xl" style={{ background: "rgba(255,255,255,0.03)" }}>
+          <span style={{ fontSize: 18, flexShrink: 0 }}>{p.emoji}</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[12px] font-black" style={{ color: p.color }}>{p.label}</p>
+            <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>{p.desc} · {p.qty}×/6</p>
+          </div>
+          <div className="text-right shrink-0">
+            <p className="text-[12px] font-black" style={{ color: p.mult > 0 ? p.color : "#ef4444" }}>
+              {p.mult > 0 ? `+${formatFC(Math.floor(safe * p.mult * 0.97))} FC` : "0 FC"}
+            </p>
+          </div>
+        </div>
+      ))}
+      <p className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.2)" }}>
+        Gains nets (après house edge 3%). Distribution : 2 vides · 1 ×1 · 1 ×1.5 · 1 ×3 · 1 ×5
+      </p>
     </div>
   );
 }
