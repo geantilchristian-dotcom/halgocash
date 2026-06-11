@@ -32,63 +32,78 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 /**
- * Build a prize distribution targeting 70% payout / 30% company margin.
+ * Build a prize distribution: exactly 70% of tickets win, 30% are losers.
  *
- * Fixed prizes per 1 000 tickets (scaled by N/1000):
- *   1  × 50 000 FC  (Super Gagnant)       → 50 000 FC
- *   2  × 25 000 FC  (Très Grand Gagnant)  → 50 000 FC
- *  10  × 10 000 FC  (Grand Gagnant)       → 100 000 FC
- *  10  ×  5 000 FC  (Gagnant)             → 50 000 FC
- *  Subtotal fixed: 250 000 FC per 1 000 tickets
+ * Model:
+ *   • Winners  = round(N × 0.70)   — 700 per 1 000 tickets
+ *   • Losers   = N − Winners        — 300 per 1 000 tickets (company margin)
+ *   • Prize pool = N × price × 0.70 (70% of revenue)
  *
- * Variable "Remboursé" tier (= ticket price):
- *   petitCount = max(0, N × (0.70 − 250/price))
- *   This ensures total prizes ≈ 70% of revenue for price ≥ 358 FC.
- *   For cheaper tickets, fixed prizes already dominate the payout pool.
+ * Prize tiers (counts scaled per 1 000 tickets):
+ *   ┌────────────────┬──────────┬──────────────────────────┐
+ *   │ Tier           │ Count/1k │ Prize amount             │
+ *   ├────────────────┼──────────┼──────────────────────────┤
+ *   │ Jackpot        │    1     │ min(200×P, 30% budget)   │
+ *   │ Grand lot      │    2     │ min(40×P,  10% budget)   │
+ *   │ Lot moyen      │    7     │ min(10×P,   4% budget)   │
+ *   │ Petit lot      │   15     │ min(4×P,    2% budget)   │
+ *   │ Remboursé      │   25     │ = price (money back)     │
+ *   │ Consolation    │  650     │ (remaining budget / rem. winners) │
+ *   │ Perdants       │  300     │ 0 (company keeps)        │
+ *   └────────────────┴──────────┴──────────────────────────┘
  *
- * Saturday jackpot series use JACKPOT type — handled separately.
+ * The consolation prize is calculated dynamically so that
+ * sum(all prizes) ≈ 70% of revenue for any lot size and price.
  */
 function buildPrizeDistribution(count: number, price: number): { prizeAmount: string | null; isWinner: boolean }[] {
-  const r = count / 1000;
+  const r             = count / 1000;
+  const totalBudget   = count * price * 0.70;
+  const targetWinners = Math.round(count * 0.70);
 
-  // ── Fixed prize tiers (scaled by lot size) ──────────────────────────────
-  // Jackpot / Très Grand only appear in large lots for credibility
-  const jackpotCount   = count >= 1000 ? Math.max(1, Math.round(1  * r)) : (count >= 500 ? 1 : 0);
-  const tresGrandCount = count >= 500  ? Math.max(1, Math.round(1  * r)) : 0;
-  const grandCount     = Math.max(0, Math.round(2  * r));
-  const gagnantCount   = Math.max(0, Math.round(3  * r));
-  const moyen2000Count = Math.max(0, Math.round(5  * r));
-  const petit1000Count = Math.max(0, Math.round(8  * r));
-  const micro500Count  = Math.max(0, Math.round(15 * r));
-  const mini200Count   = Math.max(0, Math.round(25 * r));
+  // ── Tier counts (scaled by lot size) ────────────────────────────────────
+  const jackpotCount   = count >= 100 ? Math.max(1, Math.round(1  * r)) : 0;
+  const grandCount     = count >= 200 ? Math.max(0, Math.round(2  * r)) : 0;
+  const moyenCount     = Math.max(0, Math.round(7  * r));
+  const petitCount     = Math.max(0, Math.round(15 * r));
+  const rembourseCount = Math.max(0, Math.round(25 * r));
 
-  // ── "Remboursé" tier fills remaining 70 % budget (capped at 40 % of lot) ──
-  const fixedPrize =
-    jackpotCount * 50000 + tresGrandCount * 25000 + grandCount * 10000 +
-    gagnantCount * 5000 + moyen2000Count * 2000 + petit1000Count * 1000 +
-    micro500Count * 500 + mini200Count * 200;
-  const totalBudget     = count * price * 0.70;
-  const remainingBudget = Math.max(0, totalBudget - fixedPrize);
-  const rembourseCount  = price > 0
-    ? Math.min(Math.floor(remainingBudget / price), Math.floor(count * 0.40))
+  // ── Prize amounts — multiples of price, capped as % of total budget ─────
+  // Caps prevent a single tier from consuming the whole pool in small lots.
+  const jackpotPrize  = Math.floor(Math.min(200 * price, totalBudget * 0.30));
+  const grandPrize    = Math.floor(Math.min(40  * price, totalBudget * 0.10));
+  const moyenPrize    = Math.floor(Math.min(10  * price, totalBudget * 0.04));
+  const petitPrize    = Math.floor(Math.min(4   * price, totalBudget * 0.02));
+  const remboursePrize = price;
+
+  // ── Consolation fills remaining budget and remaining winner slots ────────
+  const fixedSpend =
+    jackpotCount * jackpotPrize + grandCount * grandPrize +
+    moyenCount   * moyenPrize  + petitCount * petitPrize +
+    rembourseCount * remboursePrize;
+
+  const fixedWinners      = jackpotCount + grandCount + moyenCount + petitCount + rembourseCount;
+  const consolationCount  = Math.max(0, targetWinners - fixedWinners);
+  const consolationBudget = Math.max(0, totalBudget - fixedSpend);
+  const consolationPrize  = consolationCount > 0
+    ? Math.floor(consolationBudget / consolationCount)
     : 0;
 
-  const totalWinners =
-    jackpotCount + tresGrandCount + grandCount + gagnantCount +
-    moyen2000Count + petit1000Count + micro500Count + mini200Count + rembourseCount;
-  const loserCount = Math.max(0, count - totalWinners);
+  const loserCount = Math.max(0, count - targetWinners);
 
+  // ── Assemble and shuffle ─────────────────────────────────────────────────
   const prizes: { prizeAmount: string | null; isWinner: boolean }[] = [
-    ...Array<null>(jackpotCount).fill(null).map(() => ({ prizeAmount: "50000",       isWinner: true  })),
-    ...Array<null>(tresGrandCount).fill(null).map(() => ({ prizeAmount: "25000",     isWinner: true  })),
-    ...Array<null>(grandCount).fill(null).map(() => ({ prizeAmount: "10000",         isWinner: true  })),
-    ...Array<null>(gagnantCount).fill(null).map(() => ({ prizeAmount: "5000",        isWinner: true  })),
-    ...Array<null>(moyen2000Count).fill(null).map(() => ({ prizeAmount: "2000",      isWinner: true  })),
-    ...Array<null>(petit1000Count).fill(null).map(() => ({ prizeAmount: "1000",      isWinner: true  })),
-    ...Array<null>(micro500Count).fill(null).map(() => ({ prizeAmount: "500",        isWinner: true  })),
-    ...Array<null>(mini200Count).fill(null).map(() => ({ prizeAmount: "200",         isWinner: true  })),
-    ...Array<null>(rembourseCount).fill(null).map(() => ({ prizeAmount: String(price), isWinner: true })),
-    ...Array<null>(loserCount).fill(null).map(() => ({ prizeAmount: null,            isWinner: false })),
+    ...Array<null>(jackpotCount).fill(null).map(() => ({ prizeAmount: String(jackpotPrize),   isWinner: true })),
+    ...Array<null>(grandCount).fill(null).map(() => ({ prizeAmount: String(grandPrize),       isWinner: true })),
+    ...Array<null>(moyenCount).fill(null).map(() => ({ prizeAmount: String(moyenPrize),       isWinner: true })),
+    ...Array<null>(petitCount).fill(null).map(() => ({ prizeAmount: String(petitPrize),       isWinner: true })),
+    ...Array<null>(rembourseCount).fill(null).map(() => ({ prizeAmount: String(remboursePrize), isWinner: true })),
+    ...Array<null>(consolationCount > 0 && consolationPrize > 0 ? consolationCount : 0)
+      .fill(null).map(() => ({ prizeAmount: String(consolationPrize), isWinner: true })),
+    ...Array<null>(
+      // If consolation prize rounds to 0 (shouldn't happen), those become losers
+      consolationCount > 0 && consolationPrize === 0 ? consolationCount : 0
+    ).fill(null).map(() => ({ prizeAmount: null, isWinner: false })),
+    ...Array<null>(loserCount).fill(null).map(() => ({ prizeAmount: null, isWinner: false })),
   ];
 
   return shuffle(prizes);
@@ -224,22 +239,40 @@ router.post("/admin/codes/generate", requireAdmin, async (req: Request, res: Res
 
   logger.info({ count: finalBatch.length, series }, "Admin generated ticket codes");
 
+  // Rebuild prize amounts to reconstruct tier labels in the response
+  const prizes2 = buildPrizeDistribution(qty, ticketPrice);
+  const r2 = qty / 1000;
+  const budget2 = qty * ticketPrice * 0.70;
+  const jackpotPrize2  = Math.floor(Math.min(200 * ticketPrice, budget2 * 0.30));
+  const grandPrize2    = Math.floor(Math.min(40  * ticketPrice, budget2 * 0.10));
+  const moyenPrize2    = Math.floor(Math.min(10  * ticketPrice, budget2 * 0.04));
+  const petitPrize2    = Math.floor(Math.min(4   * ticketPrice, budget2 * 0.02));
+  const jackpotCount2  = qty >= 100 ? Math.max(1, Math.round(1  * r2)) : 0;
+  const grandCount2    = qty >= 200 ? Math.max(0, Math.round(2  * r2)) : 0;
+  const moyenCount2    = Math.max(0, Math.round(7  * r2));
+  const petitCount2    = Math.max(0, Math.round(15 * r2));
+  const rembourseCount2 = Math.max(0, Math.round(25 * r2));
+  const fixedWinners2  = jackpotCount2 + grandCount2 + moyenCount2 + petitCount2 + rembourseCount2;
+  const consolationCount2 = Math.max(0, Math.round(qty * 0.70) - fixedWinners2);
+  const fixedSpend2 = jackpotCount2*jackpotPrize2 + grandCount2*grandPrize2 + moyenCount2*moyenPrize2 + petitCount2*petitPrize2 + rembourseCount2*ticketPrice;
+  const consolationPrize2 = consolationCount2 > 0 ? Math.floor(Math.max(0, budget2 - fixedSpend2) / consolationCount2) : 0;
+  void prizes2;
+
   const winners = finalBatch.filter((t) => t.isWinner).length;
   res.json({
     generated: finalBatch.length,
     winners,
+    losers: finalBatch.filter((t) => !t.isWinner).length,
+    winRate: `${Math.round((winners / finalBatch.length) * 100)}%`,
     codes: finalBatch.map((t) => t.code),
     distribution: {
-      jackpot:   finalBatch.filter((t) => t.prizeAmount === "50000").length,
-      tresGrand: finalBatch.filter((t) => t.prizeAmount === "25000").length,
-      grand:     finalBatch.filter((t) => t.prizeAmount === "10000").length,
-      gagnant:   finalBatch.filter((t) => t.prizeAmount === "5000").length,
-      moyen:     finalBatch.filter((t) => t.prizeAmount === "2000").length,
-      petit:     finalBatch.filter((t) => t.prizeAmount === "1000").length,
-      micro500:  finalBatch.filter((t) => t.prizeAmount === "500").length,
-      mini200:   finalBatch.filter((t) => t.prizeAmount === "200").length,
-      rembourse: finalBatch.filter((t) => t.isWinner && !["50000","25000","10000","5000","2000","1000","500","200"].includes(t.prizeAmount ?? "")).length,
-      perdant:   finalBatch.filter((t) => !t.isWinner).length,
+      jackpot:      { count: finalBatch.filter((t) => t.prizeAmount === String(jackpotPrize2)).length,  prize: jackpotPrize2 },
+      grand:        { count: finalBatch.filter((t) => t.prizeAmount === String(grandPrize2)).length,    prize: grandPrize2 },
+      moyen:        { count: finalBatch.filter((t) => t.prizeAmount === String(moyenPrize2)).length,    prize: moyenPrize2 },
+      petit:        { count: finalBatch.filter((t) => t.prizeAmount === String(petitPrize2)).length,    prize: petitPrize2 },
+      rembourse:    { count: finalBatch.filter((t) => t.prizeAmount === String(ticketPrice) && t.isWinner).length, prize: ticketPrice },
+      consolation:  { count: finalBatch.filter((t) => t.prizeAmount === String(consolationPrize2) && consolationPrize2 > 0).length, prize: consolationPrize2 },
+      perdant:      { count: finalBatch.filter((t) => !t.isWinner).length, prize: 0 },
     },
   });
 });
