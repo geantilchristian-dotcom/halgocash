@@ -18,7 +18,12 @@ services:
         fromDatabase:
           name: halgo-cash-db
           property: connectionString
-      # Clés Clerk — à remplir manuellement après création du service
+      # Proxy Clerk — embarqué dans le build Vite, pointe vers le proxy Express
+      - key: VITE_CLERK_PROXY_URL
+        value: https://halgocash.com/api/__clerk
+      # Clés Clerk — copier les valeurs depuis Replit Secrets (onglet Secrets)
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        sync: false
       - key: CLERK_PUBLISHABLE_KEY
         sync: false
       - key: CLERK_SECRET_KEY

@@ -18,10 +18,10 @@ echo "=== [3/6] Building shared libs ==="
 pnpm run typecheck:libs
 
 echo "=== [4/6] Building frontend apps ==="
-# Vite embeds VITE_* vars at build time. Render sets VITE_CLERK_PUBLISHABLE_KEY directly.
-# No proxy URL needed: production Clerk with custom domain (accounts.halgocash.com)
-# communicates directly via DNS — no Express proxy required.
-echo "  VITE_CLERK_PUBLISHABLE_KEY set: $([ -n "$VITE_CLERK_PUBLISHABLE_KEY" ] && echo yes || echo NO — missing!)"
+# Vite embeds VITE_* vars at build time.
+# VITE_CLERK_PUBLISHABLE_KEY and VITE_CLERK_PROXY_URL must be set in Render env vars.
+echo "  VITE_CLERK_PUBLISHABLE_KEY set: $([ -n "$VITE_CLERK_PUBLISHABLE_KEY" ] && echo yes || echo 'NO — MISSING! Set it in Render dashboard')"
+echo "  VITE_CLERK_PROXY_URL set: $([ -n "$VITE_CLERK_PROXY_URL" ] && echo "$VITE_CLERK_PROXY_URL" || echo 'NO — MISSING!')"
 
 # Find vite in pnpm's virtual store — works regardless of hoisting/linker config
 VITE_BIN=$(find node_modules -name "vite.js" -path "*/vite/bin/vite.js" 2>/dev/null | head -1)
