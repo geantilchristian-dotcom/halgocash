@@ -28,9 +28,12 @@ export default function SignInPage() {
   const [error, setError]           = useState<string | null>(null);
 
   /* ── Connexion email / téléphone + mot de passe ─────────────── */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isLoaded || !signIn) return;
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    setError(null);
+    if (!isLoaded) { setError("Chargement en cours, réessayez dans un instant."); return; }
+    if (!signIn)   { setError("Session invalide. Rechargez la page."); return; }
+    if (!identifier.trim() || !password.trim()) { setError("Veuillez remplir tous les champs."); return; }
     setLoading(true);
     setError(null);
     try {
@@ -64,7 +67,8 @@ export default function SignInPage() {
 
   /* ── Connexion Google ────────────────────────────────────────── */
   const handleGoogle = async () => {
-    if (!isLoaded || !signIn) return;
+    if (!isLoaded) { setError("Chargement en cours, réessayez dans un instant."); return; }
+    if (!signIn)   { setError("Session invalide. Rechargez la page."); return; }
     setGoogleLoading(true);
     setError(null);
     try {
@@ -208,8 +212,9 @@ export default function SignInPage() {
 
             {/* Bouton Se connecter */}
             <button
-              type="submit"
-              disabled={loading || !isLoaded || !identifier || !password}
+              type="button"
+              onClick={() => { void handleSubmit(); }}
+              disabled={loading}
               style={{
                 width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                 paddingTop: 16, paddingBottom: 16, borderRadius: 16,
@@ -217,7 +222,7 @@ export default function SignInPage() {
                 color: "#0a2e14", fontWeight: 900, fontSize: "0.95rem", letterSpacing: "0.08em",
                 textTransform: "uppercase", border: "none", cursor: loading ? "default" : "pointer",
                 boxShadow: "0 4px 24px rgba(58,171,58,0.35)", transition: "all 0.2s",
-                opacity: (loading || !identifier || !password) ? 0.5 : 1,
+                opacity: loading ? 0.5 : 1,
               }}
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><span>Se connecter</span><ArrowRight className="w-5 h-5" /></>}
@@ -234,7 +239,7 @@ export default function SignInPage() {
             <button
               type="button"
               onClick={handleGoogle}
-              disabled={googleLoading || !isLoaded}
+              disabled={googleLoading}
               style={{
                 width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
                 paddingTop: 15, paddingBottom: 15, borderRadius: 16,
