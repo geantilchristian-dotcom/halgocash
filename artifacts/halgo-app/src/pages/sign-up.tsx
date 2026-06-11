@@ -37,10 +37,16 @@ export default function SignUpPage() {
   /* ── Step 1 : créer le compte ─────────────────────────────── */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!signUpLoaded || !signUp) return;
-    if (password !== confirmPwd) { setError("Les mots de passe ne correspondent pas."); return; }
-    setLoading(true);
     setError(null);
+    if (!signUpLoaded) { setError("Chargement en cours, réessayez dans un instant."); return; }
+    if (!signUp) { setError("Session invalide. Rechargez la page."); return; }
+    if (!nom.trim() || !prenom.trim() || !email.trim() || !password.trim()) {
+      setError("Veuillez remplir tous les champs obligatoires.");
+      return;
+    }
+    if (password !== confirmPwd) { setError("Les mots de passe ne correspondent pas."); return; }
+    if (password.length < 8) { setError("Mot de passe trop court (minimum 8 caractères)."); return; }
+    setLoading(true);
     try {
       if (referralCode.trim()) {
         try { localStorage.setItem("halgo_pending_referral", referralCode.trim().toUpperCase()); } catch { /* ignore */ }
