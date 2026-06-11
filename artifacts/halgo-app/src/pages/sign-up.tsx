@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSignUp, useClerk } from "@clerk/react";
+import { useSignUp } from "@clerk/react";
 import { Link } from "wouter";
 import {
   Eye, EyeOff, ArrowRight, ArrowLeft, Loader2,
@@ -12,8 +12,7 @@ const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 type Step = "form" | "verify";
 
 export default function SignUpPage() {
-  const signUp = useSignUp() as any;
-  const { setActive } = useClerk();
+  const { signUp, isLoaded: signUpLoaded, setActive } = useSignUp();
 
   const [step, setStep]           = useState<Step>("form");
   const [nom, setNom]             = useState("");
@@ -38,7 +37,7 @@ export default function SignUpPage() {
   /* ── Step 1 : créer le compte ─────────────────────────────── */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!signUp) return;
+    if (!signUpLoaded || !signUp) return;
     if (password !== confirmPwd) { setError("Les mots de passe ne correspondent pas."); return; }
     setLoading(true);
     setError(null);
@@ -84,7 +83,7 @@ export default function SignUpPage() {
   /* ── Step 2 : vérifier l'email ────────────────────────────── */
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!signUp) return;
+    if (!signUpLoaded || !signUp) return;
     setLoading(true);
     setError(null);
     try {
@@ -435,7 +434,7 @@ export default function SignUpPage() {
 
               <button
                 type="submit"
-                disabled={loading || !signUp || !pwdMatch}
+                disabled={loading || !signUpLoaded || !signUp || !pwdMatch}
                 className="w-full py-4 rounded-xl font-black text-[#0a2e14] text-base uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 mt-1"
                 style={{ background: "linear-gradient(135deg,#3aab3a,#4dc44d)", boxShadow: "0 4px 20px rgba(58,171,58,0.4)" }}>
                 {loading
