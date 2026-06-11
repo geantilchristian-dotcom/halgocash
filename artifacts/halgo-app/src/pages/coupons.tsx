@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser, useAuth } from "@clerk/react";
-import { CheckCircle, XCircle, Clock, Ticket, Trophy, Plus, X, Loader2, ScanLine, Eye, EyeOff } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Ticket, Trophy, X, Loader2, ScanLine, Eye, EyeOff } from "lucide-react";
 import { useTheme } from "@/lib/theme-context";
 import { QrScanner } from "@/components/qr-scanner";
 
@@ -204,14 +204,6 @@ export default function Coupons() {
             >
               <ScanLine className="w-4 h-4" />
               Scanner
-            </button>
-            <button
-              onClick={() => { setShowAdd(true); setAddError(null); setNewCode(""); }}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold transition-all active:scale-[0.97]"
-              style={{ background: "rgba(245,197,24,0.2)", color: "#F5C518", border: "1px solid rgba(245,197,24,0.3)" }}
-            >
-              <Plus className="w-4 h-4" />
-              Ajouter
             </button>
           </div>
         </div>
