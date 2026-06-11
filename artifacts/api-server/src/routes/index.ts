@@ -22,6 +22,7 @@ import crashRouter from "./crash";
 import rouletteRouter from "./roulette";
 import transferRouter from "./transfer";
 import jackpotRouter from "./jackpot";
+import accountRouter from "./account";
 
 const router: IRouter = Router();
 
@@ -48,5 +49,6 @@ router.use(crashRouter);
 router.use(rouletteRouter);
 router.use(transferRouter);
 router.use(jackpotRouter);
+router.use(accountRouter);
 
 export default router;

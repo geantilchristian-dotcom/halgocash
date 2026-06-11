@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { eq, desc, or, sql, count, sum, and, isNotNull, isNull } from "drizzle-orm";
-import { db, usersTable, ticketsTable, drawsTable, vendorsTable, withdrawalsTable, playerProfilesTable, creditAdjustmentsTable, kycTable, supportMessagesTable } from "@workspace/db";
+import { db, usersTable, ticketsTable, drawsTable, vendorsTable, withdrawalsTable, playerProfilesTable, creditAdjustmentsTable, kycTable, supportMessagesTable, playerModerationTable, fcmTokensTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { getOnlineUsers } from "../lib/presence";
 
@@ -836,6 +836,136 @@ router.post("/admin/support/reply/:sessionId", requireAdmin, async (req: Request
   const clerkId = first?.clerkId ?? sessionId;
   const [saved] = await db.insert(supportMessagesTable).values({ sessionId, clerkId, clerkName: "Admin", message: message.slice(0, 2000), fromAdmin: true, isRead: false }).returning();
   res.status(201).json({ ...saved, createdAt: saved!.createdAt.toISOString() });
+});
+
+// ── Player Detail + Moderation ─────────────────────────────────────────────
+
+async function upsertModeration(clerkId: string, data: Partial<{ status: string; blockedEmail: string | null; blockedIp: string | null; warnCount: number; adminNotes: string | null }>): Promise<void> {
+  const [existing] = await db.select({ clerkId: playerModerationTable.clerkId }).from(playerModerationTable).where(eq(playerModerationTable.clerkId, clerkId)).limit(1);
+  if (existing) {
+    await db.update(playerModerationTable).set({ ...data, updatedAt: new Date() }).where(eq(playerModerationTable.clerkId, clerkId));
+  } else {
+    await db.insert(playerModerationTable).values({ clerkId, status: "active", warnCount: 0, ...data });
+  }
+}
+
+async function sendAdminMsg(clerkId: string, message: string): Promise<void> {
+  await db.insert(supportMessagesTable).values({
+    sessionId: clerkId,
+    clerkId,
+    clerkName: "Admin Halgo",
+    message: message.slice(0, 2000),
+    fromAdmin: true,
+    isRead: false,
+  });
+}
+
+// GET /api/admin/players/:clerkId — full player detail
+router.get("/admin/players/:clerkId", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const clerkId = String(req.params["clerkId"] ?? "");
+  if (!clerkId) { res.status(400).json({ error: "clerkId requis" }); return; }
+
+  const [profile, credits, tickets, withdrawals, kyc, messages, moderation] = await Promise.all([
+    db.select().from(playerProfilesTable).where(eq(playerProfilesTable.clerkId, clerkId)).limit(1),
+    db.select().from(creditAdjustmentsTable).where(eq(creditAdjustmentsTable.clerkId, clerkId)).orderBy(desc(creditAdjustmentsTable.createdAt)).limit(200),
+    db.select().from(ticketsTable).where(eq(ticketsTable.registeredByClerkId, clerkId)).orderBy(desc(ticketsTable.registeredAt)).limit(100),
+    db.select().from(withdrawalsTable).where(eq(withdrawalsTable.clerkId, clerkId)).orderBy(desc(withdrawalsTable.createdAt)).limit(100),
+    db.select().from(kycTable).where(eq(kycTable.clerkId, clerkId)).limit(1),
+    db.select().from(supportMessagesTable).where(eq(supportMessagesTable.clerkId, clerkId)).orderBy(supportMessagesTable.createdAt).limit(100),
+    db.select().from(playerModerationTable).where(eq(playerModerationTable.clerkId, clerkId)).limit(1),
+  ]);
+
+  const balance = credits.reduce((s, c) => s + parseFloat(String(c.amount)), 0);
+  const clerkName = messages[0]?.clerkName ?? kyc[0]?.fullName ?? clerkId.slice(-8).toUpperCase();
+
+  res.json({
+    clerkId,
+    clerkName,
+    profile: profile[0] ? {
+      referralCode: profile[0].referralCode,
+      referredByCode: profile[0].referredByCode ?? null,
+      createdAt: profile[0].createdAt.toISOString(),
+    } : null,
+    balance: Math.max(0, balance),
+    credits: credits.map(c => ({ id: c.id, amount: parseFloat(String(c.amount)), reason: c.reason, refId: c.refId ?? null, createdAt: c.createdAt.toISOString() })),
+    tickets: tickets.map(t => ({ id: t.id, code: t.code, status: t.status, isWinner: t.isWinner, prizeAmount: t.prizeAmount ? parseFloat(String(t.prizeAmount)) : null, registeredAt: t.registeredAt?.toISOString() ?? null, createdAt: t.createdAt.toISOString() })),
+    withdrawals: withdrawals.map(w => ({ id: w.id, amount: parseFloat(String(w.amount)), status: w.status, paidAt: w.paidAt?.toISOString() ?? null, createdAt: w.createdAt.toISOString() })),
+    kyc: kyc[0] ? { status: kyc[0].status, fullName: kyc[0].fullName, adminNote: kyc[0].adminNote ?? null, submittedAt: kyc[0].submittedAt.toISOString() } : null,
+    messages: messages.map(m => ({ id: m.id, message: m.message, fromAdmin: m.fromAdmin, createdAt: m.createdAt.toISOString() })),
+    moderation: moderation[0] ? {
+      status: moderation[0].status,
+      blockedEmail: moderation[0].blockedEmail ?? null,
+      blockedIp: moderation[0].blockedIp ?? null,
+      warnCount: moderation[0].warnCount,
+      adminNotes: moderation[0].adminNotes ?? null,
+    } : { status: "active", blockedEmail: null, blockedIp: null, warnCount: 0, adminNotes: null },
+  });
+});
+
+// POST /api/admin/players/:clerkId/pause
+router.post("/admin/players/:clerkId/pause", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const clerkId = String(req.params["clerkId"] ?? "");
+  await upsertModeration(clerkId, { status: "paused" });
+  await sendAdminMsg(clerkId, "⏸️ Votre compte a été temporairement suspendu par l'administration. Contactez le support pour plus d'informations.");
+  res.json({ ok: true });
+});
+
+// POST /api/admin/players/:clerkId/resume
+router.post("/admin/players/:clerkId/resume", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const clerkId = String(req.params["clerkId"] ?? "");
+  await upsertModeration(clerkId, { status: "active" });
+  await sendAdminMsg(clerkId, "✅ Votre compte a été réactivé. Vous pouvez maintenant utiliser toutes les fonctionnalités normalement.");
+  res.json({ ok: true });
+});
+
+// POST /api/admin/players/:clerkId/warn
+router.post("/admin/players/:clerkId/warn", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const clerkId = String(req.params["clerkId"] ?? "");
+  const { message, notes } = req.body as { message?: string; notes?: string };
+  if (!message?.trim()) { res.status(400).json({ error: "Message requis" }); return; }
+  const [existing] = await db.select({ warnCount: playerModerationTable.warnCount }).from(playerModerationTable).where(eq(playerModerationTable.clerkId, clerkId)).limit(1);
+  const newCount = (existing?.warnCount ?? 0) + 1;
+  await upsertModeration(clerkId, { warnCount: newCount, adminNotes: notes?.trim() || undefined });
+  await sendAdminMsg(clerkId, `⚠️ AVERTISSEMENT #${newCount} : ${message.trim()}`);
+  res.json({ ok: true, warnCount: newCount });
+});
+
+// POST /api/admin/players/:clerkId/block
+router.post("/admin/players/:clerkId/block", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const clerkId = String(req.params["clerkId"] ?? "");
+  const { blockedEmail, blockedIp, notes } = req.body as { blockedEmail?: string; blockedIp?: string; notes?: string };
+  await upsertModeration(clerkId, {
+    status: "blocked",
+    blockedEmail: blockedEmail?.trim() || null,
+    blockedIp: blockedIp?.trim() || null,
+    adminNotes: notes?.trim() || null,
+  });
+  await sendAdminMsg(clerkId, "🚫 Votre compte a été bloqué. Pour tout recours, veuillez contacter notre support.");
+  res.json({ ok: true });
+});
+
+// POST /api/admin/players/:clerkId/message — send custom alert
+router.post("/admin/players/:clerkId/message", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const clerkId = String(req.params["clerkId"] ?? "");
+  const { message } = req.body as { message?: string };
+  if (!message?.trim()) { res.status(400).json({ error: "Message requis" }); return; }
+  await sendAdminMsg(clerkId, message.trim());
+  res.json({ ok: true });
+});
+
+// DELETE /api/admin/players/:clerkId — admin deletes player account data
+router.delete("/admin/players/:clerkId", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const clerkId = String(req.params["clerkId"] ?? "");
+  if (!clerkId) { res.status(400).json({ error: "clerkId requis" }); return; }
+  await Promise.all([
+    db.delete(playerProfilesTable).where(eq(playerProfilesTable.clerkId, clerkId)),
+    db.delete(creditAdjustmentsTable).where(eq(creditAdjustmentsTable.clerkId, clerkId)),
+    db.delete(supportMessagesTable).where(eq(supportMessagesTable.clerkId, clerkId)),
+    db.delete(playerModerationTable).where(eq(playerModerationTable.clerkId, clerkId)),
+    db.delete(kycTable).where(eq(kycTable.clerkId, clerkId)),
+    db.delete(fcmTokensTable).where(eq(fcmTokensTable.clerkId, clerkId)),
+  ]);
+  res.json({ ok: true });
 });
 
 export default router;

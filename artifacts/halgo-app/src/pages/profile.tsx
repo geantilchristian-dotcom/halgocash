@@ -3,7 +3,7 @@ import { useUser, useClerk, useAuth } from "@clerk/react";
 import {
   User, Mail, LogOut, Shield, Phone, Edit3, Check, X, Loader2,
   CheckCircle, Clock, AlertCircle, FileText, Ticket,
-  ChevronRight, ChevronDown, UserPlus,
+  ChevronRight, ChevronDown, UserPlus, Trash2, AlertTriangle,
 } from "lucide-react";
 import { useTheme } from "@/lib/theme-context";
 import { useLocation } from "wouter";
@@ -41,6 +41,15 @@ export default function Profile() {
   const [kycOpen, setKycOpen] = useState(false);
   const [stats, setStats] = useState<{ total: number; wins: number; fcWon: number } | null>(null);
 
+  // Account deletion state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Account status (paused/blocked)
+  const [accountStatus, setAccountStatus] = useState<"active" | "paused" | "blocked">("active");
+
   const authFetch = useCallback(async (url: string, opts?: RequestInit) => {
     const token = await getToken().catch(() => null);
     const headers: Record<string, string> = { ...(opts?.headers as Record<string, string> ?? {}) };
@@ -65,6 +74,16 @@ export default function Profile() {
       .then(tix => {
         const wins = tix.filter(t => t.isWinner);
         setStats({ total: tix.length, wins: wins.length, fcWon: wins.reduce((s, t) => s + (t.prizeAmount ?? 0), 0) });
+      })
+      .catch(() => {});
+
+    // Check account moderation status
+    authFetch("/api/player/status")
+      .then(r => r.ok ? r.json() as Promise<{ status: string }> : null)
+      .then(d => {
+        if (d?.status === "paused" || d?.status === "blocked") {
+          setAccountStatus(d.status as "paused" | "blocked");
+        }
       })
       .catch(() => {});
   }, [authFetch]);
@@ -95,6 +114,24 @@ export default function Profile() {
       setKycOpen(false);
     } catch { setKycError("Erreur réseau"); }
     finally { setKycSubmitting(false); }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirm !== "SUPPRIMER") return;
+    setDeleting(true); setDeleteError(null);
+    try {
+      const res = await authFetch("/api/players/me", { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json() as { error?: string };
+        setDeleteError(data.error ?? "Erreur lors de la suppression");
+        return;
+      }
+      await signOut();
+    } catch {
+      setDeleteError("Erreur réseau. Réessayez.");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const clerkPhone = user?.phoneNumbers?.[0]?.phoneNumber ?? null;
@@ -129,6 +166,25 @@ export default function Profile() {
         <h1 className="text-white font-black text-2xl uppercase tracking-wider">PROFIL</h1>
         <p className="text-white/60 text-sm mt-1">Vos informations personnelles</p>
       </div>
+
+      {/* Account status warning */}
+      {accountStatus !== "active" && (
+        <div className="mx-4 -mt-2 mb-1">
+          <div className={`rounded-2xl px-4 py-3 flex items-center gap-3 ${accountStatus === "blocked" ? "bg-red-900/40 border border-red-700/40" : "bg-amber-900/40 border border-amber-700/40"}`}>
+            <AlertTriangle className={`w-5 h-5 shrink-0 ${accountStatus === "blocked" ? "text-red-400" : "text-amber-400"}`} />
+            <div>
+              <p className={`font-bold text-sm ${accountStatus === "blocked" ? "text-red-300" : "text-amber-300"}`}>
+                {accountStatus === "blocked" ? "Compte bloqué" : "Compte suspendu"}
+              </p>
+              <p className="text-xs text-white/50 mt-0.5">
+                {accountStatus === "blocked"
+                  ? "Votre compte a été bloqué. Contactez le support."
+                  : "Votre compte est temporairement suspendu. Contactez le support."}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Avatar card */}
       <div className="-mt-6 mx-4">
@@ -354,7 +410,75 @@ export default function Profile() {
           </div>
           <span className="font-bold text-red-500">Déconnexion</span>
         </button>
+
+        {/* Supprimer le compte */}
+        <button onClick={() => setDeleteOpen(true)}
+          className={`w-full rounded-2xl p-4 shadow-sm border flex items-center gap-3 transition-colors ${isDark ? "bg-zinc-900/60 border-white/5 hover:bg-red-900/10" : "bg-white border-gray-100 hover:bg-red-50"}`}>
+          <div className="w-9 h-9 rounded-full bg-red-500/10 flex items-center justify-center">
+            <Trash2 className="w-4 h-4 text-red-500/70" />
+          </div>
+          <div className="text-left">
+            <p className={`font-bold text-sm ${isDark ? "text-red-400/70" : "text-red-500/70"}`}>Supprimer mon compte</p>
+            <p className={`text-xs ${sub}`}>Efface toutes vos données Halgo Cash</p>
+          </div>
+        </button>
+
       </div>
+
+      {/* Delete account modal */}
+      {deleteOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-8">
+          <div className={`w-full max-w-sm rounded-3xl shadow-2xl p-6 space-y-4 ${isDark ? "bg-[#0f1a10] border border-white/10" : "bg-white"}`}>
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+              </div>
+              <div>
+                <p className={`font-black text-base ${cardText}`}>Supprimer mon compte</p>
+                <p className={`text-xs ${sub}`}>Action irréversible</p>
+              </div>
+            </div>
+
+            <div className={`rounded-xl p-3 text-sm leading-snug ${isDark ? "bg-red-900/20 border border-red-800/30 text-red-200" : "bg-red-50 border border-red-100 text-red-700"}`}>
+              Toutes vos données seront supprimées : profil, crédits, KYC et messages. Vos tickets et retraits sont conservés pour des raisons comptables.
+            </div>
+
+            <div>
+              <p className={`text-xs font-bold mb-2 ${sub}`}>Tapez <span className="font-mono text-red-400">SUPPRIMER</span> pour confirmer</p>
+              <input
+                type="text"
+                value={deleteConfirm}
+                onChange={e => setDeleteConfirm(e.target.value)}
+                placeholder="SUPPRIMER"
+                className={`w-full px-4 py-3 rounded-xl border text-sm outline-none font-mono ${inputCls}`}
+              />
+            </div>
+
+            {deleteError && (
+              <p className="text-red-400 text-xs flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />{deleteError}
+              </p>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setDeleteOpen(false); setDeleteConfirm(""); setDeleteError(null); }}
+                className={`flex-1 py-3 rounded-xl font-bold text-sm ${isDark ? "bg-white/10 text-gray-300" : "bg-gray-100 text-gray-600"}`}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting || deleteConfirm !== "SUPPRIMER"}
+                className="flex-1 py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40 transition-all bg-red-600 text-white"
+              >
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                {deleting ? "Suppression…" : "Supprimer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

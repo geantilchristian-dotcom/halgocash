@@ -199,6 +199,19 @@ export const sportBetsTable = pgTable("sport_bets", {
 export type SportMatch = typeof sportMatchesTable.$inferSelect;
 export type SportBet = typeof sportBetsTable.$inferSelect;
 
+export const playerModerationTable = pgTable("player_moderation", {
+  clerkId: varchar("clerk_id", { length: 255 }).primaryKey(),
+  status: text("status").notNull().default("active"),
+  blockedEmail: text("blocked_email"),
+  blockedIp: text("blocked_ip"),
+  warnCount: integer("warn_count").notNull().default(0),
+  adminNotes: text("admin_notes"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type PlayerModeration = typeof playerModerationTable.$inferSelect;
+
 export const insertVendorSchema = createInsertSchema(vendorsTable).omit({ id: true, createdAt: true });
 export const insertDrawSchema = createInsertSchema(drawsTable).omit({ id: true, createdAt: true, drawnAt: true, winningTicketCode: true, winningNumbers: true, prizePool: true });
 export const insertTicketSchema = createInsertSchema(ticketsTable).omit({ id: true, createdAt: true });

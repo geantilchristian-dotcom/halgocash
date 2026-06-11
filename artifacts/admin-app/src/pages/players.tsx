@@ -4,6 +4,7 @@ import { Users2, Search, Star, Award, Shield } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import PlayerDetailDrawer from "@/components/player-detail-drawer";
 
 interface Player {
   clerkId: string;
@@ -48,6 +49,7 @@ function LevelBadge({ level, count }: { level: string; count: number }) {
 export default function PlayersPage() {
   const [search, setSearch] = useState("");
   const [levelFilter, setLevelFilter] = useState("all");
+  const [selectedPlayer, setSelectedPlayer] = useState<{ clerkId: string; displayId: string } | null>(null);
 
   const { data: players = [], isLoading } = useQuery<Player[]>({
     queryKey: ["/api/admin/players"],
@@ -80,17 +82,17 @@ export default function PlayersPage() {
         <Users2 className="w-6 h-6 text-indigo-400" />
         <div>
           <h1 className="text-2xl font-bold text-white">Joueurs inscrits</h1>
-          <p className="text-zinc-400 text-sm">Profils Halgo Cash avec niveaux de parrainage</p>
+          <p className="text-zinc-400 text-sm">Cliquez sur un joueur pour voir son profil complet</p>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Total joueurs",  value: players.length,               color: "text-white" },
+          { label: "Total joueurs",    value: players.length,               color: "text-white" },
           { label: "Gains distribués", value: formatFC(totalWinnings) + " FC", color: "text-yellow-400" },
-          { label: "Tickets grattés", value: totalTickets,                color: "text-emerald-400" },
-          { label: "Parrains actifs", value: players.filter(p => p.referralCount > 0).length, color: "text-indigo-400" },
+          { label: "Tickets grattés",  value: totalTickets,                 color: "text-emerald-400" },
+          { label: "Parrains actifs",  value: players.filter(p => p.referralCount > 0).length, color: "text-indigo-400" },
         ].map(s => (
           <Card key={s.label} className="bg-zinc-900 border-zinc-800">
             <CardContent className="pt-4 pb-4">
@@ -158,7 +160,11 @@ export default function PlayersPage() {
               </TableHeader>
               <TableBody>
                 {filtered.map((p) => (
-                  <TableRow key={p.clerkId} className="border-zinc-800 hover:bg-zinc-800/40">
+                  <TableRow
+                    key={p.clerkId}
+                    className="border-zinc-800 hover:bg-zinc-800/60 cursor-pointer transition-colors"
+                    onClick={() => setSelectedPlayer({ clerkId: p.clerkId, displayId: p.playerId })}
+                  >
                     <TableCell>
                       <div>
                         <span className="font-mono font-bold text-white text-sm">{p.playerId}</span>
@@ -196,6 +202,16 @@ export default function PlayersPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Player detail drawer */}
+      {selectedPlayer && (
+        <PlayerDetailDrawer
+          open={!!selectedPlayer}
+          clerkId={selectedPlayer.clerkId}
+          displayId={selectedPlayer.displayId}
+          onClose={() => setSelectedPlayer(null)}
+        />
+      )}
     </div>
   );
 }
