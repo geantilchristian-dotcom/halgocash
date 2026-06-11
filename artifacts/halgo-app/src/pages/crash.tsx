@@ -349,6 +349,16 @@ function drawCurve(
   return [lx, ly];
 }
 
+// ── Server-sent event payload shape ──────────────────────────────────────────
+interface CrashStreamEvent {
+  phase: "show" | "betting" | "flying";
+  roundId: number;
+  msIntoRound: number;
+  serverMs: number;
+  crashPoint?: number;      // only during "flying"
+  prevCrashPoint?: number;  // only during "show" (last round's result)
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 export default function CrashGame() {
   const [, setLocation] = useLocation();
@@ -602,9 +612,10 @@ export default function CrashGame() {
         }
       }, 1000);
     } else {
-      // In post-crash display window (0-2s)
+      // In post-crash display window (0-2s) — show the crashed multiplier immediately
       phaseRef.current = "crashed";
       setPhase("crashed");
+      if (cp > 1.0) setMultiplier(cp); // display the actual crash result, not 1.0
       const crashLeft = Math.ceil((CRASH_SHOW_S * 1000 - msInto) / 1000);
       setCountdown(Math.max(1, crashLeft));
       let crashRemaining = crashLeft;
@@ -803,36 +814,70 @@ export default function CrashGame() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doCashOut]);
 
-  // ── Mount: sync to server round clock ────────────────────────────────────
+  // ── Mount: subscribe to SSE stream — single source of truth for all clients ─
+  // EventSource auto-reconnects on disconnect, so the game stays live 24/7.
+  // All accounts receive the identical phase/crashPoint/timing from the server.
+  const startRoundRef = useRef(startRound);
+  startRoundRef.current = startRound; // always fresh — no stale closure in the SSE handler
+
   useEffect(() => {
-    let cancelled = false;
-    const cleanup = () => {
-      cancelled = true;
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    let initialised = false;
+    let lastRoundId  = -1;
+
+    const es = new EventSource("/api/crash/stream");
+
+    es.onmessage = (e: MessageEvent) => {
+      try {
+        const state = JSON.parse(e.data as string) as CrashStreamEvent;
+        const { phase: sPhase, roundId, msIntoRound, serverMs } = state;
+
+        // Compensate for one-way network latency
+        const networkOffset = Math.max(0, (Date.now() - serverMs) / 2);
+        const adjustedMs    = msIntoRound + networkOffset;
+
+        setSyncing(false);
+        // Keep round ID ref current so bet/cashout use the right cycle
+        currentRoundRef.current = roundId;
+
+        // ── First message or new round → full rebuild via startRound ──────────
+        if (!initialised || roundId !== lastRoundId) {
+          initialised  = true;
+          lastRoundId  = roundId;
+          const cp =
+            sPhase === "flying"  ? state.crashPoint      :
+            sPhase === "show"    ? state.prevCrashPoint   :
+            undefined;
+          startRoundRef.current(roundId, adjustedMs, cp);
+          return;
+        }
+
+        // ── Phase mismatch: server flying but client isn't → force sync ───────
+        if (sPhase === "flying" && state.crashPoint && phaseRef.current !== "flying") {
+          lastRoundId = roundId;
+          startRoundRef.current(roundId, adjustedMs, state.crashPoint);
+          return;
+        }
+
+        // ── During flight: keep crash point & animation time in sync ──────────
+        // Server is the clock master; client RAF is just the renderer.
+        if (sPhase === "flying" && state.crashPoint && phaseRef.current === "flying") {
+          crashPointRef.current = state.crashPoint;
+          const expectedSkip = Math.max(0, adjustedMs - FLIGHT_START_MS);
+          const actualSkip   = performance.now() - startTimeRef.current;
+          // Correct drift > 500ms to avoid diverging multiplier displays
+          if (Math.abs(expectedSkip - actualSkip) > 500) {
+            startTimeRef.current = performance.now() - expectedSkip;
+          }
+        }
+      } catch { /* ignore malformed events */ }
     };
 
-    fetch("/api/crash/round")
-      .then(r => r.ok ? r.json() : null)
-      .then((data: { roundId: number; crashPoint?: number; msIntoRound: number; serverMs: number; commitment?: string; betting?: boolean } | null) => {
-        if (cancelled) return;
-        if (data) {
-          // Compensate for one-way network latency so we fast-forward to the right position
-          const networkOffset = Math.max(0, (Date.now() - data.serverMs) / 2);
-          const adjustedMs = data.msIntoRound + networkOffset;
-          startRound(data.roundId, adjustedMs, data.crashPoint);
-        } else {
-          startRound(currentRoundId(), undefined, 2.0);
-        }
-        setSyncing(false);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          startRound(currentRoundId(), undefined, 2.0);
-          setSyncing(false);
-        }
-      });
+    es.onerror = () => { /* EventSource auto-reconnects automatically */ };
 
-    return cleanup;
+    return () => {
+      es.close();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

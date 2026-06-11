@@ -1,5 +1,5 @@
 import { createHmac, createHash } from "crypto";
-import { Router, Request } from "express";
+import { Router, Request, Response } from "express";
 import { getAuth } from "@clerk/express";
 import { db, creditAdjustmentsTable, ticketsTable, withdrawalsTable, crashBetsTable } from "@workspace/db";
 import { eq, and, sum, isNotNull } from "drizzle-orm";
@@ -53,8 +53,15 @@ interface Cycle {
 
 let activeCycle: Cycle = { id: 0, startedAt: 0, crashPoint: 2.0 };
 let cycleTimer: ReturnType<typeof setTimeout> | null = null;
+let lastCrashedPoint = 2.0; // saved when each cycle ends — shown during the 2s crash display
+
+// Declared here (before startCycle boot call) so broadcastCrashState can reference it at startup
+const sseClients = new Set<Response>();
 
 function startCycle(): void {
+  // Save crash point from the cycle that just ended
+  if (activeCycle.id !== 0) lastCrashedPoint = activeCycle.crashPoint;
+
   const startedAt = Date.now();
   const id = Math.floor(startedAt / 1000);
   const crashPoint = hmacCrashPoint(id);
@@ -66,6 +73,9 @@ function startCycle(): void {
 
   if (cycleTimer) clearTimeout(cycleTimer);
   cycleTimer = setTimeout(startCycle, cycleMs);
+
+  // Broadcast new state immediately to all SSE clients
+  broadcastCrashState();
 }
 
 startCycle(); // boot
@@ -73,6 +83,49 @@ startCycle(); // boot
 function msIntoCycle(): number {
   return Date.now() - activeCycle.startedAt;
 }
+
+// ── SSE: real-time game state broadcaster ─────────────────────────────────────
+// All connected clients receive the same server state every 500ms, ensuring
+// identical crash points, phases, and timing across all accounts.
+function buildCrashState() {
+  const ms = msIntoCycle();
+  const { id, crashPoint } = activeCycle;
+  if (ms < CRASH_SHOW_MS) {
+    // Show phase: reveal the PREVIOUS round's crash point for the display
+    return { phase: "show" as const, roundId: id, msIntoRound: ms, serverMs: Date.now(), prevCrashPoint: lastCrashedPoint };
+  } else if (ms < FLIGHT_START_MS) {
+    // Betting window: crash point is hidden until flight starts
+    return { phase: "betting" as const, roundId: id, msIntoRound: ms, serverMs: Date.now() };
+  }
+  // Flying: reveal crash point so all clients animate the same curve
+  return { phase: "flying" as const, roundId: id, msIntoRound: ms, serverMs: Date.now(), crashPoint };
+}
+
+function broadcastCrashState() {
+  if (sseClients.size === 0) return;
+  const data = `data: ${JSON.stringify(buildCrashState())}\n\n`;
+  for (const client of [...sseClients]) {
+    try { client.write(data); } catch { sseClients.delete(client); }
+  }
+}
+
+// Broadcast every 500ms so all clients stay in sync
+setInterval(broadcastCrashState, 500);
+
+// ── GET /api/crash/stream ─────────────────────────────────────────────────────
+router.get("/crash/stream", (req, res): void => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no"); // disable nginx buffering in production
+  res.flushHeaders();
+
+  // Send current state immediately so the client doesn't wait up to 500ms
+  res.write(`data: ${JSON.stringify(buildCrashState())}\n\n`);
+  sseClients.add(res);
+
+  req.on("close", () => sseClients.delete(res));
+});
 
 // ── Balance helper ────────────────────────────────────────────────────────────
 async function getBalance(userId: string): Promise<number> {
