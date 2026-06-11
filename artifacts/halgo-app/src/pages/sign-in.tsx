@@ -1,7 +1,6 @@
 import { SignIn } from "@clerk/react";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
-const logoUrl = `${import.meta.env.BASE_URL}halgo-cash-logo.jpg`;
 
 const signInAppearance = {
   cssLayerName: "clerk",
@@ -90,16 +89,20 @@ export default function SignInPage() {
 
         <div className="flex-1 flex flex-col items-center px-5 pt-10 pb-8 overflow-y-auto relative z-10">
 
-          {/* Logo */}
-          <div className="hg-logo mb-4">
-            <img
-              src={logoUrl}
-              alt="Halgo Cash"
-              style={{
-                height: 88, width: "auto", objectFit: "contain",
-                filter: "drop-shadow(0 6px 24px rgba(34,197,94,0.55)) drop-shadow(0 2px 8px rgba(0,0,0,0.7))",
-              }}
-            />
+          {/* Logo texte */}
+          <div className="hg-logo mb-4 flex items-baseline gap-0">
+            <span style={{
+              fontFamily: "'Plus Jakarta Sans','Montserrat',sans-serif",
+              fontWeight: 900, fontStyle: "italic",
+              fontSize: "2.8rem", color: "#ffffff",
+              letterSpacing: "-0.02em", lineHeight: 1,
+            }}>halgo</span>
+            <span style={{
+              fontFamily: "'Plus Jakarta Sans','Montserrat',sans-serif",
+              fontWeight: 900, fontStyle: "italic",
+              fontSize: "2.8rem", color: "#8DC63F",
+              letterSpacing: "-0.02em", lineHeight: 1,
+            }}>Cash</span>
           </div>
 
           {/* Heading */}

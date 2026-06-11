@@ -231,14 +231,20 @@ export default function SignUpPage() {
             </div>
           </div>
 
-          {/* Logo */}
-          <div className="hg-logo flex flex-col items-center mb-4">
-            <span className="text-[40px] font-black text-white tracking-tight leading-none">HALGO</span>
-            <div className="flex items-center -mt-2">
-              <span className="text-[40px] font-black italic text-[#3aab3a] tracking-tight leading-none">CASH</span>
-              <span className="text-[32px] font-black text-[#F5C518] leading-none">⚡</span>
-            </div>
-            <p className="text-white/30 text-[9px] font-bold tracking-[0.25em] uppercase mt-1">RAPIDE · SÉCURISÉ · FIABLE</p>
+          {/* Logo texte */}
+          <div className="hg-logo flex items-baseline gap-0 mb-4">
+            <span style={{
+              fontFamily: "'Plus Jakarta Sans','Montserrat',sans-serif",
+              fontWeight: 900, fontStyle: "italic",
+              fontSize: "2.8rem", color: "#ffffff",
+              letterSpacing: "-0.02em", lineHeight: 1,
+            }}>halgo</span>
+            <span style={{
+              fontFamily: "'Plus Jakarta Sans','Montserrat',sans-serif",
+              fontWeight: 900, fontStyle: "italic",
+              fontSize: "2.8rem", color: "#8DC63F",
+              letterSpacing: "-0.02em", lineHeight: 1,
+            }}>Cash</span>
           </div>
 
           {/* Titre */}

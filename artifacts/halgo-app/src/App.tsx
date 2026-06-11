@@ -27,7 +27,6 @@ import SignUpPage from "@/pages/sign-up";
 import { AgeGate } from "@/components/age-gate";
 import { Loader2 } from "lucide-react";
 
-const logoUrl = `${import.meta.env.BASE_URL}halgo-cash-logo.jpg`;
 
 // ── Splash screen ─────────────────────────────────────────────────────────────
 function SplashScreen({ onDone }: { onDone: () => void }) {
@@ -116,18 +115,22 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
           animation: "sp-blob1 13s ease-in-out infinite 2.5s",
         }} />
 
-        {/* Logo */}
-        <div className="sp-logo" style={{ marginBottom: 20 }}>
-          <img
-            src={logoUrl}
-            alt="Halgo Cash"
-            style={{
-              height: 110,
-              width: "auto",
-              objectFit: "contain",
-              filter: "drop-shadow(0 8px 32px rgba(34,197,94,0.6)) drop-shadow(0 2px 10px rgba(0,0,0,0.8))",
-            }}
-          />
+        {/* Logo texte */}
+        <div className="sp-logo" style={{ marginBottom: 20, display: "flex", alignItems: "baseline", gap: 0 }}>
+          <span style={{
+            fontFamily: "'Plus Jakarta Sans','Montserrat',sans-serif",
+            fontWeight: 900, fontStyle: "italic",
+            fontSize: "3.2rem", color: "#ffffff",
+            letterSpacing: "-0.02em", lineHeight: 1,
+            textShadow: "0 4px 24px rgba(255,255,255,0.15)",
+          }}>halgo</span>
+          <span style={{
+            fontFamily: "'Plus Jakarta Sans','Montserrat',sans-serif",
+            fontWeight: 900, fontStyle: "italic",
+            fontSize: "3.2rem", color: "#8DC63F",
+            letterSpacing: "-0.02em", lineHeight: 1,
+            textShadow: "0 4px 24px rgba(141,198,63,0.4)",
+          }}>Cash</span>
         </div>
 
         {/* Tagline */}
