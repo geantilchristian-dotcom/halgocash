@@ -1,14 +1,14 @@
-import { rateLimit } from "express-rate-limit";
+import { rateLimit, ipKeyGenerator } from "express-rate-limit";
 import { getAuth } from "@clerk/express";
 import type { Request } from "express";
 
-/** Per-user key (userId when authenticated, IP as fallback) */
+/** Per-user key (userId when authenticated, IP as fallback via ipKeyGenerator for IPv6 safety) */
 function userKey(req: Request): string {
   try {
     const auth = getAuth(req);
     if (auth.userId) return `u:${auth.userId}`;
   } catch { /* not yet authenticated */ }
-  return `ip:${req.ip ?? "unknown"}`;
+  return ipKeyGenerator(req);
 }
 
 // ── Auth / Admin ───────────────────────────────────────────────────────────
