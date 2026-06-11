@@ -7,6 +7,7 @@ type Phase = "waiting" | "flying" | "crashed";
 
 interface HistoryEntry { cp: number }
 interface FeedEntry { id: string; mult: number; amount: number; ts: number; key: number }
+interface BetEntry  { id: string; amount: number; ts: number; key: number }
 
 function fFC(n: number) {
   return new Intl.NumberFormat("fr-FR").format(Math.round(n)).replace(/\s/g, ".");
@@ -397,6 +398,7 @@ export default function CrashGame() {
   const [halfWonAmount, setHalfWonAmount]   = useState<number | null>(null);
 
   const [feed, setFeed]                 = useState<FeedEntry[]>([]);
+  const [bettingFeed, setBettingFeed]   = useState<BetEntry[]>([]);
 
   const canvasRef         = useRef<HTMLCanvasElement>(null);
   const containerRef      = useRef<HTMLDivElement>(null);
@@ -412,6 +414,8 @@ export default function CrashGame() {
   const lastTipRef        = useRef<[number, number]>([0, 0]);
   const lastFlightColorRef = useRef<string>("rgb(74,222,128)");
   const feedTickerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bettingTickerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const roundGenRef       = useRef(0);
   const feedKeyRef        = useRef(0);
   const multiplierRef     = useRef<number>(1.0);
   const autoBetEnabledRef = useRef<boolean>(false);
@@ -455,31 +459,42 @@ export default function CrashGame() {
     return () => ro.disconnect();
   }, []);
 
-  // ── Infinite feed ticker — always running ─────────────────────────────────
+  // ── Flight feed ticker — runs only during "flying" phase ─────────────────
   const scheduleFeedTick = useCallback(() => {
     feedTickerRef.current = setTimeout(() => {
-      feedKeyRef.current += 1;
-      const id = generateFeedId();
-      // Cap cashout mult to what is physically possible in the current round
-      const curPhase = phaseRef.current;
-      const curMult  = multiplierRef.current;
-      const curCrash = crashPointRef.current;
-      let maxPossible: number;
-      if (curPhase === "flying")  maxPossible = Math.max(1.05, curMult - 0.05);
-      else if (curPhase === "crashed") maxPossible = curCrash;
-      else maxPossible = 8; // waiting — show historical variety
-      const range = Math.max(0.2, maxPossible - 1.05);
-      const mult  = parseFloat((1.05 + Math.random() * range).toFixed(2));
-      const bet   = SIM_BETS[Math.floor(Math.random() * SIM_BETS.length)];
-      const entry: FeedEntry = { id, mult, amount: Math.floor(bet * mult), ts: Date.now(), key: feedKeyRef.current };
-      setFeed(prev => [entry, ...prev].slice(0, 18));
-      scheduleFeedTick();
+      if (phaseRef.current === "flying") {
+        feedKeyRef.current += 1;
+        const id = generateFeedId();
+        const curMult  = multiplierRef.current;
+        const maxPossible = Math.max(1.05, curMult - 0.05);
+        const range = Math.max(0.2, maxPossible - 1.05);
+        const mult  = parseFloat((1.05 + Math.random() * range).toFixed(2));
+        const bet   = SIM_BETS[Math.floor(Math.random() * SIM_BETS.length)];
+        const entry: FeedEntry = { id, mult, amount: Math.floor(bet * mult), ts: Date.now(), key: feedKeyRef.current };
+        setFeed(prev => [entry, ...prev].slice(0, 18));
+        scheduleFeedTick();
+      }
+      // else: stop — will be restarted by launchFlight
     }, 900 + Math.random() * 900);
   }, []);
 
+  // ── Betting simulation ticker — runs only during "waiting" phase ──────────
+  const scheduleBettingTick = useCallback(() => {
+    bettingTickerRef.current = setTimeout(() => {
+      if (phaseRef.current !== "waiting") return;
+      feedKeyRef.current += 1;
+      const id = generateFeedId();
+      const bet = SIM_BETS[Math.floor(Math.random() * SIM_BETS.length)];
+      setBettingFeed(prev => [{ id, amount: bet, ts: Date.now(), key: feedKeyRef.current }, ...prev].slice(0, 8));
+      scheduleBettingTick();
+    }, 500 + Math.random() * 700);
+  }, []);
+
   useEffect(() => {
-    scheduleFeedTick();
-    return () => { if (feedTickerRef.current) clearTimeout(feedTickerRef.current); };
+    return () => {
+      if (feedTickerRef.current)    clearTimeout(feedTickerRef.current);
+      if (bettingTickerRef.current) clearTimeout(bettingTickerRef.current);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -542,6 +557,14 @@ export default function CrashGame() {
   const startRound = useCallback((roundId: number, msIntoOverride?: number) => {
     if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
 
+    // Invalidate any stale intervals from previous rounds
+    roundGenRef.current += 1;
+    const gen = roundGenRef.current;
+
+    // Stop tickers
+    if (bettingTickerRef.current) { clearTimeout(bettingTickerRef.current); bettingTickerRef.current = null; }
+    if (feedTickerRef.current)    { clearTimeout(feedTickerRef.current);    feedTickerRef.current    = null; }
+
     const cp = seededCrashPoint(roundId);
     crashPointRef.current = cp;
     currentRoundRef.current = roundId;
@@ -557,6 +580,7 @@ export default function CrashGame() {
     setHalfCashedOut(false);
     setHalfCashoutMult(null);
     setHalfWonAmount(null);
+    setFeed([]);
 
     const canvas = canvasRef.current;
     if (canvas) drawCurve(canvas, 0, "waiting", cp, lastFlightColorRef.current, [], performance.now());
@@ -567,12 +591,15 @@ export default function CrashGame() {
       // Already in flight — fast-forward
       launchFlight(msInto - FLIGHT_START_MS);
     } else if (msInto >= CRASH_SHOW_S * 1000) {
-      // In betting window
+      // In betting window — start betting simulation
+      setBettingFeed([]);
+      scheduleBettingTick();
       const betElapsedMs = msInto - CRASH_SHOW_S * 1000;
       const betLeft = Math.ceil((BET_WINDOW_S * 1000 - betElapsedMs) / 1000);
       setCountdown(Math.max(1, betLeft));
       let remaining = betLeft;
       const cdInterval = setInterval(() => {
+        if (roundGenRef.current !== gen) { clearInterval(cdInterval); return; }
         remaining -= 1;
         setCountdown(Math.max(0, remaining));
         if (remaining <= 0) {
@@ -587,6 +614,7 @@ export default function CrashGame() {
       const crashLeft = Math.ceil((CRASH_SHOW_S * 1000 - msInto) / 1000);
       let crashRemaining = crashLeft;
       const cdCrash = setInterval(() => {
+        if (roundGenRef.current !== gen) { clearInterval(cdCrash); return; }
         crashRemaining -= 1;
         if (crashRemaining <= 0) {
           clearInterval(cdCrash);
@@ -595,8 +623,11 @@ export default function CrashGame() {
           setMultiplier(1.0);
           if (canvas) drawCurve(canvas, 0, "waiting", cp, lastFlightColorRef.current, [], performance.now());
           setCountdown(BET_WINDOW_S);
+          setBettingFeed([]);
+          scheduleBettingTick();
           let betRemaining = BET_WINDOW_S;
           const cdBet = setInterval(() => {
+            if (roundGenRef.current !== gen) { clearInterval(cdBet); return; }
             betRemaining -= 1;
             setCountdown(Math.max(0, betRemaining));
             if (betRemaining <= 0) {
@@ -609,9 +640,14 @@ export default function CrashGame() {
     }
 
     function launchFlight(skipMs: number) {
+      // Stop betting simulation, clear that feed, start flight feed
+      if (bettingTickerRef.current) { clearTimeout(bettingTickerRef.current); bettingTickerRef.current = null; }
+      setBettingFeed([]);
+      setFeed([]);
       phaseRef.current = "flying";
       setPhase("flying");
       startTimeRef.current = performance.now() - skipMs;
+      scheduleFeedTick();
 
       function tick(now: number) {
         const elapsed = (now - startTimeRef.current) / 1000;
@@ -663,10 +699,14 @@ export default function CrashGame() {
           if (c) drawCurve(c, mToT(finalM), "crashed", finalM, lastFlightColorRef.current, [], now);
           setHistory((h) => [{ cp: finalM }, ...h].slice(0, 12));
 
+          // Stop flight feed ticker
+          if (feedTickerRef.current) { clearTimeout(feedTickerRef.current); feedTickerRef.current = null; }
+
           // Show crash result for CRASH_SHOW_S, then start betting window
           const crashedRoundId = currentRoundRef.current;
           let crashRemaining = CRASH_SHOW_S;
           const cdCrash = setInterval(() => {
+            if (roundGenRef.current !== gen) { clearInterval(cdCrash); return; }
             crashRemaining--;
             if (crashRemaining <= 0) {
               clearInterval(cdCrash);
@@ -683,9 +723,14 @@ export default function CrashGame() {
               setHalfCashedOut(false);
               setHalfCashoutMult(null);
               setHalfWonAmount(null);
+              // Start betting simulation for next round
+              setBettingFeed([]);
+              setFeed([]);
+              scheduleBettingTick();
 
               let betRemaining = BET_WINDOW_S;
               const cdBet = setInterval(() => {
+                if (roundGenRef.current !== gen) { clearInterval(cdBet); return; }
                 betRemaining--;
                 setCountdown(Math.max(0, betRemaining));
                 if (betRemaining <= 0) {
@@ -1275,35 +1320,67 @@ export default function CrashGame() {
         )}
       </div>
 
-      {/* ── Infinite simulation feed — always visible ── */}
+      {/* ── Activité en direct — betting sim (waiting) / cashout feed (flying) ── */}
       <div
         ref={feedScrollRef}
         className="mx-3 mb-3 rounded-xl overflow-hidden shrink-0"
         style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)", maxHeight: 148, overflowY: "hidden" }}
       >
-        <div className="px-2 py-1.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-          <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: "rgba(141,198,63,0.5)" }}>
-            ● Activité en direct
+        <div className="px-2 py-1.5 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+          <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: phase === "waiting" ? "rgba(245,197,24,0.6)" : "rgba(141,198,63,0.5)" }}>
+            {phase === "waiting" ? "⏳ Joueurs en train de miser" : "● Encaissements en direct"}
           </span>
         </div>
         <div className="overflow-hidden">
-          {feed.map((entry) => (
-            <div
-              key={entry.key}
-              className="flex items-center justify-between gap-2 px-3 py-1.5 feed-row"
-              style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}
-            >
-              <span className="text-[10px] font-black shrink-0 font-mono" style={{ color: "rgba(141,198,63,0.7)", minWidth: 80 }}>
-                {entry.id}
-              </span>
-              <span className="text-[10px] font-black shrink-0" style={{ color: multColor(entry.mult) }}>
-                ×{entry.mult.toFixed(2)}
-              </span>
-              <span className="text-[10px] font-bold text-white shrink-0">
-                +{fFC(entry.amount)} FC
-              </span>
-            </div>
-          ))}
+          {phase === "waiting" ? (
+            /* ── Betting simulation during countdown ── */
+            bettingFeed.length === 0 ? (
+              <div className="px-3 py-2 text-[10px]" style={{ color: "rgba(255,255,255,0.25)" }}>En attente de mises…</div>
+            ) : (
+              bettingFeed.map((entry) => (
+                <div
+                  key={entry.key}
+                  className="flex items-center justify-between gap-2 px-3 py-1.5 feed-row"
+                  style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}
+                >
+                  <span className="text-[10px] font-black shrink-0 font-mono" style={{ color: "rgba(245,197,24,0.7)", minWidth: 80 }}>
+                    {entry.id}
+                  </span>
+                  <span className="text-[10px] font-bold shrink-0" style={{ color: "rgba(245,197,24,0.5)" }}>
+                    EN TRAIN DE MISER
+                  </span>
+                  <span className="text-[10px] font-bold text-white shrink-0">
+                    {fFC(entry.amount)} FC
+                  </span>
+                </div>
+              ))
+            )
+          ) : (
+            /* ── Cashout feed during flight / crash ── */
+            feed.length === 0 ? (
+              <div className="px-3 py-2 text-[10px]" style={{ color: "rgba(255,255,255,0.25)" }}>
+                {phase === "flying" ? "⚡ Décollage…" : ""}
+              </div>
+            ) : (
+              feed.map((entry) => (
+                <div
+                  key={entry.key}
+                  className="flex items-center justify-between gap-2 px-3 py-1.5 feed-row"
+                  style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}
+                >
+                  <span className="text-[10px] font-black shrink-0 font-mono" style={{ color: "rgba(141,198,63,0.7)", minWidth: 80 }}>
+                    {entry.id}
+                  </span>
+                  <span className="text-[10px] font-black shrink-0" style={{ color: multColor(entry.mult) }}>
+                    ×{entry.mult.toFixed(2)}
+                  </span>
+                  <span className="text-[10px] font-bold text-white shrink-0">
+                    +{fFC(entry.amount)} FC
+                  </span>
+                </div>
+              ))
+            )
+          )}
         </div>
       </div>
 

@@ -754,6 +754,11 @@ export default function Home() {
               >
                 {referralCopied ? "Copié ✓" : referralCode.slice(0, 3) + "-" + referralCode.slice(3)}
               </span>
+              <span className="flex items-center justify-center w-5 h-5 rounded" style={{ background: "rgba(255,255,255,0.06)" }}>
+                {referralCopied
+                  ? <CheckCircle style={{ width: 11, height: 11, color: "#8DC63F" }} />
+                  : <Copy style={{ width: 11, height: 11, color: "rgba(255,255,255,0.4)" }} />}
+              </span>
             </button>
           ) : (
             <div className="h-5 w-24 rounded animate-pulse" style={{ background: "rgba(255,255,255,0.06)" }} />
@@ -1675,9 +1680,18 @@ export default function Home() {
                       Solde disponible : <span className="text-white font-bold">{balance !== null ? formatFC(balance) : "…"} FC</span>
                     </p>
                   </div>
-                  <button onClick={closeSendMoney} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "rgba(255,255,255,0.08)" }}>
-                    <X style={{ width: 15, height: 15, color: "rgba(255,255,255,0.5)" }} />
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => { setShowSendMoney(false); setShowActionSheet(true); }}
+                      className="flex items-center gap-1 px-2 h-8 rounded-xl text-[11px] font-bold transition-all active:scale-95"
+                      style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}
+                    >
+                      ← Retour
+                    </button>
+                    <button onClick={closeSendMoney} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "rgba(255,255,255,0.08)" }}>
+                      <X style={{ width: 15, height: 15, color: "rgba(255,255,255,0.5)" }} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* ID destinataire */}

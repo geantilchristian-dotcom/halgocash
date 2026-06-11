@@ -10,8 +10,10 @@ import { updatePresence } from "../lib/presence";
 import { loginRateLimit, balanceCheckRateLimit } from "../middlewares/rateLimiters";
 
 function generateReferralCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "HLG";
+  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const chars   = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 3; i++) code += letters[Math.floor(Math.random() * letters.length)];
   for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
   return code;
 }
