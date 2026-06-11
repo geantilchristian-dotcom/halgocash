@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { eq } from "drizzle-orm";
 import { db, kycTable } from "@workspace/db";
 import { getAuth } from "@clerk/express";
+import { kycSubmitRateLimit } from "../middlewares/rateLimiters";
 
 const router: IRouter = Router();
 
@@ -21,7 +22,7 @@ router.get("/kyc", async (req: Request, res: Response): Promise<void> => {
   });
 });
 
-router.post("/kyc", async (req: Request, res: Response): Promise<void> => {
+router.post("/kyc", kycSubmitRateLimit, async (req: Request, res: Response): Promise<void> => {
   const { userId } = getAuth(req);
   if (!userId) { res.status(401).json({ error: "Non authentifié" }); return; }
   const { fullName, birthDate, idType, idNumber } = req.body as {

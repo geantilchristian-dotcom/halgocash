@@ -763,7 +763,7 @@ export default function CrashGame() {
 
     fetch("/api/crash/round")
       .then(r => r.ok ? r.json() : null)
-      .then((data: { roundId: number; crashPoint?: number; msIntoRound: number; serverMs: number } | null) => {
+      .then((data: { roundId: number; crashPoint?: number; msIntoRound: number; serverMs: number; commitment?: string; betting?: boolean } | null) => {
         if (cancelled) return;
         if (data) {
           const networkOffset = (Date.now() - data.serverMs) / 2;

@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, and } from "drizzle-orm";
 import { db, supportMessagesTable } from "@workspace/db";
 import { getAuth } from "@clerk/express";
+import { supportMessageRateLimit } from "../middlewares/rateLimiters";
 const router: IRouter = Router();
 
 router.get("/support/messages", async (req: Request, res: Response): Promise<void> => {
@@ -19,7 +20,7 @@ router.get("/support/messages", async (req: Request, res: Response): Promise<voi
   res.json(msgs.reverse());
 });
 
-router.post("/support/message", async (req: Request, res: Response): Promise<void> => {
+router.post("/support/message", supportMessageRateLimit, async (req: Request, res: Response): Promise<void> => {
   const { userId } = getAuth(req);
   if (!userId) { res.status(401).json({ error: "Non authentifié" }); return; }
   const { message, clerkName } = req.body as { message?: string; clerkName?: string };

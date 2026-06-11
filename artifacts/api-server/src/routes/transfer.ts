@@ -3,6 +3,7 @@ import { eq, sum, and, isNotNull } from "drizzle-orm";
 import { db, playerProfilesTable, creditAdjustmentsTable, ticketsTable, withdrawalsTable, supportMessagesTable } from "@workspace/db";
 import { getAuth } from "@clerk/express";
 import { z } from "zod";
+import { transferRateLimit } from "../middlewares/rateLimiters";
 
 const router: IRouter = Router();
 
@@ -43,7 +44,7 @@ router.get("/transfer/validate/:code", async (req, res): Promise<void> => {
   res.json({ exists: true });
 });
 
-router.post("/transfer/send", async (req, res): Promise<void> => {
+router.post("/transfer/send", transferRateLimit, async (req, res): Promise<void> => {
   const { userId: senderClerkId } = getAuth(req);
   if (!senderClerkId) { res.status(401).json({ error: "Non authentifié" }); return; }
 
