@@ -568,6 +568,7 @@ export default function CrashGame() {
     setMultiplier(1.0);
     setBetPlaced(false);
     setCashedOut(false);
+    setBetError(null);
     setCashoutMult(null);
     setWinAmount(null);
     setHalfCashedOut(false);
@@ -605,15 +606,18 @@ export default function CrashGame() {
       phaseRef.current = "crashed";
       setPhase("crashed");
       const crashLeft = Math.ceil((CRASH_SHOW_S * 1000 - msInto) / 1000);
+      setCountdown(Math.max(1, crashLeft));
       let crashRemaining = crashLeft;
       const cdCrash = setInterval(() => {
         if (roundGenRef.current !== gen) { clearInterval(cdCrash); return; }
         crashRemaining -= 1;
+        setCountdown(Math.max(0, crashRemaining));
         if (crashRemaining <= 0) {
           clearInterval(cdCrash);
           phaseRef.current = "waiting";
           setPhase("waiting");
           setMultiplier(1.0);
+          setBetError(null);
           if (canvas) drawCurve(canvas, 0, "waiting", cp, lastFlightColorRef.current, [], performance.now());
           setCountdown(BET_WINDOW_S);
           setBettingFeed([]);
@@ -625,7 +629,17 @@ export default function CrashGame() {
             setCountdown(Math.max(0, betRemaining));
             if (betRemaining <= 0) {
               clearInterval(cdBet);
-              launchFlight(0);
+              void (async () => {
+                const rd = await fetch("/api/crash/round")
+                  .then(r => r.ok ? r.json() as Promise<{ roundId: number; crashPoint: number; msIntoRound: number; serverMs: number }> : null)
+                  .catch(() => null);
+                if (roundGenRef.current !== gen) return;
+                if (rd?.roundId) {
+                  currentRoundRef.current = rd.roundId;
+                  crashPointRef.current = rd.crashPoint ?? crashPointRef.current;
+                }
+                launchFlight(0);
+              })();
             }
           }, 1000);
         }
@@ -688,6 +702,7 @@ export default function CrashGame() {
           setMultiplier(finalM);
           phaseRef.current = "crashed";
           setPhase("crashed");
+          setCountdown(CRASH_SHOW_S);
           particlesRef.current = [];
           if (c) drawCurve(c, mToT(finalM), "crashed", finalM, lastFlightColorRef.current, [], now);
           setHistory((h) => [{ cp: finalM }, ...h].slice(0, 12));
@@ -695,17 +710,30 @@ export default function CrashGame() {
           // Stop flight feed ticker
           if (feedTickerRef.current) { clearTimeout(feedTickerRef.current); feedTickerRef.current = null; }
 
+          // Prefetch next round ID immediately so it's ready when betting window opens
+          void (async () => {
+            const rd = await fetch("/api/crash/round")
+              .then(r => r.ok ? r.json() as Promise<{ roundId: number; crashPoint: number; msIntoRound: number; serverMs: number }> : null)
+              .catch(() => null);
+            if (roundGenRef.current !== gen) return;
+            if (rd?.roundId) {
+              currentRoundRef.current = rd.roundId;
+              crashPointRef.current = rd.crashPoint ?? crashPointRef.current;
+            }
+          })();
+
           // Show crash result for CRASH_SHOW_S, then start betting window
-          const crashedRoundId = currentRoundRef.current;
           let crashRemaining = CRASH_SHOW_S;
           const cdCrash = setInterval(() => {
             if (roundGenRef.current !== gen) { clearInterval(cdCrash); return; }
             crashRemaining--;
+            setCountdown(Math.max(0, crashRemaining));
             if (crashRemaining <= 0) {
               clearInterval(cdCrash);
               phaseRef.current = "waiting";
               setPhase("waiting");
               setMultiplier(1.0);
+              setBetError(null);
               if (c) drawCurve(c, 0, "waiting", crashPointRef.current, lastFlightColorRef.current, [], performance.now());
               setCountdown(BET_WINDOW_S);
               betRef.current = { placed: false, amount: 0, cashedOut: false, autoCashout: betRef.current.autoCashout, halfCashedOut: false };
@@ -733,10 +761,10 @@ export default function CrashGame() {
                       .then(r => r.ok ? r.json() as Promise<{ roundId: number; crashPoint: number; msIntoRound: number; serverMs: number }> : null)
                       .catch(() => null);
                     if (roundGenRef.current !== gen) return;
-                    const nowId = currentRoundId();
-                    const nextId = rd?.roundId ?? (nowId > crashedRoundId ? nowId : crashedRoundId + 1);
-                    crashPointRef.current = rd?.crashPoint ?? 2.0;
-                    currentRoundRef.current = nextId;
+                    if (rd?.roundId) {
+                      currentRoundRef.current = rd.roundId;
+                      crashPointRef.current = rd.crashPoint ?? crashPointRef.current;
+                    }
                     launchFlight(0);
                   })();
                 }
@@ -858,7 +886,7 @@ export default function CrashGame() {
   const color = phase === "crashed" ? lastFlightColorRef.current : multColor(multiplier);
   const quickAmounts = [500, 1000, 2000, 5000];
   const betAmt = parseInt(betInput) || 0;
-  const canBet = !syncing && betAmt >= 100 && betAmt <= balance && !betLoading;
+  const canBet = !syncing && betAmt >= 100 && betAmt <= balance && !betLoading && countdown > 0;
   const isBlocked = balanceLoaded && balance === 0;
 
   return (
