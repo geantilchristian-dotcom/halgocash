@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, sum, and, isNotNull } from "drizzle-orm";
-import { db, playerProfilesTable, creditAdjustmentsTable, ticketsTable, withdrawalsTable } from "@workspace/db";
+import { db, playerProfilesTable, creditAdjustmentsTable, ticketsTable, withdrawalsTable, supportMessagesTable } from "@workspace/db";
 import { getAuth } from "@clerk/express";
 import { z } from "zod";
 
@@ -95,6 +95,18 @@ router.post("/transfer/send", async (req, res): Promise<void> => {
       refId,
     },
   ]);
+
+  // Notify the recipient via support messages so they see it instantly
+  const amountFormatted = new Intl.NumberFormat("fr-FR").format(Math.round(amount)).replace(/\s/g, ".");
+  const senderCode = senderProfile.referralCode.slice(0, 3) + "-" + senderProfile.referralCode.slice(3);
+  await db.insert(supportMessagesTable).values({
+    sessionId: recipientProfile.clerkId,
+    clerkId: recipientProfile.clerkId,
+    clerkName: "Halgo Cash",
+    message: `💸 Vous avez reçu ${amountFormatted} FC de ${senderCode}. Votre solde a été crédité instantanément.`,
+    fromAdmin: true,
+    isRead: false,
+  });
 
   req.log.info({ senderClerkId, recipientClerkId: recipientProfile.clerkId, amount, refId }, "Transfer completed");
   res.json({ ok: true, refId });

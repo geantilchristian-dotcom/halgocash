@@ -296,6 +296,8 @@ export default function Home() {
   // Notifications
   const [notifs,      setNotifs]      = useState<Notif[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [transferToast, setTransferToast] = useState<string | null>(null);
+  const supportUnreadRef = useRef(0);
 
   // Balance — clé par utilisateur pour éviter les fuites entre comptes
   const lsKey = user?.id ? `halgo_balance_${user.id}` : null;
@@ -496,6 +498,39 @@ export default function Home() {
     const id = setInterval(ping, 60_000);
     return () => clearInterval(id);
   }, [user?.id]);
+
+  // ── Poll support unread count every 15 s — detects incoming transfers ──────
+  useEffect(() => {
+    if (!isSignedIn) return;
+    const check = async () => {
+      try {
+        const res = await authFetch("/api/support/unread-count");
+        if (!res.ok) return;
+        const { count } = await res.json() as { count: number };
+        if (count > supportUnreadRef.current) {
+          // New message arrived — refetch balance immediately and show toast
+          void fetchBalance();
+          // Read the latest admin message to extract transfer info for toast
+          authFetch("/api/support/messages")
+            .then(r => r.ok ? r.json() : null)
+            .then((msgs: Array<{ message: string; fromAdmin: boolean }> | null) => {
+              if (!msgs) return;
+              const last = [...msgs].reverse().find(m => m.fromAdmin && m.message.includes("💸"));
+              if (last) setTransferToast(last.message);
+              else setTransferToast("💸 Vous avez reçu un virement ! Votre solde a été crédité.");
+              setTimeout(() => setTransferToast(null), 6000);
+            })
+            .catch(() => {
+              setTransferToast("💸 Vous avez reçu un virement ! Votre solde a été crédité.");
+              setTimeout(() => setTransferToast(null), 6000);
+            });
+        }
+        supportUnreadRef.current = count;
+      } catch { /* silent */ }
+    };
+    const id = setInterval(check, 15_000);
+    return () => clearInterval(id);
+  }, [isSignedIn, authFetch, fetchBalance]);
 
   const activateTicket = useCallback(async () => {
     const code = ticketCode.trim().toUpperCase();
@@ -1812,6 +1847,30 @@ export default function Home() {
         </div>
       )}
 
+      {/* ── Transfer received toast ── */}
+      {transferToast && (
+        <div
+          className="fixed left-1/2 z-[9999] px-4 py-3 rounded-2xl shadow-2xl flex items-start gap-3"
+          style={{
+            bottom: 90,
+            transform: "translateX(-50%)",
+            background: "linear-gradient(135deg,#0d3320,#155a28)",
+            border: "1px solid rgba(141,198,63,0.45)",
+            maxWidth: 320,
+            width: "calc(100% - 32px)",
+            animation: "slideUp 0.35s ease-out",
+          }}
+        >
+          <span className="text-xl shrink-0">💸</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[12px] font-black text-white leading-snug">{transferToast.replace("💸 ", "")}</p>
+          </div>
+          <button onClick={() => setTransferToast(null)} className="shrink-0 mt-0.5">
+            <X style={{ width: 14, height: 14, color: "rgba(255,255,255,0.45)" }} />
+          </button>
+        </div>
+      )}
+
       <SupportChat />
 
       {/* ═══════════════ BOTTOM NAV ═══════════════ */}
@@ -1837,6 +1896,12 @@ export default function Home() {
         ))}
       </nav>
 
+      <style>{`
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateX(-50%) translateY(16px); }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }
