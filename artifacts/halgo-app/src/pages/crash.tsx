@@ -146,9 +146,10 @@ function seededCrashPoint(roundId: number): number {
   x = Math.imul(x ^ (x >>> 16), 0x45d9f3b5) | 0;
   x = Math.imul(x ^ (x >>> 16), 0x45d9f3b5) | 0;
   const r = ((x ^ (x >>> 16)) >>> 0) / 0x100000000;
-  if (r < 0.04) return 1.0;
+  // ~3% instant crash (like Aviator), 0.99 house-edge factor on remaining
+  if (r < 0.03) return 1.0;
   const MAX_MULT = 1000;
-  return Math.min(MAX_MULT, Math.max(1.01, Math.round((1 / (1 - r)) * 100) / 100));
+  return Math.min(MAX_MULT, Math.max(1.01, Math.floor((0.99 / (1 - r)) * 100) / 100));
 }
 
 function currentRoundId(): number {
@@ -381,8 +382,12 @@ export default function CrashGame() {
   const [balanceLoaded, setBalanceLoaded] = useState(false);
   const [balanceFlash, setBalanceFlash] = useState(false);
 
+  const [activeTab, setActiveTab]       = useState<"manual" | "auto">("manual");
   const [betInput, setBetInput]         = useState("1000");
   const [autoCashoutInput, setAutoCashoutInput] = useState("");
+  const [autoBetEnabled, setAutoBetEnabled] = useState(false);
+  const [autoBetAmountInput, setAutoBetAmountInput] = useState("1000");
+  const [autoBetPlacing, setAutoBetPlacing] = useState(false);
   const [betPlaced, setBetPlaced]       = useState(false);
   const [cashedOut, setCashedOut]       = useState(false);
   const [cashoutMult, setCashoutMult]   = useState<number | null>(null);
@@ -405,8 +410,13 @@ export default function CrashGame() {
   const lastFlightColorRef = useRef<string>("rgb(74,222,128)");
   const feedTickerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const feedKeyRef        = useRef(0);
+  const multiplierRef     = useRef<number>(1.0);
+  const autoBetEnabledRef = useRef<boolean>(false);
+  const autoBetAmountRef  = useRef<number>(1000);
 
   useEffect(() => { betRef.current.autoCashout = parseFloat(autoCashoutInput) || 0; }, [autoCashoutInput]);
+  useEffect(() => { autoBetEnabledRef.current = autoBetEnabled; }, [autoBetEnabled]);
+  useEffect(() => { autoBetAmountRef.current = parseInt(autoBetAmountInput.replace(/\D/g, ""), 10) || 0; }, [autoBetAmountInput]);
 
   // ── Load balance ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -446,8 +456,17 @@ export default function CrashGame() {
   const scheduleFeedTick = useCallback(() => {
     feedTickerRef.current = setTimeout(() => {
       feedKeyRef.current += 1;
-      const id    = generateFeedId();
-      const mult  = parseFloat((1.05 + Math.random() * 9).toFixed(2));
+      const id = generateFeedId();
+      // Cap cashout mult to what is physically possible in the current round
+      const curPhase = phaseRef.current;
+      const curMult  = multiplierRef.current;
+      const curCrash = crashPointRef.current;
+      let maxPossible: number;
+      if (curPhase === "flying")  maxPossible = Math.max(1.05, curMult - 0.05);
+      else if (curPhase === "crashed") maxPossible = curCrash;
+      else maxPossible = 8; // waiting — show historical variety
+      const range = Math.max(0.2, maxPossible - 1.05);
+      const mult  = parseFloat((1.05 + Math.random() * range).toFixed(2));
       const bet   = SIM_BETS[Math.floor(Math.random() * SIM_BETS.length)];
       const entry: FeedEntry = { id, mult, amount: Math.floor(bet * mult), ts: Date.now(), key: feedKeyRef.current };
       setFeed(prev => [entry, ...prev].slice(0, 18));
@@ -562,6 +581,7 @@ export default function CrashGame() {
       function tick(now: number) {
         const elapsed = (now - startTimeRef.current) / 1000;
         const m = tToM(elapsed);
+        multiplierRef.current = m;
         setMultiplier(m);
 
         const c = canvasRef.current;
@@ -681,9 +701,9 @@ export default function CrashGame() {
   // ── Bet actions ───────────────────────────────────────────────────────────
   const [betLoading, setBetLoading] = useState(false);
 
-  const placeBet = useCallback(async () => {
+  const placeBet = useCallback(async (overrideAmt?: number) => {
     if (phase !== "waiting" || betLoading) return;
-    const amt = parseInt(betInput.replace(/\D/g, ""), 10);
+    const amt = overrideAmt ?? parseInt(betInput.replace(/\D/g, ""), 10);
     if (!amt || amt < 100) return;
     if (amt > balance) return;
     setBetLoading(true);
@@ -727,6 +747,20 @@ export default function CrashGame() {
     if (phase !== "flying" || !betRef.current.placed || betRef.current.cashedOut) return;
     doCashOut(parseFloat(multiplier.toFixed(2)), betRef.current.amount);
   };
+
+  // ── Auto-bet: place a bet automatically each new "waiting" phase ──────────
+  useEffect(() => {
+    if (!autoBetEnabled || activeTab !== "auto") return;
+    if (phase !== "waiting" || betPlaced || betLoading) return;
+    const amt = autoBetAmountRef.current;
+    if (!amt || amt < 100) return;
+    setAutoBetPlacing(true);
+    const t = setTimeout(() => {
+      placeBet(amt).finally(() => setAutoBetPlacing(false));
+    }, 400);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, autoBetEnabled, activeTab]);
 
   const color = phase === "crashed" ? lastFlightColorRef.current : multColor(multiplier);
   const quickAmounts = [500, 1000, 2000, 5000];
@@ -778,9 +812,6 @@ export default function CrashGame() {
               {fFC(balance)} <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>FC</span>
             </span>
           </div>
-          <span className="text-[9px] font-black tracking-wide" style={{ color: "rgba(141,198,63,0.6)" }}>
-            {playerId}
-          </span>
         </div>
       </header>
 
@@ -939,138 +970,237 @@ export default function CrashGame() {
         style={{ background: "#0d1d12", border: "1px solid rgba(255,255,255,0.07)", opacity: isBlocked ? 0.35 : 1, pointerEvents: isBlocked ? "none" : undefined }}
       >
         <div className="flex" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-          <div className="flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wide" style={{ color: "#8DC63F", borderBottom: "2px solid #8DC63F" }}>
+          <button
+            onClick={() => setActiveTab("manual")}
+            className="flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wide transition-all"
+            style={{
+              color: activeTab === "manual" ? "#8DC63F" : "rgba(255,255,255,0.3)",
+              borderBottom: activeTab === "manual" ? "2px solid #8DC63F" : "2px solid transparent",
+            }}
+          >
             Mise manuelle
-          </div>
-          <div className="flex-1 py-2 text-center text-[10px] font-bold uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.3)" }}>
+          </button>
+          <button
+            onClick={() => setActiveTab("auto")}
+            className="flex-1 py-2 text-center text-[10px] font-bold uppercase tracking-wide transition-all"
+            style={{
+              color: activeTab === "auto" ? "#8DC63F" : "rgba(255,255,255,0.3)",
+              borderBottom: activeTab === "auto" ? "2px solid #8DC63F" : "2px solid transparent",
+            }}
+          >
             Auto
-          </div>
+          </button>
         </div>
 
-        <div className="px-3 pt-2 pb-3 space-y-2">
-          {/* Amount row */}
-          <div
-            className="flex items-center rounded-xl overflow-hidden"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
-          >
-            <button
-              onClick={() => setBetInput((v) => String(Math.max(100, (parseInt(v) || 0) - 500)))}
-              disabled={betPlaced}
-              className="w-9 h-9 flex items-center justify-center font-black text-lg transition-all active:scale-90 disabled:opacity-30"
-              style={{ color: "rgba(255,255,255,0.6)" }}
-            >−</button>
-            <input
-              type="number"
-              value={betInput}
-              onChange={(e) => setBetInput(e.target.value)}
-              disabled={betPlaced}
-              className="flex-1 bg-transparent text-center font-black text-white outline-none disabled:opacity-50 text-[14px]"
-              min={100}
-            />
-            <button
-              onClick={() => setBetInput((v) => String((parseInt(v) || 0) + 500))}
-              disabled={betPlaced}
-              className="w-9 h-9 flex items-center justify-center font-black text-lg transition-all active:scale-90 disabled:opacity-30"
-              style={{ color: "rgba(255,255,255,0.6)" }}
-            >+</button>
-          </div>
+        {activeTab === "auto" ? (
+          /* ── Auto tab ── */
+          <div className="px-3 pt-2 pb-3 space-y-2">
+            <div className="text-[10px] font-bold pt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Mise par tour (FC)
+            </div>
+            <div
+              className="flex items-center rounded-xl overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              <button
+                onClick={() => setAutoBetAmountInput((v) => String(Math.max(100, (parseInt(v) || 0) - 500)))}
+                disabled={autoBetEnabled}
+                className="w-9 h-9 flex items-center justify-center font-black text-lg transition-all active:scale-90 disabled:opacity-30"
+                style={{ color: "rgba(255,255,255,0.6)" }}
+              >−</button>
+              <input
+                type="number"
+                value={autoBetAmountInput}
+                onChange={(e) => setAutoBetAmountInput(e.target.value)}
+                disabled={autoBetEnabled}
+                className="flex-1 bg-transparent text-center font-black text-white outline-none disabled:opacity-50 text-[14px]"
+                min={100}
+              />
+              <button
+                onClick={() => setAutoBetAmountInput((v) => String((parseInt(v) || 0) + 500))}
+                disabled={autoBetEnabled}
+                className="w-9 h-9 flex items-center justify-center font-black text-lg transition-all active:scale-90 disabled:opacity-30"
+                style={{ color: "rgba(255,255,255,0.6)" }}
+              >+</button>
+            </div>
 
-          {/* Quick amounts */}
-          <div className="flex gap-1.5">
-            {quickAmounts.map((a) => (
-              <button
-                key={a}
-                onClick={() => setBetInput(String(a))}
-                disabled={betPlaced}
-                className="flex-1 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all active:scale-95 disabled:opacity-30"
-                style={{ background: "rgba(141,198,63,0.08)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.15)" }}
-              >
-                {a >= 1000 ? `${a / 1000}K` : a}
-              </button>
-            ))}
-            {balance > 0 && (
-              <button
-                onClick={() => setBetInput(String(Math.floor(balance)))}
-                disabled={betPlaced}
-                className="flex-1 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all active:scale-95 disabled:opacity-30"
-                style={{ background: "rgba(141,198,63,0.08)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.15)" }}
-              >MAX</button>
+            <div className="text-[10px] font-bold" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Retrait automatique (×)
+            </div>
+            <div
+              className="flex items-center rounded-xl overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              <input
+                type="number"
+                value={autoCashoutInput}
+                onChange={(e) => {
+                  setAutoCashoutInput(e.target.value);
+                  betRef.current.autoCashout = parseFloat(e.target.value) || 0;
+                }}
+                disabled={autoBetEnabled}
+                placeholder="Ex: 2.00 (optionnel)"
+                className="flex-1 bg-transparent px-3 h-8 font-bold text-white outline-none text-[12px] disabled:opacity-50"
+                step="0.1"
+                min="1.1"
+              />
+              <span className="px-2 text-[11px] font-bold" style={{ color: "rgba(255,255,255,0.3)" }}>×</span>
+            </div>
+
+            <button
+              onClick={() => setAutoBetEnabled((v) => !v)}
+              disabled={!autoBetEnabled && (parseInt(autoBetAmountInput) < 100 || parseInt(autoBetAmountInput) > balance)}
+              className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[14px] transition-all active:scale-[0.97] disabled:opacity-40"
+              style={{
+                background: autoBetEnabled
+                  ? "rgba(239,68,68,0.15)"
+                  : "linear-gradient(135deg,#1a6b2f,#22a84a)",
+                color: autoBetEnabled ? "#ef4444" : "#fff",
+                border: autoBetEnabled ? "1px solid rgba(239,68,68,0.3)" : "none",
+                boxShadow: autoBetEnabled ? "none" : "0 4px 20px rgba(34,168,74,0.35)",
+              }}
+            >
+              {autoBetEnabled ? "⏹ ARRÊTER L'AUTO" : "▶ DÉMARRER L'AUTO"}
+            </button>
+
+            {autoBetEnabled && (
+              <div className="text-center text-[10px] font-bold" style={{ color: "rgba(141,198,63,0.6)" }}>
+                {betPlaced
+                  ? `Mise en cours · ${fFC(betRef.current.amount)} FC`
+                  : autoBetPlacing
+                  ? "Placement en cours…"
+                  : "En attente du prochain tour…"}
+              </div>
             )}
           </div>
+        ) : (
+          /* ── Manual tab ── */
+          <div className="px-3 pt-2 pb-3 space-y-2">
+            {/* Amount row */}
+            <div
+              className="flex items-center rounded-xl overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              <button
+                onClick={() => setBetInput((v) => String(Math.max(100, (parseInt(v) || 0) - 500)))}
+                disabled={betPlaced}
+                className="w-9 h-9 flex items-center justify-center font-black text-lg transition-all active:scale-90 disabled:opacity-30"
+                style={{ color: "rgba(255,255,255,0.6)" }}
+              >−</button>
+              <input
+                type="number"
+                value={betInput}
+                onChange={(e) => setBetInput(e.target.value)}
+                disabled={betPlaced}
+                className="flex-1 bg-transparent text-center font-black text-white outline-none disabled:opacity-50 text-[14px]"
+                min={100}
+              />
+              <button
+                onClick={() => setBetInput((v) => String((parseInt(v) || 0) + 500))}
+                disabled={betPlaced}
+                className="w-9 h-9 flex items-center justify-center font-black text-lg transition-all active:scale-90 disabled:opacity-30"
+                style={{ color: "rgba(255,255,255,0.6)" }}
+              >+</button>
+            </div>
 
-          {/* Auto cash-out */}
-          <div
-            className="flex items-center rounded-xl overflow-hidden"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
-          >
-            <input
-              type="number"
-              value={autoCashoutInput}
-              onChange={(e) => {
-                setAutoCashoutInput(e.target.value);
-                betRef.current.autoCashout = parseFloat(e.target.value) || 0;
-              }}
-              placeholder="Encaissement auto ex: 2.00×"
-              className="flex-1 bg-transparent px-3 h-8 font-bold text-white outline-none text-[12px]"
-              step="0.1"
-              min="1.1"
-            />
-            <span className="px-2 text-[11px] font-bold" style={{ color: "rgba(255,255,255,0.3)" }}>×</span>
+            {/* Quick amounts */}
+            <div className="flex gap-1.5">
+              {quickAmounts.map((a) => (
+                <button
+                  key={a}
+                  onClick={() => setBetInput(String(a))}
+                  disabled={betPlaced}
+                  className="flex-1 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all active:scale-95 disabled:opacity-30"
+                  style={{ background: "rgba(141,198,63,0.08)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.15)" }}
+                >
+                  {a >= 1000 ? `${a / 1000}K` : a}
+                </button>
+              ))}
+              {balance > 0 && (
+                <button
+                  onClick={() => setBetInput(String(Math.floor(balance)))}
+                  disabled={betPlaced}
+                  className="flex-1 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all active:scale-95 disabled:opacity-30"
+                  style={{ background: "rgba(141,198,63,0.08)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.15)" }}
+                >MAX</button>
+              )}
+            </div>
+
+            {/* Auto cash-out */}
+            <div
+              className="flex items-center rounded-xl overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              <input
+                type="number"
+                value={autoCashoutInput}
+                onChange={(e) => {
+                  setAutoCashoutInput(e.target.value);
+                  betRef.current.autoCashout = parseFloat(e.target.value) || 0;
+                }}
+                placeholder="Retrait auto ex: 2.00×"
+                className="flex-1 bg-transparent px-3 h-8 font-bold text-white outline-none text-[12px]"
+                step="0.1"
+                min="1.1"
+              />
+              <span className="px-2 text-[11px] font-bold" style={{ color: "rgba(255,255,255,0.3)" }}>×</span>
+            </div>
+
+            {/* Action button */}
+            {phase === "waiting" && !betPlaced && (
+              <button
+                onClick={() => placeBet()}
+                disabled={!canBet}
+                className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[15px] transition-all active:scale-[0.97] disabled:opacity-40"
+                style={{ background: "linear-gradient(135deg,#1a6b2f,#22a84a)", color: "#fff", boxShadow: "0 4px 20px rgba(34,168,74,0.35)" }}
+              >
+                PLACER · {fFC(betAmt)} FC
+              </button>
+            )}
+            {phase === "waiting" && betPlaced && (
+              <button
+                onClick={cancelBet}
+                className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[14px] transition-all active:scale-[0.97]"
+                style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)" }}
+              >
+                ✕ ANNULER LA MISE
+              </button>
+            )}
+            {phase === "flying" && !betPlaced && (
+              <button disabled className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[13px] opacity-30"
+                style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>
+                EN VOL — PROCHAIN TOUR
+              </button>
+            )}
+            {phase === "flying" && betPlaced && !cashedOut && (
+              <button
+                onClick={cashOut}
+                className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[15px] transition-all active:scale-[0.97] flex items-center justify-center gap-2"
+                style={{
+                  background: "linear-gradient(135deg,#16a34a,#22c55e)",
+                  color: "#fff",
+                  boxShadow: "0 4px 28px rgba(34,197,94,0.55)",
+                  animation: "encaisserGlow 0.8s ease-in-out infinite",
+                }}
+              >
+                <span>🛑 ENCAISSER</span>
+                <span className="font-bold">{fMult(multiplier)} · +{fFC(Math.floor(betAmt * multiplier))} FC</span>
+              </button>
+            )}
+            {phase === "flying" && betPlaced && cashedOut && (
+              <button disabled className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[14px]"
+                style={{ background: "rgba(141,198,63,0.12)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.3)" }}>
+                ✓ ENCAISSÉ À {cashoutMult !== null ? fMult(cashoutMult) : "--"}
+              </button>
+            )}
+            {phase === "crashed" && (
+              <button disabled className="w-full py-4 rounded-2xl font-black uppercase tracking-wide text-[13px] opacity-40"
+                style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>
+                PARI DANS {countdown}s…
+              </button>
+            )}
           </div>
-
-          {/* Action buttons */}
-          {phase === "waiting" && !betPlaced && (
-            <button
-              onClick={placeBet}
-              disabled={!canBet}
-              className="w-full py-3 rounded-2xl font-black uppercase tracking-wide text-[13px] transition-all active:scale-[0.97] disabled:opacity-40"
-              style={{ background: "linear-gradient(135deg,#1a6b2f,#22a84a)", color: "#fff", boxShadow: "0 4px 20px rgba(34,168,74,0.35)" }}
-            >
-              PLACER · {fFC(betAmt)} FC
-            </button>
-          )}
-          {phase === "waiting" && betPlaced && (
-            <button
-              onClick={cancelBet}
-              className="w-full py-3 rounded-2xl font-black uppercase tracking-wide text-[13px] transition-all active:scale-[0.97]"
-              style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)" }}
-            >
-              ✕ ANNULER LA MISE
-            </button>
-          )}
-          {phase === "flying" && !betPlaced && (
-            <button disabled className="w-full py-3 rounded-2xl font-black uppercase tracking-wide text-[12px] opacity-30"
-              style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>
-              EN VOL — PROCHAIN TOUR
-            </button>
-          )}
-          {phase === "flying" && betPlaced && !cashedOut && (
-            <button
-              onClick={cashOut}
-              className="w-full py-3 rounded-2xl font-black uppercase tracking-wide text-[13px] transition-all active:scale-[0.97] flex items-center justify-center gap-2"
-              style={{
-                background: `linear-gradient(135deg,${color}cc,${color}88)`,
-                color: "#fff",
-                boxShadow: `0 4px 20px ${hexToRgba(color, 0.4)}`,
-              }}
-            >
-              <span>🛑 ENCAISSER</span>
-              <span className="font-bold opacity-90">{fMult(multiplier)} · +{fFC(Math.floor(betAmt * multiplier))} FC</span>
-            </button>
-          )}
-          {phase === "flying" && betPlaced && cashedOut && (
-            <button disabled className="w-full py-3 rounded-2xl font-black uppercase tracking-wide text-[13px]"
-              style={{ background: "rgba(141,198,63,0.12)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.3)" }}>
-              ✓ ENCAISSÉ À {cashoutMult !== null ? fMult(cashoutMult) : "--"}
-            </button>
-          )}
-          {phase === "crashed" && (
-            <button disabled className="w-full py-3 rounded-2xl font-black uppercase tracking-wide text-[12px] opacity-40"
-              style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>
-              PARI DANS {countdown}s…
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
       {/* ── Infinite simulation feed — always visible ── */}
@@ -1106,9 +1236,9 @@ export default function CrashGame() {
       </div>
 
       <style>{`
-        @keyframes crashPulse {
-          0%, 100% { transform: scale(1); box-shadow: 0 4px 24px rgba(74,222,128,0.4); }
-          50% { transform: scale(1.015); box-shadow: 0 6px 32px rgba(74,222,128,0.65); }
+        @keyframes encaisserGlow {
+          0%, 100% { box-shadow: 0 4px 28px rgba(34,197,94,0.55); }
+          50%       { box-shadow: 0 6px 40px rgba(34,197,94,0.85), 0 0 60px rgba(34,197,94,0.25); }
         }
         .feed-row {
           animation: feedSlide 0.35s ease-out;
