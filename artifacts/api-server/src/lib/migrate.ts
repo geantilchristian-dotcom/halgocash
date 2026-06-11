@@ -138,6 +138,135 @@ export async function runMigrations() {
       )
     `);
 
+    // Player profiles (referral system)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS player_profiles (
+        id SERIAL PRIMARY KEY,
+        clerk_id VARCHAR(255) NOT NULL UNIQUE,
+        referral_code VARCHAR(20) NOT NULL UNIQUE,
+        referred_by_code VARCHAR(20),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Credit adjustments (manual balance credits / bonus)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS credit_adjustments (
+        id SERIAL PRIMARY KEY,
+        clerk_id VARCHAR(255) NOT NULL,
+        amount DECIMAL(12,2) NOT NULL,
+        reason TEXT NOT NULL,
+        ref_id TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // KYC identity submissions
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS kyc_submissions (
+        id SERIAL PRIMARY KEY,
+        clerk_id VARCHAR(255) NOT NULL UNIQUE,
+        full_name TEXT NOT NULL,
+        birth_date VARCHAR(10) NOT NULL,
+        id_type VARCHAR(20) NOT NULL DEFAULT 'cni',
+        id_number VARCHAR(50) NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        admin_note TEXT,
+        submitted_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        reviewed_at TIMESTAMP
+      )
+    `);
+
+    // FCM push notification tokens
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS fcm_tokens (
+        id SERIAL PRIMARY KEY,
+        clerk_id VARCHAR(255) NOT NULL,
+        token TEXT NOT NULL UNIQUE,
+        platform VARCHAR(20) NOT NULL DEFAULT 'web',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Support chat messages
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS support_messages (
+        id SERIAL PRIMARY KEY,
+        session_id VARCHAR(64) NOT NULL,
+        clerk_id VARCHAR(255) NOT NULL,
+        clerk_name TEXT NOT NULL DEFAULT 'Joueur',
+        message TEXT NOT NULL,
+        from_admin BOOLEAN NOT NULL DEFAULT FALSE,
+        is_read BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Sport matches (football API cache)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sport_matches (
+        id SERIAL PRIMARY KEY,
+        fixture_id INTEGER NOT NULL UNIQUE,
+        competition VARCHAR(10) NOT NULL,
+        competition_name TEXT NOT NULL,
+        home_team TEXT NOT NULL,
+        away_team TEXT NOT NULL,
+        home_team_crest TEXT,
+        away_team_crest TEXT,
+        match_date TIMESTAMP NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'SCHEDULED',
+        home_score INTEGER,
+        away_score INTEGER,
+        odds_home DECIMAL(5,2) NOT NULL DEFAULT 2.00,
+        odds_draw DECIMAL(5,2) NOT NULL DEFAULT 3.20,
+        odds_away DECIMAL(5,2) NOT NULL DEFAULT 3.50,
+        fetched_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Sport bets placed by players
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sport_bets (
+        id SERIAL PRIMARY KEY,
+        clerk_id VARCHAR(255) NOT NULL,
+        match_id INTEGER NOT NULL,
+        fixture_id INTEGER NOT NULL,
+        home_team TEXT NOT NULL,
+        away_team TEXT NOT NULL,
+        match_date TIMESTAMP NOT NULL,
+        bet_type VARCHAR(10) NOT NULL,
+        amount DECIMAL(12,2) NOT NULL,
+        odds DECIMAL(5,2) NOT NULL,
+        potential_win DECIMAL(12,2) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        settled_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Game cover images (stored in DB by admin)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS game_covers (
+        id SERIAL PRIMARY KEY,
+        game_key VARCHAR(50) NOT NULL UNIQUE,
+        file_name TEXT NOT NULL,
+        mime_type TEXT NOT NULL DEFAULT 'image/png',
+        image_data TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Jackpot poster image
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS jackpot_poster (
+        id SERIAL PRIMARY KEY,
+        file_name TEXT NOT NULL,
+        mime_type TEXT NOT NULL DEFAULT 'image/png',
+        image_data TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
     logger.info("Database migrations completed successfully");
   } finally {
     client.release();
