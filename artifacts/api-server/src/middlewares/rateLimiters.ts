@@ -43,13 +43,27 @@ export const withdrawalRateLimit = rateLimit({
 });
 
 // ── Crash game ─────────────────────────────────────────────────────────────
-// One round lasts 30 s. Allow 2 bets per 35 s (some clock drift slack).
+// Key = userId + roundId so each new round resets the counter independently.
+// Max 2 attempts per round (retries allowed), window long enough to cover the round.
 export const crashBetRateLimit = rateLimit({
-  windowMs: 35 * 1000,
+  windowMs: 5 * 60 * 1000,
   max: 2,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  keyGenerator: userKey,
+  keyGenerator: (req: Request): string => {
+    let uid: string;
+    try {
+      const auth = getAuth(req);
+      if (auth.userId) uid = `u:${auth.userId}`;
+      else uid = ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? "unknown");
+    } catch {
+      uid = ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? "unknown");
+    }
+    // Include roundId so each round gets its own independent counter
+    const body = req.body as Record<string, unknown> | undefined;
+    const roundId = body?.roundId;
+    return roundId != null ? `${uid}:r${roundId}` : uid;
+  },
   message: { error: "Une seule mise par round est autorisée." },
 });
 
