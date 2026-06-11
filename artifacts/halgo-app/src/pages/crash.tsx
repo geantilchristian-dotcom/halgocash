@@ -466,8 +466,11 @@ export default function CrashGame() {
         feedKeyRef.current += 1;
         const id = generateFeedId();
         const curMult  = multiplierRef.current;
-        const maxPossible = Math.max(1.05, curMult - 0.05);
-        const range = Math.max(0.2, maxPossible - 1.05);
+        const cp = crashPointRef.current;
+        // Never exceed crash point — would reveal the simulation
+        const maxPossible = Math.min(cp - 0.01, Math.max(1.05, curMult - 0.05));
+        if (maxPossible < 1.05) { scheduleFeedTick(); return; }
+        const range = Math.max(0.05, maxPossible - 1.05);
         const mult  = parseFloat((1.05 + Math.random() * range).toFixed(2));
         const bet   = SIM_BETS[Math.floor(Math.random() * SIM_BETS.length)];
         const entry: FeedEntry = { id, mult, amount: Math.floor(bet * mult), ts: Date.now(), key: feedKeyRef.current };
