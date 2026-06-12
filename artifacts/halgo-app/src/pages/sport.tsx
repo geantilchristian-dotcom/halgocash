@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { useAuth } from "@/lib/clerk-compat";
+import { useAuth } from "@clerk/react";
 import { useLocation } from "wouter";
 import { ArrowLeft, Trophy, Clock, Loader2, ChevronRight, CheckCircle, XCircle, AlertCircle, Wallet, RefreshCw } from "lucide-react";
 

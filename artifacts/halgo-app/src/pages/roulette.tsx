@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import { useAuth, useUser } from "@/lib/clerk-compat";
+import { useAuth, useUser } from "@clerk/react";
 import { ArrowLeft, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 
 // ── Segments must match backend order exactly ────────────────────────────────

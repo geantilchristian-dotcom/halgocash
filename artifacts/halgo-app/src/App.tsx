@@ -20,12 +20,18 @@ import DrawsPage from "@/pages/draws";
 import WinnersPage from "@/pages/winners";
 import JackpotPage from "@/pages/jackpot";
 import NotFound from "@/pages/not-found";
-import LoginPage from "@/pages/login";
-import RegisterPage from "@/pages/register";
+import SignInPage from "@/pages/sign-in";
+import SignUpPage from "@/pages/sign-up";
+import SsoCallbackPage from "@/pages/sso-callback";
 import { AgeGate } from "@/components/age-gate";
-import { AuthProvider, useAuth } from "@/lib/auth-context";
+import {
+  ClerkProvider,
+  useAuth,
+} from "@clerk/react";
 import { Loader2 } from "lucide-react";
 
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
+const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL as string | undefined;
 
 // ── Splash screen ─────────────────────────────────────────────────────────────
 function SplashScreen({ onDone }: { onDone: () => void }) {
@@ -91,7 +97,6 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
           pointerEvents: fading ? "none" : "all",
         }}
       >
-        {/* Background blobs */}
         <div style={{
           position: "absolute", top: "-5%", right: "-5%",
           width: 320, height: 320, borderRadius: "50%",
@@ -114,7 +119,6 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
           animation: "sp-blob1 13s ease-in-out infinite 2.5s",
         }} />
 
-        {/* Logo texte */}
         <div className="sp-logo" style={{ marginBottom: 20, display: "flex", alignItems: "baseline", gap: 0 }}>
           <span style={{
             fontFamily: "'Plus Jakarta Sans','Montserrat',sans-serif",
@@ -132,7 +136,6 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
           }}>Cash</span>
         </div>
 
-        {/* Tagline */}
         <p className="sp-sub" style={{
           color: "rgba(255,255,255,0.45)",
           fontSize: 11,
@@ -144,27 +147,18 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
           Rapide · Sécurisé · Fiable
         </p>
 
-        {/* Loading bar */}
         <div style={{
-          width: 180,
-          height: 3,
-          borderRadius: 99,
+          width: 180, height: 3, borderRadius: 99,
           background: "rgba(255,255,255,0.08)",
-          overflow: "hidden",
-          marginBottom: 16,
+          overflow: "hidden", marginBottom: 16,
         }}>
-          <div
-            className="sp-bar"
-            style={{
-              height: "100%",
-              borderRadius: 99,
-              background: "linear-gradient(90deg, #22c55e, #86efac)",
-              boxShadow: "0 0 8px rgba(34,197,94,0.7)",
-            }}
-          />
+          <div className="sp-bar" style={{
+            height: "100%", borderRadius: 99,
+            background: "linear-gradient(90deg, #22c55e, #86efac)",
+            boxShadow: "0 0 8px rgba(34,197,94,0.7)",
+          }} />
         </div>
 
-        {/* Dots */}
         <div className="sp-dots" style={{ display: "flex", gap: 6 }}>
           {["sp-dot-1", "sp-dot-2", "sp-dot-3"].map(cls => (
             <div key={cls} className={cls} style={{
@@ -183,17 +177,27 @@ const queryClient = new QueryClient();
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+// ── Invalidate React Query cache when Clerk session changes ───────────────────
+function ClerkQueryClientCacheInvalidator() {
+  const { isSignedIn } = useAuth();
+  useEffect(() => {
+    queryClient.invalidateQueries();
+  }, [isSignedIn]);
+  return null;
+}
+
+// ── Auth guard using Clerk ────────────────────────────────────────────────────
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
+  const { isLoaded, isSignedIn } = useAuth();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    if (!isLoading && !user) {
-      setLocation("/login");
+    if (isLoaded && !isSignedIn) {
+      setLocation("/sign-in");
     }
-  }, [isLoading, user, setLocation]);
+  }, [isLoaded, isSignedIn, setLocation]);
 
-  if (isLoading || !user) {
+  if (!isLoaded || !isSignedIn) {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-[#0a2e14]">
         <Loader2 className="w-8 h-8 animate-spin text-[#3aab3a]" />
@@ -234,32 +238,19 @@ function AppRoutes() {
 
 function Routes() {
   return (
-    <Switch>
-      <Route path="/">
-        {() => { window.location.replace(`${basePath}/app`); return null; }}
-      </Route>
-      <Route path="/login" component={LoginPage} />
-      <Route path="/register" component={RegisterPage} />
-      {/* Legacy Clerk routes — redirect to new paths */}
-      <Route path="/sign-in/*?">
-        {() => { window.location.replace(`${basePath}/login`); return null; }}
-      </Route>
-      <Route path="/sign-up/*?">
-        {() => { window.location.replace(`${basePath}/register`); return null; }}
-      </Route>
-      <Route path="/app/*?" component={AppRoutes} />
-      <Route component={NotFound} />
-    </Switch>
-  );
-}
-
-function AppWithAuth() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <Routes />
-      </AuthProvider>
-    </QueryClientProvider>
+    <>
+      <ClerkQueryClientCacheInvalidator />
+      <Switch>
+        <Route path="/">
+          {() => { window.location.replace(`${basePath}/app`); return null; }}
+        </Route>
+        <Route path="/sign-in/*?" component={SignInPage} />
+        <Route path="/sign-up/*?" component={SignUpPage} />
+        <Route path="/sso-callback" component={SsoCallbackPage} />
+        <Route path="/app/*?" component={AppRoutes} />
+        <Route component={NotFound} />
+      </Switch>
+    </>
   );
 }
 
@@ -267,15 +258,22 @@ function App() {
   const [splashDone, setSplashDone] = useState(false);
 
   return (
-    <ThemeProvider>
-      <TooltipProvider>
-        {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
-        <WouterRouter base={basePath}>
-          <AppWithAuth />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
-    </ThemeProvider>
+    <ClerkProvider
+      publishableKey={clerkPubKey}
+      {...(clerkProxyUrl ? { proxyUrl: clerkProxyUrl } : {})}
+    >
+      <ThemeProvider>
+        <TooltipProvider>
+          {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
+          <QueryClientProvider client={queryClient}>
+            <WouterRouter base={basePath}>
+              <Routes />
+            </WouterRouter>
+          </QueryClientProvider>
+          <Toaster />
+        </TooltipProvider>
+      </ThemeProvider>
+    </ClerkProvider>
   );
 }
 

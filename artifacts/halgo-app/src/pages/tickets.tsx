@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { useAuth } from "@/lib/clerk-compat";
+import { useAuth } from "@clerk/react";
 import { useQuery } from "@tanstack/react-query";
 import { Ticket, CheckCircle, X, Search, Filter, ChevronLeft } from "lucide-react";
 import { useLocation } from "wouter";
