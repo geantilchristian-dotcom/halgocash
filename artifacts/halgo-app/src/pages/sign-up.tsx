@@ -1,9 +1,7 @@
 import { useState, useCallback } from "react";
 import { useSignUp } from "@clerk/react/legacy";
 import { useLocation } from "wouter";
-import { Loader2, Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2, Eye, EyeOff, AlertCircle, Mail, Lock, User, CheckCircle2 } from "lucide-react";
 
 const TIMEOUT_MS = 15000;
 function clerkTimeout<T>(promise: Promise<T>): Promise<T> {
@@ -66,152 +64,311 @@ export default function SignUpPage() {
     }
   }, [isLoaded, signUp, setActive, code, setLocation]);
 
+  const inputStyle = {
+    width: "100%", height: "3rem",
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: "0.75rem",
+    paddingRight: "1rem",
+    color: "#fff", fontSize: "0.875rem",
+    outline: "none", boxSizing: "border-box" as const,
+    transition: "border-color 0.2s",
+  };
+
   return (
-    <div className="min-h-dvh bg-[#0a1f0f] flex flex-col">
-      <div className="bg-gradient-to-b from-[#061a0c] to-[#0a2e14] px-6 pt-16 pb-24 flex flex-col items-center relative overflow-hidden">
-        <div style={{
-          position: "absolute", top: "-10%", right: "-10%",
-          width: 280, height: 280, borderRadius: "50%",
-          background: "radial-gradient(circle, #15803d 0%, transparent 70%)",
-          filter: "blur(50px)", opacity: 0.25,
-        }} />
-        <div className="relative z-10 flex items-baseline gap-0 mb-2">
-          <span style={{
-            fontFamily: "'Plus Jakarta Sans', 'Montserrat', sans-serif",
-            fontWeight: 900, fontStyle: "italic",
-            fontSize: "3rem", color: "#ffffff",
-            letterSpacing: "-0.02em", lineHeight: 1,
-          }}>halgo</span>
-          <span style={{
-            fontFamily: "'Plus Jakarta Sans', 'Montserrat', sans-serif",
-            fontWeight: 900, fontStyle: "italic",
-            fontSize: "3rem", color: "#8DC63F",
-            letterSpacing: "-0.02em", lineHeight: 1,
-            textShadow: "0 4px 24px rgba(141,198,63,0.4)",
-          }}>Cash</span>
+    <div className="min-h-dvh flex flex-col items-center justify-center relative overflow-hidden"
+      style={{ background: "linear-gradient(160deg, #040d06 0%, #071a0b 40%, #0b2614 100%)" }}>
+
+      {/* Orbes décoratifs */}
+      <div style={{
+        position: "fixed", top: "-15%", right: "-10%",
+        width: 500, height: 500, borderRadius: "50%",
+        background: "radial-gradient(circle, #15803d 0%, transparent 65%)",
+        filter: "blur(80px)", opacity: 0.18, pointerEvents: "none",
+      }} />
+      <div style={{
+        position: "fixed", bottom: "-10%", left: "-15%",
+        width: 450, height: 450, borderRadius: "50%",
+        background: "radial-gradient(circle, #8DC63F 0%, transparent 65%)",
+        filter: "blur(90px)", opacity: 0.10, pointerEvents: "none",
+      }} />
+
+      <div className="relative z-10 w-full max-w-sm mx-auto px-5">
+
+        {/* Logo */}
+        <div className="flex flex-col items-center mb-8">
+          <div className="flex items-baseline gap-0 mb-1">
+            <span style={{
+              fontFamily: "'Plus Jakarta Sans', 'Montserrat', sans-serif",
+              fontWeight: 900, fontStyle: "italic",
+              fontSize: "3.2rem", color: "#ffffff",
+              letterSpacing: "-0.03em", lineHeight: 1,
+              textShadow: "0 0 40px rgba(255,255,255,0.12)",
+            }}>halgo</span>
+            <span style={{
+              fontFamily: "'Plus Jakarta Sans', 'Montserrat', sans-serif",
+              fontWeight: 900, fontStyle: "italic",
+              fontSize: "3.2rem", color: "#8DC63F",
+              letterSpacing: "-0.03em", lineHeight: 1,
+              textShadow: "0 0 40px rgba(141,198,63,0.5)",
+            }}>Cash</span>
+          </div>
+          <p style={{
+            color: "rgba(255,255,255,0.3)", fontSize: "0.6rem",
+            fontWeight: 700, letterSpacing: "0.3em", textTransform: "uppercase",
+          }}>Rapide · Sécurisé · Fiable</p>
         </div>
-        <p className="relative z-10 text-white/40 text-[10px] font-bold tracking-[0.25em] uppercase">
-          Rapide · Sécurisé · Fiable
-        </p>
-      </div>
 
-      <div className="bg-[#f5f7f5] -mt-10 rounded-t-[2rem] flex-1 px-5 pt-7 pb-10 shadow-xl">
-        {step === "form" ? (
-          <>
-            <h2 className="text-2xl font-black text-gray-900 mb-1">Créer un compte</h2>
-            <p className="text-sm text-gray-400 mb-6">Rejoignez halgoCash gratuitement</p>
+        {/* Carte */}
+        <div style={{
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: "1.5rem",
+          padding: "2rem 1.5rem",
+          backdropFilter: "blur(20px)",
+          boxShadow: "0 25px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)",
+        }}>
 
-            {error && (
-              <Alert variant="destructive" className="mb-4 rounded-xl">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+          {step === "form" ? (
+            <>
+              <h2 style={{
+                color: "#fff", fontSize: "1.5rem",
+                fontWeight: 800, marginBottom: "0.25rem", letterSpacing: "-0.02em",
+              }}>Créer un compte</h2>
+              <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.85rem", marginBottom: "1.5rem" }}>
+                Rejoignez halgoCash gratuitement
+              </p>
 
-            <form onSubmit={handleSignUp} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Prénom</label>
-                <Input
-                  type="text"
-                  placeholder="Jean"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  required
-                  className="rounded-xl h-12 border-gray-200 bg-white focus-visible:ring-[#8DC63F] text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Email</label>
-                <Input
-                  type="email"
-                  placeholder="votre@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
-                  className="rounded-xl h-12 border-gray-200 bg-white focus-visible:ring-[#8DC63F] text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Mot de passe</label>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    autoComplete="new-password"
-                    minLength={8}
-                    className="rounded-xl h-12 border-gray-200 bg-white focus-visible:ring-[#8DC63F] pr-12 text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
+              {error && (
+                <div style={{
+                  background: "rgba(239,68,68,0.12)",
+                  border: "1px solid rgba(239,68,68,0.25)",
+                  borderRadius: "0.75rem", padding: "0.75rem 1rem",
+                  marginBottom: "1rem",
+                  display: "flex", alignItems: "flex-start", gap: "0.5rem",
+                }}>
+                  <AlertCircle style={{ width: 15, height: 15, color: "#f87171", flexShrink: 0, marginTop: 2 }} />
+                  <span style={{ color: "#fca5a5", fontSize: "0.8rem", lineHeight: 1.5 }}>{error}</span>
                 </div>
-              </div>
-              <button
-                type="submit"
-                disabled={!isLoaded || loading}
-                className="w-full h-12 bg-[#143024] hover:bg-[#1e4a30] text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
-              >
-                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                S'inscrire
-              </button>
-            </form>
+              )}
 
-            <p className="text-sm text-gray-400 text-center mt-6">
-              Déjà un compte ?{" "}
-              <a href="/sign-in" className="text-[#143024] font-bold hover:underline">Se connecter</a>
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-full bg-[#8DC63F]/20 flex items-center justify-center">
-                <CheckCircle className="w-5 h-5 text-[#143024]" />
-              </div>
-              <div>
-                <h2 className="text-xl font-black text-gray-900">Vérifiez votre email</h2>
-                <p className="text-sm text-gray-400">Code envoyé à {email}</p>
-              </div>
-            </div>
+              <form onSubmit={handleSignUp} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
 
-            {error && (
-              <Alert variant="destructive" className="mb-4 rounded-xl">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+                {/* Prénom */}
+                <div>
+                  <label style={{
+                    display: "block", color: "rgba(255,255,255,0.45)",
+                    fontSize: "0.7rem", fontWeight: 700,
+                    letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "0.4rem",
+                  }}>Prénom</label>
+                  <div style={{ position: "relative" }}>
+                    <User style={{
+                      position: "absolute", left: "0.875rem", top: "50%", transform: "translateY(-50%)",
+                      width: 15, height: 15, color: "rgba(255,255,255,0.25)",
+                    }} />
+                    <input
+                      type="text" placeholder="Jean"
+                      value={firstName} onChange={(e) => setFirstName(e.target.value)}
+                      required
+                      style={{ ...inputStyle, paddingLeft: "2.5rem" }}
+                      onFocus={e => (e.currentTarget.style.borderColor = "rgba(141,198,63,0.5)")}
+                      onBlur={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")}
+                    />
+                  </div>
+                </div>
 
-            <form onSubmit={handleVerify} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Code de vérification</label>
-                <Input
-                  type="text"
-                  placeholder="123456"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  required
-                  maxLength={6}
-                  className="rounded-xl h-12 border-gray-200 bg-white focus-visible:ring-[#8DC63F] text-center text-2xl tracking-widest font-bold"
-                />
+                {/* Email */}
+                <div>
+                  <label style={{
+                    display: "block", color: "rgba(255,255,255,0.45)",
+                    fontSize: "0.7rem", fontWeight: 700,
+                    letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "0.4rem",
+                  }}>Email</label>
+                  <div style={{ position: "relative" }}>
+                    <Mail style={{
+                      position: "absolute", left: "0.875rem", top: "50%", transform: "translateY(-50%)",
+                      width: 15, height: 15, color: "rgba(255,255,255,0.25)",
+                    }} />
+                    <input
+                      type="email" placeholder="votre@email.com"
+                      value={email} onChange={(e) => setEmail(e.target.value)}
+                      required autoComplete="email"
+                      style={{ ...inputStyle, paddingLeft: "2.5rem" }}
+                      onFocus={e => (e.currentTarget.style.borderColor = "rgba(141,198,63,0.5)")}
+                      onBlur={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")}
+                    />
+                  </div>
+                </div>
+
+                {/* Mot de passe */}
+                <div>
+                  <label style={{
+                    display: "block", color: "rgba(255,255,255,0.45)",
+                    fontSize: "0.7rem", fontWeight: 700,
+                    letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "0.4rem",
+                  }}>Mot de passe</label>
+                  <div style={{ position: "relative" }}>
+                    <Lock style={{
+                      position: "absolute", left: "0.875rem", top: "50%", transform: "translateY(-50%)",
+                      width: 15, height: 15, color: "rgba(255,255,255,0.25)",
+                    }} />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Min. 8 caractères"
+                      value={password} onChange={(e) => setPassword(e.target.value)}
+                      required autoComplete="new-password" minLength={8}
+                      style={{ ...inputStyle, paddingLeft: "2.5rem", paddingRight: "3rem" }}
+                      onFocus={e => (e.currentTarget.style.borderColor = "rgba(141,198,63,0.5)")}
+                      onBlur={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")}
+                    />
+                    <button
+                      type="button" onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: "absolute", right: "0.875rem", top: "50%", transform: "translateY(-50%)",
+                        background: "none", border: "none", cursor: "pointer", padding: 0,
+                        color: "rgba(255,255,255,0.3)",
+                      }}
+                    >
+                      {showPassword ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!isLoaded || loading}
+                  style={{
+                    width: "100%", height: "3rem",
+                    background: loading ? "rgba(141,198,63,0.4)"
+                      : "linear-gradient(135deg, #5a9e1a 0%, #8DC63F 50%, #6db82a 100%)",
+                    border: "none", borderRadius: "0.875rem",
+                    color: "#071a0b", fontSize: "0.9rem", fontWeight: 800,
+                    cursor: loading ? "not-allowed" : "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+                    marginTop: "0.25rem",
+                    boxShadow: "0 4px 20px rgba(141,198,63,0.3)",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  {loading && <Loader2 style={{ width: 16, height: 16 }} className="animate-spin" />}
+                  Créer mon compte
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              {/* Étape vérification */}
+              <div style={{
+                width: "3.5rem", height: "3.5rem", borderRadius: "50%",
+                background: "rgba(141,198,63,0.15)",
+                border: "1px solid rgba(141,198,63,0.3)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                marginBottom: "1rem",
+              }}>
+                <CheckCircle2 style={{ width: 24, height: 24, color: "#8DC63F" }} />
               </div>
-              <button
-                type="submit"
-                disabled={!isLoaded || loading}
-                className="w-full h-12 bg-[#143024] hover:bg-[#1e4a30] text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
-              >
-                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                Confirmer
-              </button>
-            </form>
-          </>
-        )}
+
+              <h2 style={{
+                color: "#fff", fontSize: "1.4rem",
+                fontWeight: 800, marginBottom: "0.25rem", letterSpacing: "-0.02em",
+              }}>Vérifiez votre email</h2>
+              <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.85rem", marginBottom: "1.5rem" }}>
+                Code envoyé à <span style={{ color: "rgba(255,255,255,0.7)", fontWeight: 600 }}>{email}</span>
+              </p>
+
+              {error && (
+                <div style={{
+                  background: "rgba(239,68,68,0.12)",
+                  border: "1px solid rgba(239,68,68,0.25)",
+                  borderRadius: "0.75rem", padding: "0.75rem 1rem",
+                  marginBottom: "1rem",
+                  display: "flex", alignItems: "flex-start", gap: "0.5rem",
+                }}>
+                  <AlertCircle style={{ width: 15, height: 15, color: "#f87171", flexShrink: 0, marginTop: 2 }} />
+                  <span style={{ color: "#fca5a5", fontSize: "0.8rem", lineHeight: 1.5 }}>{error}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleVerify} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <div>
+                  <label style={{
+                    display: "block", color: "rgba(255,255,255,0.45)",
+                    fontSize: "0.7rem", fontWeight: 700,
+                    letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "0.4rem",
+                  }}>Code de vérification</label>
+                  <input
+                    type="text" placeholder="• • • • • •"
+                    value={code} onChange={(e) => setCode(e.target.value)}
+                    required maxLength={6}
+                    style={{
+                      width: "100%", height: "4rem",
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: "0.75rem",
+                      paddingLeft: "1rem", paddingRight: "1rem",
+                      color: "#fff", fontSize: "2rem", fontWeight: 700,
+                      letterSpacing: "0.5em", textAlign: "center",
+                      outline: "none", boxSizing: "border-box",
+                      transition: "border-color 0.2s",
+                    }}
+                    onFocus={e => (e.currentTarget.style.borderColor = "rgba(141,198,63,0.5)")}
+                    onBlur={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!isLoaded || loading}
+                  style={{
+                    width: "100%", height: "3rem",
+                    background: loading ? "rgba(141,198,63,0.4)"
+                      : "linear-gradient(135deg, #5a9e1a 0%, #8DC63F 50%, #6db82a 100%)",
+                    border: "none", borderRadius: "0.875rem",
+                    color: "#071a0b", fontSize: "0.9rem", fontWeight: 800,
+                    cursor: loading ? "not-allowed" : "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+                    boxShadow: "0 4px 20px rgba(141,198,63,0.3)",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  {loading && <Loader2 style={{ width: 16, height: 16 }} className="animate-spin" />}
+                  Confirmer
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStep("form")}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer",
+                    color: "rgba(255,255,255,0.35)", fontSize: "0.8rem", textAlign: "center",
+                    padding: "0.25rem",
+                  }}
+                >
+                  ← Modifier l'email
+                </button>
+              </form>
+            </>
+          )}
+        </div>
+
+        <p style={{
+          color: "rgba(255,255,255,0.35)", fontSize: "0.85rem",
+          textAlign: "center", marginTop: "1.5rem",
+        }}>
+          {step === "form" ? (
+            <>Déjà un compte ?{" "}
+              <a href="/sign-in" style={{ color: "#8DC63F", fontWeight: 700, textDecoration: "none" }}>
+                Se connecter
+              </a>
+            </>
+          ) : (
+            <>Pas reçu le code ?{" "}
+              <a href="#" style={{ color: "#8DC63F", fontWeight: 700, textDecoration: "none" }}>
+                Renvoyer
+              </a>
+            </>
+          )}
+        </p>
       </div>
     </div>
   );
