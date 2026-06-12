@@ -58,6 +58,11 @@ export default function SignUpPage() {
     e.preventDefault();
     if (!isLoaded || !signUp) return;
     if (password !== confirmPassword) { setError("Les mots de passe ne correspondent pas."); return; }
+    if (password.length < 8) { setError("Le mot de passe doit contenir au moins 8 caractères."); return; }
+    if (!/[A-Z]/.test(password)) { setError("Le mot de passe doit contenir au moins une majuscule (A-Z)."); return; }
+    if (!/[a-z]/.test(password)) { setError("Le mot de passe doit contenir au moins une minuscule (a-z)."); return; }
+    if (!/[0-9]/.test(password)) { setError("Le mot de passe doit contenir au moins un chiffre (0-9)."); return; }
+    if (!/[^A-Za-z0-9]/.test(password)) { setError("Le mot de passe doit contenir au moins un symbole (!@#$%…)."); return; }
     if (!cgu) { setError("Vous devez accepter les conditions d'utilisation."); return; }
     setError("");
     setLoading(true);
@@ -404,7 +409,7 @@ export default function SignUpPage() {
                 <div style={{ position: "relative" }}>
                   <Lock style={iconStyle} />
                   <input type={showPassword ? "text" : "password"}
-                    placeholder="Min. 8 caractères"
+                    placeholder="Ex: MonPasse1!"
                     value={password} onChange={(e) => setPassword(e.target.value)}
                     required autoComplete="new-password" minLength={8}
                     style={{ ...inputStyle(), paddingRight: "3rem" }}
@@ -417,6 +422,47 @@ export default function SignUpPage() {
                     {showPassword ? <EyeOff style={{ width: 15, height: 15 }} /> : <Eye style={{ width: 15, height: 15 }} />}
                   </button>
                 </div>
+                {/* Indicateur de force */}
+                {password.length > 0 && (() => {
+                  const checks = [
+                    { ok: password.length >= 8, label: "8 caractères min." },
+                    { ok: /[A-Z]/.test(password), label: "Majuscule (A-Z)" },
+                    { ok: /[a-z]/.test(password), label: "Minuscule (a-z)" },
+                    { ok: /[0-9]/.test(password), label: "Chiffre (0-9)" },
+                    { ok: /[^A-Za-z0-9]/.test(password), label: "Symbole (!@#…)" },
+                  ];
+                  const score = checks.filter(c => c.ok).length;
+                  const colors = ["#ef4444","#f97316","#eab308","#84cc16","#22c55e"];
+                  const labels = ["Très faible","Faible","Moyen","Fort","Très fort"];
+                  return (
+                    <div style={{ marginTop: "0.5rem" }}>
+                      <div style={{ display: "flex", gap: 4, marginBottom: "0.35rem" }}>
+                        {[0,1,2,3,4].map(i => (
+                          <div key={i} style={{
+                            flex: 1, height: 3, borderRadius: 99,
+                            background: i < score ? colors[score - 1] : "rgba(255,255,255,0.08)",
+                            transition: "background 0.3s",
+                          }} />
+                        ))}
+                      </div>
+                      <p style={{ fontSize: "0.68rem", color: colors[score - 1] ?? "rgba(255,255,255,0.3)", fontWeight: 600, marginBottom: "0.3rem" }}>
+                        {labels[score - 1] ?? "Trop court"}
+                      </p>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+                        {checks.map(c => (
+                          <span key={c.label} style={{
+                            fontSize: "0.6rem", fontWeight: 600,
+                            padding: "0.15rem 0.45rem", borderRadius: 99,
+                            background: c.ok ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.05)",
+                            color: c.ok ? "#86efac" : "rgba(255,255,255,0.25)",
+                            border: `1px solid ${c.ok ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.06)"}`,
+                            transition: "all 0.2s",
+                          }}>{c.ok ? "✓" : "·"} {c.label}</span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Confirmer */}
