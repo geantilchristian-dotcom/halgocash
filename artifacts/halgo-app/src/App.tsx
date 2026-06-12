@@ -240,6 +240,13 @@ function Routes() {
       </Route>
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
+      {/* Legacy Clerk routes — redirect to new paths */}
+      <Route path="/sign-in/*?">
+        {() => { window.location.replace(`${basePath}/login`); return null; }}
+      </Route>
+      <Route path="/sign-up/*?">
+        {() => { window.location.replace(`${basePath}/register`); return null; }}
+      </Route>
       <Route path="/app/*?" component={AppRoutes} />
       <Route component={NotFound} />
     </Switch>
