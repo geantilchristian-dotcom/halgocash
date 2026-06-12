@@ -72,8 +72,25 @@ export default function SignUpPage() {
       await clerkTimeout(signUp.prepareEmailAddressVerification({ strategy: "email_code" }));
       setStep("verify");
     } catch (err: unknown) {
-      const clerkErr = err as { errors?: { longMessage?: string; message?: string }[] };
-      setError(clerkErr?.errors?.[0]?.longMessage ?? clerkErr?.errors?.[0]?.message ?? "Erreur lors de l'inscription.");
+      if ((err as Error).message === "timeout") {
+        setError("Inscription trop lente. Vérifiez votre réseau et réessayez.");
+        return;
+      }
+      const clerkErr = err as { errors?: { longMessage?: string; message?: string; code?: string }[] };
+      const firstErr = clerkErr?.errors?.[0];
+      if (firstErr) {
+        const code = firstErr.code ?? "";
+        if (code.includes("password_pwned") || code.includes("password_strength"))
+          setError("Mot de passe trop faible ou compromis. Essayez un mot de passe plus sécurisé.");
+        else if (code.includes("identifier_exists") || code.includes("duplicate"))
+          setError("Cette adresse email est déjà utilisée. Connectez-vous à la place.");
+        else if (code.includes("strategy") || code.includes("not_allowed"))
+          setError("L'inscription par email n'est pas activée. Utilisez Google à la place.");
+        else
+          setError(firstErr.longMessage ?? firstErr.message ?? "Erreur Clerk inconnue.");
+      } else {
+        setError((err as Error)?.message ?? "Erreur lors de l'inscription. Réessayez.");
+      }
     } finally {
       setLoading(false);
     }
