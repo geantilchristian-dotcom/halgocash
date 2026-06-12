@@ -31,10 +31,6 @@ import {
 import { Loader2 } from "lucide-react";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
-// Build proxy URL from current origin so it works on both halgocash.com and www.halgocash.com
-const clerkProxyUrl = typeof window !== "undefined"
-  ? `${window.location.origin}/api/__clerk`
-  : (import.meta.env.VITE_CLERK_PROXY_URL as string | undefined);
 
 // ── Splash screen ─────────────────────────────────────────────────────────────
 function SplashScreen({ onDone }: { onDone: () => void }) {
@@ -263,7 +259,6 @@ function App() {
   return (
     <ClerkProvider
       publishableKey={clerkPubKey}
-      {...(clerkProxyUrl ? { proxyUrl: clerkProxyUrl } : {})}
     >
       <ThemeProvider>
         <TooltipProvider>
