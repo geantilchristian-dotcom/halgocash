@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, TrendingUp, CheckCircle, Ticket } from "lucide-react";
-import { useUser, useAuth } from "@clerk/react";
+import { useUser, useAuth } from "@/lib/clerk-compat";
 
 type Phase = "waiting" | "flying" | "crashed";
 

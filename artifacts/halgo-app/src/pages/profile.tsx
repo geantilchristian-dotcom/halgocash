@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useUser, useClerk, useAuth } from "@clerk/react";
+import { useUser, useClerk, useAuth } from "@/lib/clerk-compat";
 import {
   User, Mail, LogOut, Shield, Phone, Edit3, Check, X, Loader2,
   CheckCircle, Clock, AlertCircle, FileText, Ticket,

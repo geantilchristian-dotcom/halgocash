@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useUser, useAuth } from "@clerk/react";
+import { useUser, useAuth } from "@/lib/clerk-compat";
 import { CheckCircle, XCircle, Clock, Ticket, Trophy, X, Loader2, ScanLine, Eye, EyeOff } from "lucide-react";
 import { useTheme } from "@/lib/theme-context";
 import { QrScanner } from "@/components/qr-scanner";

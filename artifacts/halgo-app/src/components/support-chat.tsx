@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { MessageCircle, X, Send, Loader2, HeadphonesIcon } from "lucide-react";
-import { useAuth } from "@clerk/react";
-import { useUser } from "@clerk/react";
+import { useAuth, useUser } from "@/lib/clerk-compat";
 
 interface SupportMessage {
   id: number;

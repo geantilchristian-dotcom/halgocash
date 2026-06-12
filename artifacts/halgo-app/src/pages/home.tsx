@@ -8,7 +8,7 @@ import {
   Users, Copy, Plane, Zap, Gem, TrendingUp, Gift, Trophy, UserPlus, CircleDot,
 } from "lucide-react";
 import type { LucideProps } from "lucide-react";
-import { useUser, useAuth } from "@clerk/react";
+import { useUser, useAuth } from "@/lib/clerk-compat";
 import { QRCodeSVG } from "qrcode.react";
 import { useLocation } from "wouter";
 import { QrScanner } from "@/components/qr-scanner";

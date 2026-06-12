@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/clerk-compat";
 import { QRCodeSVG } from "qrcode.react";
 import { ChevronLeft, Copy, CheckCircle, Users, Share2, Gift, Trophy, Star } from "lucide-react";
 import { useLocation } from "wouter";

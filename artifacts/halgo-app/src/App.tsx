@@ -1,9 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ThemeProvider } from "@/lib/theme-context";
-import { ClerkProvider, useClerk, useAuth, AuthenticateWithRedirectCallback } from "@clerk/react";
-import { publishableKeyFromHost } from "@clerk/react/internal";
 import { Switch, Route, useLocation, Router as WouterRouter } from "wouter";
-import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
@@ -22,9 +20,10 @@ import DrawsPage from "@/pages/draws";
 import WinnersPage from "@/pages/winners";
 import JackpotPage from "@/pages/jackpot";
 import NotFound from "@/pages/not-found";
-import SignInPage from "@/pages/sign-in";
-import SignUpPage from "@/pages/sign-up";
+import LoginPage from "@/pages/login";
+import RegisterPage from "@/pages/register";
 import { AgeGate } from "@/components/age-gate";
+import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { Loader2 } from "lucide-react";
 
 
@@ -182,66 +181,19 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
 
 const queryClient = new QueryClient();
 
-// REQUIRED — resolves key from window.location.hostname for multi-domain support.
-const clerkPubKey = publishableKeyFromHost(
-  window.location.hostname,
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-);
-
-// REQUIRED — empty in dev (Clerk hits dev FAPI directly), auto-set in prod.
-// Do NOT gate on import.meta.env.PROD — the empty dev value is intentional.
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
-
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-function stripBase(path: string): string {
-  return basePath && path.startsWith(basePath)
-    ? path.slice(basePath.length) || "/"
-    : path;
-}
-
-function SsoCallbackPage() {
-  return (
-    <div
-      className="min-h-dvh flex items-center justify-center"
-      style={{ background: "linear-gradient(160deg, #0a2e14 0%, #0f3d1c 100%)" }}
-    >
-      <div className="flex flex-col items-center gap-3">
-        <div className="flex items-end leading-none">
-          <span className="text-[36px] font-black text-white tracking-tight">HALGO</span>
-        </div>
-        <div className="flex items-center -mt-3">
-          <span className="text-[36px] font-black italic text-[#3aab3a] tracking-tight">CASH</span>
-          <span className="text-[28px] font-black text-[#F5C518]">⚡</span>
-        </div>
-        <Loader2 className="w-8 h-8 animate-spin text-[#3aab3a] mt-2" />
-        <p className="text-white/50 text-sm">Connexion en cours…</p>
-      </div>
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-      <AuthenticateWithRedirectCallback {...({ signInFallbackRedirectUrl: `${basePath}/app`, signUpFallbackRedirectUrl: `${basePath}/app` } as any)} />
-    </div>
-  );
-}
-
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
-  // If Clerk takes too long (proxy issue, DNS, etc.), redirect to sign-in anyway
   useEffect(() => {
-    const t = setTimeout(() => {
-      if (!isLoaded) setLocation("/sign-in");
-    }, 8000);
-    return () => clearTimeout(t);
-  }, [isLoaded, setLocation]);
-
-  useEffect(() => {
-    if (isLoaded && !isSignedIn) {
-      setLocation("/sign-in");
+    if (!isLoading && !user) {
+      setLocation("/login");
     }
-  }, [isLoaded, isSignedIn, setLocation]);
+  }, [isLoading, user, setLocation]);
 
-  if (!isLoaded || !isSignedIn) {
+  if (isLoading || !user) {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-[#0a2e14]">
         <Loader2 className="w-8 h-8 animate-spin text-[#3aab3a]" />
@@ -280,58 +232,27 @@ function AppRoutes() {
   return <AuthGuard>{AppContent}</AuthGuard>;
 }
 
-function ClerkQueryClientCacheInvalidator() {
-  const { addListener } = useClerk();
-  const qc = useQueryClient();
-  const prevUserIdRef = useRef<string | null | undefined>(undefined);
-
-  useEffect(() => {
-    const unsubscribe = addListener(({ user }) => {
-      const userId = user?.id ?? null;
-      if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== userId) {
-        qc.clear();
-      }
-      prevUserIdRef.current = userId;
-    });
-    return unsubscribe;
-  }, [addListener, qc]);
-
-  return null;
-}
-
 function Routes() {
   return (
     <Switch>
       <Route path="/">
         {() => { window.location.replace(`${basePath}/app`); return null; }}
       </Route>
-      <Route path="/sign-in/*?" component={SignInPage} />
-      <Route path="/sign-up/*?" component={SignUpPage} />
-      <Route path="/sso-callback" component={SsoCallbackPage} />
+      <Route path="/login" component={LoginPage} />
+      <Route path="/register" component={RegisterPage} />
       <Route path="/app/*?" component={AppRoutes} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-function AppWithClerk() {
-  const [, setLocation] = useLocation();
-
+function AppWithAuth() {
   return (
-    <ClerkProvider
-      publishableKey={clerkPubKey}
-      proxyUrl={clerkProxyUrl}
-      signInUrl={`${basePath}/sign-in`}
-      signUpUrl={`${basePath}/sign-up`}
-      afterSignOutUrl={`${basePath}/`}
-      routerPush={(to) => setLocation(stripBase(to))}
-      routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
-    >
-      <QueryClientProvider client={queryClient}>
-        <ClerkQueryClientCacheInvalidator />
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
         <Routes />
-      </QueryClientProvider>
-    </ClerkProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }
 
@@ -343,7 +264,7 @@ function App() {
       <TooltipProvider>
         {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
         <WouterRouter base={basePath}>
-          <AppWithClerk />
+          <AppWithAuth />
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

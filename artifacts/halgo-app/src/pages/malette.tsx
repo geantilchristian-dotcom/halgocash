@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/clerk-compat";
 import { useLocation } from "wouter";
 import { ArrowLeft, Loader2, Trophy, RotateCcw, BookOpen, Gem } from "lucide-react";
 
