@@ -79,6 +79,10 @@ export const withdrawalsTable = pgTable("withdrawals", {
   paidByVendorId: integer("paid_by_vendor_id"),
   paidAt: timestamp("paid_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  clientPostNom: text("client_post_nom"),
+  clientPhone: text("client_phone"),
+  clientAge: text("client_age"),
+  clientAddress: text("client_address"),
 });
 
 export type Withdrawal = typeof withdrawalsTable.$inferSelect;

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AppLayout } from "../components/layout/app-layout";
-import { QrCode, Search, CheckCircle, AlertCircle, Loader2, User, Banknote, X, Camera } from "lucide-react";
+import { QrCode, Search, CheckCircle, AlertCircle, Loader2, User, Banknote, X, Camera, Phone, MapPin, Calendar } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { QrScanner } from "@/components/qr-scanner";
 
@@ -17,6 +17,12 @@ interface WithdrawalInfo {
   status: string;
   paidAt: string | null;
   createdAt: string;
+  clientFirstName: string | null;
+  clientLastName: string | null;
+  clientPostNom: string | null;
+  clientPhone: string | null;
+  clientAge: string | null;
+  clientAddress: string | null;
 }
 
 export default function ScanRetrait() {
@@ -206,16 +212,54 @@ export default function ScanRetrait() {
 
             {/* Details */}
             <div className="p-5 space-y-4 bg-white">
+              {/* Identité client */}
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
                   <User className="w-6 h-6 text-gray-400" />
                 </div>
                 <div>
-                  <p className="font-black text-lg">{withdrawal.clerkName}</p>
-                  <p className="text-xs text-muted-foreground font-mono">{withdrawal.clerkId.slice(0, 16)}…</p>
+                  <p className="font-black text-lg leading-tight">
+                    {[withdrawal.clientLastName, withdrawal.clientPostNom, withdrawal.clientFirstName]
+                      .filter(Boolean).join(" ") || withdrawal.clerkName}
+                  </p>
+                  <p className="text-xs text-muted-foreground font-semibold">{withdrawal.clerkName}</p>
                 </div>
               </div>
 
+              {/* Infos profil */}
+              {(withdrawal.clientPhone || withdrawal.clientAge || withdrawal.clientAddress) && (
+                <div className="rounded-xl bg-gray-50 border border-gray-100 divide-y divide-gray-100">
+                  {withdrawal.clientPhone && (
+                    <div className="flex items-center gap-3 px-4 py-2.5">
+                      <Phone className="w-4 h-4 text-gray-400 shrink-0" />
+                      <div>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Téléphone</p>
+                        <p className="text-sm font-bold text-gray-800">{withdrawal.clientPhone}</p>
+                      </div>
+                    </div>
+                  )}
+                  {withdrawal.clientAge && (
+                    <div className="flex items-center gap-3 px-4 py-2.5">
+                      <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+                      <div>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Âge</p>
+                        <p className="text-sm font-bold text-gray-800">{withdrawal.clientAge} ans</p>
+                      </div>
+                    </div>
+                  )}
+                  {withdrawal.clientAddress && (
+                    <div className="flex items-center gap-3 px-4 py-2.5">
+                      <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+                      <div>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Adresse</p>
+                        <p className="text-sm font-bold text-gray-800">{withdrawal.clientAddress}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Montant */}
               <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 flex items-center justify-between">
                 <span className="text-sm text-muted-foreground font-semibold">Montant à payer</span>
                 <span className="text-2xl font-black text-green-600">{formatFC(withdrawal.amount)} FC</span>

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, sum, isNotNull } from "drizzle-orm";
 import { db, withdrawalsTable, vendorsTable, usersTable, ticketsTable, creditAdjustmentsTable } from "@workspace/db";
-import { getAuth } from "@clerk/express";
+import { getAuth, clerkClient } from "@clerk/express";
 import { withdrawalRateLimit } from "../middlewares/rateLimiters";
 
 const router: IRouter = Router();
@@ -169,6 +169,25 @@ router.get("/withdrawals/:token", async (req, res): Promise<void> => {
     return;
   }
 
+  // Fetch live Clerk profile for fresh data
+  let clientPostNom: string | null = w.clientPostNom ?? null;
+  let clientPhone: string | null = w.clientPhone ?? null;
+  let clientAge: string | null = w.clientAge ?? null;
+  let clientAddress: string | null = w.clientAddress ?? null;
+  let clientFirstName: string | null = null;
+  let clientLastName: string | null = null;
+
+  try {
+    const clerkUser = await clerkClient.users.getUser(w.clerkId);
+    clientFirstName = clerkUser.firstName ?? null;
+    clientLastName = clerkUser.lastName ?? null;
+    const meta = clerkUser.unsafeMetadata as Record<string, string | undefined>;
+    clientPostNom = meta?.postNom ?? clientPostNom ?? null;
+    clientPhone = meta?.telephone ?? clientPhone ?? null;
+    clientAge = meta?.age ?? clientAge ?? null;
+    clientAddress = meta?.adresse ?? clientAddress ?? null;
+  } catch { /* ignore — use stored snapshot if Clerk unavailable */ }
+
   res.json({
     id: w.id,
     clerkId: w.clerkId,
@@ -178,6 +197,12 @@ router.get("/withdrawals/:token", async (req, res): Promise<void> => {
     status: w.status,
     paidAt: w.paidAt?.toISOString() ?? null,
     createdAt: w.createdAt.toISOString(),
+    clientFirstName,
+    clientLastName,
+    clientPostNom,
+    clientPhone,
+    clientAge,
+    clientAddress,
   });
 });
 
@@ -217,12 +242,30 @@ router.post("/withdrawals/:token/pay", async (req, res): Promise<void> => {
     return;
   }
 
+  // Fetch Clerk profile snapshot to store permanently
+  let clientPostNom: string | null = null;
+  let clientPhone: string | null = null;
+  let clientAge: string | null = null;
+  let clientAddress: string | null = null;
+  try {
+    const clerkUser = await clerkClient.users.getUser(w.clerkId);
+    const meta = clerkUser.unsafeMetadata as Record<string, string | undefined>;
+    clientPostNom = meta?.postNom ?? null;
+    clientPhone = meta?.telephone ?? null;
+    clientAge = meta?.age ?? null;
+    clientAddress = meta?.adresse ?? null;
+  } catch { /* ignore */ }
+
   const [updated] = await db
     .update(withdrawalsTable)
     .set({
       status: "paid",
       paidByVendorId: vendorUser.vendorId,
       paidAt: new Date(),
+      clientPostNom,
+      clientPhone,
+      clientAge,
+      clientAddress,
     })
     .where(eq(withdrawalsTable.token, token))
     .returning();
@@ -279,6 +322,10 @@ router.get("/vendor/withdrawals", async (req, res): Promise<void> => {
       status: w.status,
       paidAt: w.paidAt?.toISOString() ?? null,
       createdAt: w.createdAt.toISOString(),
+      clientPostNom: w.clientPostNom ?? null,
+      clientPhone: w.clientPhone ?? null,
+      clientAge: w.clientAge ?? null,
+      clientAddress: w.clientAddress ?? null,
     })),
   );
 });
