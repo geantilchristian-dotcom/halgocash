@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Plus, Eye, EyeOff, Copy, Check, AlertCircle, MapPin, Phone, X, Loader2, KeyRound, Pencil } from "lucide-react";
+import { Users, Plus, Eye, EyeOff, Copy, Check, AlertCircle, MapPin, Phone, X, Loader2, KeyRound, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -238,6 +238,8 @@ export default function Workers() {
   const [showPwd, setShowPwd] = useState(false);
   const [credWorker, setCredWorker] = useState<Worker | null>(null);
   const [editWorker, setEditWorker] = useState<Worker | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<Worker | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState({ vendorName: "", location: "", phone: "", username: "", email: "", password: "" });
   const [formError, setFormError] = useState<string | null>(null);
@@ -250,6 +252,24 @@ export default function Workers() {
       return res.json();
     },
     refetchInterval: 30_000,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (vendorId: number) => {
+      const r = await fetch(`/api/admin/vendors/${vendorId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error ?? "Erreur inconnue");
+      return json;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["/api/admin/workers"] });
+      setDeleteConfirm(null);
+      setDeleteError(null);
+    },
+    onError: (e: Error) => setDeleteError(e.message),
   });
 
   const createMutation = useMutation({
@@ -287,6 +307,54 @@ export default function Workers() {
     <div className="space-y-6">
       {credWorker && <CredentialsModal worker={credWorker} onClose={() => setCredWorker(null)} />}
       {editWorker && <EditModal worker={editWorker} onClose={() => setEditWorker(null)} onSaved={() => void qc.invalidateQueries({ queryKey: ["/api/admin/workers"] })} />}
+
+      {/* Delete confirmation modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-2xl">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5 text-red-500" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold">Supprimer ce vendeur</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Action irréversible</p>
+                </div>
+              </div>
+              <button onClick={() => { setDeleteConfirm(null); setDeleteError(null); }} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-sm mb-1">
+              Supprimer <span className="font-bold">{deleteConfirm.vendorName}</span> (<span className="font-mono text-xs">{deleteConfirm.username}</span>) ?
+            </p>
+            <p className="text-xs text-muted-foreground mb-4">
+              Le compte login sera supprimé définitivement. Les tickets non-écoulés seront annulés automatiquement.
+            </p>
+            {deleteError && (
+              <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/20 p-3 mb-4 text-xs text-destructive">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setDeleteConfirm(null); setDeleteError(null); }}
+                className="flex-1 py-2.5 rounded-xl border font-semibold text-sm"
+              >Annuler</button>
+              <button
+                onClick={() => deleteMutation.mutate(deleteConfirm.vendorId)}
+                disabled={deleteMutation.isPending}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-sm font-bold text-white flex items-center justify-center gap-2"
+              >
+                {deleteMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Annuaire Vendeurs</h2>
@@ -513,6 +581,13 @@ export default function Workers() {
                     >
                       <KeyRound className="w-3 h-3" />
                       Identifiants
+                    </button>
+                    <button
+                      onClick={() => { setDeleteError(null); setDeleteConfirm(w); }}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 font-bold text-xs hover:bg-red-500/20 transition-colors"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Supprimer
                     </button>
                   </div>
                 </div>
