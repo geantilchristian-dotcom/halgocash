@@ -247,15 +247,16 @@ export default function Coupons() {
               </button>
             </div>
             <p className={`text-sm mb-4 ${sub}`}>
-              Entrez le code a 10 chiffres de votre ticket. Chaque coupon ne peut etre enregistre qu'une seule fois.
+              Entrez le code de votre ticket (loterie à 10 chiffres ou code jeu <span className="font-mono font-bold">HGxxxxxx</span>). Chaque ticket ne peut être enregistré qu'une seule fois.
             </p>
             <input
               type="text"
-              inputMode="numeric"
-              maxLength={10}
-              placeholder="0000000000"
+              inputMode="text"
+              autoCapitalize="characters"
+              maxLength={20}
+              placeholder="0000000000 ou HGxxxxxxxx"
               value={newCode}
-              onChange={(e) => { setNewCode(e.target.value.replace(/\D/g, "").slice(0, 10)); setAddError(null); }}
+              onChange={(e) => { setNewCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20)); setAddError(null); }}
               className={`w-full px-4 py-3 rounded-xl text-center font-mono font-bold text-xl tracking-[0.25em] outline-none border-2 transition-all ${
                 isDark
                   ? "bg-black/30 border-white/15 text-white focus:border-[#3aab3a]"
@@ -267,7 +268,7 @@ export default function Coupons() {
             )}
             <button
               onClick={handleRegister}
-              disabled={registerMutation.isPending || newCode.length !== 10}
+              disabled={registerMutation.isPending || newCode.length < 5}
               className="w-full mt-4 py-3.5 rounded-xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50 transition-all active:scale-[0.98]"
               style={{ background: "linear-gradient(135deg, #0f3d1c, #1a5c2a)", color: "#fff" }}
             >

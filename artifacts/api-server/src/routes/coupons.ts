@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, isNotNull, isNull, sum, count } from "drizzle-orm";
-import { db, ticketsTable, drawsTable, withdrawalsTable, playerProfilesTable, creditAdjustmentsTable } from "@workspace/db";
+import { eq, desc, and, isNotNull, isNull, sum, or } from "drizzle-orm";
+import { db, ticketsTable, drawsTable, withdrawalsTable, creditAdjustmentsTable, posGameTicketsTable } from "@workspace/db";
 import { getAuth } from "@clerk/express";
 
 const router: IRouter = Router();
@@ -32,6 +32,7 @@ router.get("/coupons", async (req, res): Promise<void> => {
     return;
   }
 
+  // Fetch old lottery tickets
   const tickets = await db
     .select()
     .from(ticketsTable)
@@ -53,7 +54,32 @@ router.get("/coupons", async (req, res): Promise<void> => {
     }),
   );
 
-  res.json(enriched);
+  // Fetch POS game tickets claimed by this user
+  const posTickets = await db
+    .select()
+    .from(posGameTicketsTable)
+    .where(eq(posGameTicketsTable.claimedByClerkId, effectiveUserId))
+    .orderBy(desc(posGameTicketsTable.claimedAt));
+
+  const posEnriched = posTickets.map((t) => {
+    const isWinner = t.status === "won" || t.status === "paid";
+    const gameLabel = t.gameType === "sport" ? "SPORT" : t.gameType === "malette" ? "MALETTE" : t.gameType.toUpperCase();
+    return {
+      id:           t.id + 100000,
+      code:         t.ticketCode,
+      status:       (t.status === "pending" ? "sold" : t.status === "won" ? "validated" : t.status === "paid" ? "claimed" : "sold") as "available" | "sold" | "validated" | "claimed" | "expired",
+      price:        t.amountFc,
+      series:       gameLabel,
+      drawId:       null,
+      drawNumber:   null,
+      isWinner,
+      prizeAmount:  isWinner ? (t.actualPayoutFc ?? t.potentialPayoutFc ?? 0) : null,
+      registeredAt: t.claimedAt?.toISOString() ?? t.createdAt.toISOString(),
+      soldAt:       t.createdAt.toISOString(),
+    };
+  });
+
+  res.json([...enriched, ...posEnriched]);
 });
 
 // POST /api/coupons/register — register a ticket code to current user
@@ -73,6 +99,53 @@ router.post("/coupons/register", async (req, res): Promise<void> => {
 
     const trimmed = code.trim().toUpperCase();
 
+    // ── POS game ticket (code starts with "HG") ─────────────────────────────
+    if (trimmed.startsWith("HG")) {
+      const [posTicket] = await db
+        .select()
+        .from(posGameTicketsTable)
+        .where(eq(posGameTicketsTable.ticketCode, trimmed))
+        .limit(1);
+
+      if (!posTicket) {
+        res.status(404).json({ error: "Code ticket introuvable — vérifiez les caractères" });
+        return;
+      }
+
+      if (posTicket.claimedByClerkId) {
+        if (posTicket.claimedByClerkId === userId) {
+          res.status(400).json({ error: "Vous avez déjà enregistré ce ticket" });
+        } else {
+          res.status(400).json({ error: "Ce ticket a déjà été enregistré par quelqu'un d'autre" });
+        }
+        return;
+      }
+
+      const now = new Date();
+      await db
+        .update(posGameTicketsTable)
+        .set({ claimedByClerkId: userId, claimedAt: now })
+        .where(eq(posGameTicketsTable.ticketCode, trimmed));
+
+      const isWinner = posTicket.status === "won" || posTicket.status === "paid";
+      const gameLabel = posTicket.gameType === "sport" ? "SPORT" : posTicket.gameType === "malette" ? "MALETTE" : posTicket.gameType.toUpperCase();
+      res.status(201).json({
+        id:           posTicket.id + 100000,
+        code:         posTicket.ticketCode,
+        status:       (posTicket.status === "pending" ? "sold" : posTicket.status === "won" ? "validated" : posTicket.status === "paid" ? "claimed" : "sold") as string,
+        price:        posTicket.amountFc,
+        series:       gameLabel,
+        drawId:       null,
+        drawNumber:   null,
+        isWinner,
+        prizeAmount:  isWinner ? (posTicket.actualPayoutFc ?? posTicket.potentialPayoutFc ?? 0) : null,
+        registeredAt: now.toISOString(),
+        soldAt:       posTicket.createdAt.toISOString(),
+      });
+      return;
+    }
+
+    // ── Legacy lottery ticket ────────────────────────────────────────────────
     const [ticket] = await db
       .select()
       .from(ticketsTable)

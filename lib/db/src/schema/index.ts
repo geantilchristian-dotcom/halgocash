@@ -353,6 +353,8 @@ export const posGameTicketsTable = pgTable("pos_game_tickets", {
   potentialPayoutFc: integer("potential_payout_fc"),
   status:           varchar("status", { length: 20 }).notNull().default("pending"),
   actualPayoutFc:   integer("actual_payout_fc"),
+  claimedByClerkId: varchar("claimed_by_clerk_id", { length: 255 }),
+  claimedAt:        timestamp("claimed_at"),
   createdAt:        timestamp("created_at").notNull().defaultNow(),
   settledAt:        timestamp("settled_at"),
   paidAt:           timestamp("paid_at"),
