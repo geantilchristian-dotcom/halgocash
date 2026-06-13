@@ -33,8 +33,8 @@ fi
 echo "Found vite at: $VITE_BIN"
 
 (cd artifacts/halgo-app  && PORT=3001 BASE_PATH=/ NODE_ENV=production node "$OLDPWD/$VITE_BIN" build --config vite.config.ts)
-(cd artifacts/admin-app  && PORT=3002 BASE_PATH=/admin/   NODE_ENV=production node "$OLDPWD/$VITE_BIN" build --config vite.config.ts)
-(cd artifacts/vendor-app && PORT=3003 BASE_PATH=/vendor/  NODE_ENV=production node "$OLDPWD/$VITE_BIN" build --config vite.config.ts)
+(cd artifacts/admin-app  && PORT=3002 BASE_PATH=/hx7721-admin/  NODE_ENV=production node "$OLDPWD/$VITE_BIN" build --config vite.config.ts)
+(cd artifacts/vendor-app && PORT=3003 BASE_PATH=/vx5519-espace/ NODE_ENV=production node "$OLDPWD/$VITE_BIN" build --config vite.config.ts)
 (cd artifacts/display-app && PORT=3004 BASE_PATH=/display/ NODE_ENV=production node "$OLDPWD/$VITE_BIN" build --config vite.config.ts)
 
 echo "=== [5/6] Building API server ==="
