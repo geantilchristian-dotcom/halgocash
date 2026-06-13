@@ -36,7 +36,9 @@ interface RoundData {
   roundId: number; status: "betting" | "closed";
   betsPerCase: number[]; timeLeft: number; closesAt?: string;
   multipliers?: number[] | null; totalCollected?: number; totalPaid?: number;
-  closedAt?: string | null; myBet?: MyBet | null;
+  closedAt?: string | null;
+  myBet?: MyBet | null;
+  myBets?: MyBet[];
 }
 interface HistoryEntry { roundId: number; multipliers: number[] | null; closedAt: string | null; }
 type Phase = "loading" | "betting" | "waiting" | "locking" | "spinning" | "closed";
@@ -222,7 +224,7 @@ export default function MalettePage() {
         if (phaseRef.current === "closed" || phaseRef.current === "spinning") {
           setSelectedCase(null); setError(null); fetchHistory();
         }
-        setPhase(data.myBet ? "waiting" : "betting");
+        setPhase((data.myBets?.length ?? 0) > 0 ? "waiting" : "betting");
         return;
       }
 
@@ -275,14 +277,15 @@ export default function MalettePage() {
     } finally { setLoading(false); }
   };
 
-  const myBet     = round?.myBet ?? null;
+  const myBets    = round?.myBets ?? (round?.myBet ? [round.myBet] : []);
+  const myBet     = myBets[0] ?? null;
   const mults     = round?.multipliers ?? null;
   const revealed  = phase === "closed" && Array.isArray(mults);
   const isLocked  = phase === "locking" || (phase === "betting" && timeLeft > 0 && timeLeft <= 2_000);
-  const myMult    = revealed && myBet ? (mults?.[myBet.caseIndex] ?? 0) : null;
-  const myPayout  = myBet?.payout ?? null;
-  const myWin     = myPayout !== null && myPayout > 0;
-  const canBet    = phase === "betting" && !myBet && !isLocked;
+  const totalMyPayout = revealed ? myBets.reduce((s, b) => s + (b.payout ?? 0), 0) : 0;
+  const totalMyStake  = myBets.reduce((s, b) => s + b.amount, 0);
+  const myWin     = revealed && totalMyPayout > 0;
+  const canBet    = (phase === "betting" || phase === "waiting") && !isLocked;
   const isSpinning = phase === "spinning";
 
   // Timer display values
@@ -372,9 +375,10 @@ export default function MalettePage() {
             {timerLabel.text}
           </p>
           <p style={{ fontSize: 11, color: "#9ca3af", margin: "2px 0 0", fontWeight: 600 }}>
-            {phase === "waiting" && myBet ? `Malette N°${myBet.caseIndex + 1} · ${formatFC(myBet.amount)} FC misés` :
-             phase === "closed" && myBet && myMult !== null
-              ? (myWin ? `+${formatFC(myPayout ?? 0)} FC  —  ×${myMult}` : `Malette N°${myBet.caseIndex + 1} était vide`)
+            {(phase === "waiting" || phase === "betting") && myBets.length > 0
+              ? `${myBets.length} ticket${myBets.length > 1 ? "s" : ""} · ${formatFC(totalMyStake)} FC misés`
+              : phase === "closed" && myBets.length > 0
+              ? (myWin ? `+${formatFC(totalMyPayout)} FC encaissé` : `Aucun ticket gagnant`)
               : round ? `Round #${round.roundId}` : ""}
           </p>
         </div>
@@ -403,7 +407,7 @@ export default function MalettePage() {
             index={i}
             totalBet={round?.betsPerCase?.[i] ?? 0}
             multiplier={mults?.[i] ?? undefined}
-            isMyBet={myBet?.caseIndex === i}
+            isMyBet={myBets.some(b => b.caseIndex === i)}
             selected={selectedCase === i && canBet}
             selectable={canBet}
             revealed={revealed}
@@ -498,27 +502,79 @@ export default function MalettePage() {
             <p style={{ fontWeight: 900, fontSize: 13, color: isSpinning ? "#b45309" : "#dc2626", margin: 0 }}>
               {isSpinning ? "🎲 Les malettes tournent…" : "🔒 Paris fermés"}
             </p>
-            {myBet && (
+            {myBets.length > 0 && (
               <p style={{ fontSize: 10, color: "#9ca3af", margin: "3px 0 0" }}>
-                Malette N°{myBet.caseIndex + 1} · {formatFC(myBet.amount)} FC
+                {myBets.length} ticket{myBets.length > 1 ? "s" : ""} · {formatFC(totalMyStake)} FC misés
               </p>
             )}
           </div>
         )}
 
-        {phase === "waiting" && myBet && !isLocked && (
+        {canBet && myBets.length > 0 && (
+          <div style={{
+            marginBottom: 8, padding: "8px 12px", borderRadius: 10,
+            background: "#eff6ff", border: "1px solid #bfdbfe",
+            display: "flex", flexDirection: "column", gap: 3,
+          }}>
+            <p style={{ fontWeight: 800, fontSize: 11, color: "#1d4ed8", margin: 0 }}>
+              🧳 {myBets.length} ticket{myBets.length > 1 ? "s" : ""} enregistré{myBets.length > 1 ? "s" : ""}
+            </p>
+            {myBets.map((b, i) => (
+              <p key={i} style={{ fontSize: 10, color: "#6b7280", margin: 0 }}>
+                Malette N°{b.caseIndex + 1} · {formatFC(b.amount)} FC
+              </p>
+            ))}
+          </div>
+        )}
+
+        {phase === "waiting" && myBets.length > 0 && !canBet && (
           <div style={{
             padding: "12px 16px", borderRadius: 12, textAlign: "center",
             background: "#eff6ff", border: "1px solid #bfdbfe",
           }}>
             <p style={{ fontWeight: 900, fontSize: 13, color: "#1d4ed8", margin: 0 }}>
-              🧳 Malette N°{myBet.caseIndex + 1} · {formatFC(myBet.amount)} FC misés
+              🧳 {myBets.length} ticket{myBets.length > 1 ? "s" : ""} · {formatFC(totalMyStake)} FC misés
             </p>
             <p style={{ fontSize: 10, color: "#6b7280", margin: "3px 0 0" }}>En attente du tirage…</p>
           </div>
         )}
 
-        {phase === "closed" && !myBet && (
+        {phase === "closed" && myBets.length > 0 && revealed && (
+          <div style={{
+            padding: "10px 14px", borderRadius: 12,
+            background: myWin ? "#f0fdf4" : "#fef2f2",
+            border: `1px solid ${myWin ? "#86efac" : "#fca5a5"}`,
+            display: "flex", flexDirection: "column", gap: 6,
+          }}>
+            <p style={{ fontWeight: 900, fontSize: 13, color: myWin ? "#15803d" : "#dc2626", margin: 0 }}>
+              {myWin ? `🎉 +${formatFC(totalMyPayout)} FC encaissé !` : "😔 Aucun ticket gagnant"}
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {myBets.map((b, i) => {
+                const mult = mults?.[b.caseIndex] ?? 0;
+                const payout = b.payout ?? Math.round(b.amount * mult);
+                const info = multInfo(mult);
+                return (
+                  <div key={i} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "4px 8px", borderRadius: 7,
+                    background: "rgba(255,255,255,0.6)",
+                    border: `1px solid ${info.color}30`,
+                  }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#374151" }}>
+                      Malette N°{b.caseIndex + 1} · {formatFC(b.amount)} FC
+                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 900, color: info.color }}>
+                      {info.text} → {payout > 0 ? `+${formatFC(payout)} FC` : "0 FC"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {phase === "closed" && myBets.length === 0 && (
           <div style={{
             padding: "12px 16px", borderRadius: 12, textAlign: "center",
             background: "#f8fafc", border: "1px solid #e5e7eb",

@@ -100,8 +100,14 @@ function buildBetsPerCase(bets: MaletteBet[]): number[] {
 // ── Payload pour un round fermé ───────────────────────────────────────────────
 function buildClosedPayload(
   round: typeof maletteRoundsTable.$inferSelect,
-  myBetRow: MaletteBet | null,
+  myBetRows: MaletteBet[],
 ) {
+  const myBets = myBetRows.map(b => ({
+    caseIndex:  b.caseIndex,
+    amount:     parseFloat(String(b.amount)),
+    multiplier: b.multiplier != null ? parseFloat(String(b.multiplier)) : null,
+    payout:     b.payout     != null ? parseFloat(String(b.payout))     : null,
+  }));
   return {
     roundId:        round.id,
     status:         "closed" as const,
@@ -110,12 +116,9 @@ function buildClosedPayload(
     totalCollected: parseFloat(String(round.totalCollected ?? 0)),
     totalPaid:      parseFloat(String(round.totalPaid      ?? 0)),
     closedAt:       round.closedAt?.toISOString() ?? null,
-    myBet: myBetRow ? {
-      caseIndex:  myBetRow.caseIndex,
-      amount:     parseFloat(String(myBetRow.amount)),
-      multiplier: myBetRow.multiplier != null ? parseFloat(String(myBetRow.multiplier)) : null,
-      payout:     myBetRow.payout     != null ? parseFloat(String(myBetRow.payout))     : null,
-    } : null,
+    myBets,
+    // Compatibilité : premier ticket (ancien champ)
+    myBet: myBets[0] ?? null,
   };
 }
 
@@ -212,10 +215,9 @@ router.get("/malette/round/current", async (req, res): Promise<void> => {
       .limit(1);
 
     if (recent) {
-      const myBetRow = await db.select().from(maletteBetsTable)
-        .where(and(eq(maletteBetsTable.roundId, recent.id), eq(maletteBetsTable.clerkId, clerkId)))
-        .limit(1).then(r => r[0] ?? null);
-      res.json(buildClosedPayload(recent, myBetRow));
+      const myBetRows = await db.select().from(maletteBetsTable)
+        .where(and(eq(maletteBetsTable.roundId, recent.id), eq(maletteBetsTable.clerkId, clerkId)));
+      res.json(buildClosedPayload(recent, myBetRows));
       return;
     }
 
@@ -228,7 +230,8 @@ router.get("/malette/round/current", async (req, res): Promise<void> => {
 
   const bets        = await db.select().from(maletteBetsTable).where(eq(maletteBetsTable.roundId, round.id));
   const betsPerCase = buildBetsPerCase(bets);
-  const myBetRow    = bets.find(b => b.clerkId === clerkId) ?? null;
+  const myBetRows   = bets.filter(b => b.clerkId === clerkId);
+  const myBets      = myBetRows.map(b => ({ caseIndex: b.caseIndex, amount: parseFloat(String(b.amount)) }));
   const timeLeft    = Math.max(0, round.closesAt.getTime() - Date.now());
 
   res.json({
@@ -237,12 +240,8 @@ router.get("/malette/round/current", async (req, res): Promise<void> => {
     betsPerCase,
     timeLeft,
     closesAt:   round.closesAt.toISOString(),
-    myBet: myBetRow ? {
-      caseIndex:  myBetRow.caseIndex,
-      amount:     parseFloat(String(myBetRow.amount)),
-      multiplier: null,
-      payout:     null,
-    } : null,
+    myBets,
+    myBet:      myBets[0] ?? null,
   });
 });
 
@@ -273,13 +272,6 @@ router.post("/malette/bet", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Tirage imminent — les paris sont fermés" }); return;
   }
 
-  // Une seule mise par joueur par round
-  const [existing] = await db.select({ id: maletteBetsTable.id })
-    .from(maletteBetsTable)
-    .where(and(eq(maletteBetsTable.roundId, roundId), eq(maletteBetsTable.clerkId, clerkId)))
-    .limit(1);
-  if (existing) { res.status(400).json({ error: "Vous avez déjà misé dans ce round" }); return; }
-
   // Vérification du solde
   const balance = await getBalance(clerkId);
   if (balance < amount) { res.status(400).json({ error: "Solde insuffisant" }); return; }
@@ -307,21 +299,26 @@ router.get("/malette/round/:id", async (req, res): Promise<void> => {
   if (!round) { res.status(404).json({ error: "Round introuvable" }); return; }
 
   if (round.status === "closed") {
-    const myBetRow = await db.select().from(maletteBetsTable)
-      .where(and(eq(maletteBetsTable.roundId, roundId), eq(maletteBetsTable.clerkId, clerkId)))
-      .limit(1).then(r => r[0] ?? null);
-    res.json(buildClosedPayload(round, myBetRow));
+    const myBetRows = await db.select().from(maletteBetsTable)
+      .where(and(eq(maletteBetsTable.roundId, roundId), eq(maletteBetsTable.clerkId, clerkId)));
+    res.json(buildClosedPayload(round, myBetRows));
     return;
   }
 
-  const bets = await db.select().from(maletteBetsTable).where(eq(maletteBetsTable.roundId, roundId));
+  const [bets, myBetRows] = await Promise.all([
+    db.select().from(maletteBetsTable).where(eq(maletteBetsTable.roundId, roundId)),
+    db.select().from(maletteBetsTable)
+      .where(and(eq(maletteBetsTable.roundId, roundId), eq(maletteBetsTable.clerkId, clerkId))),
+  ]);
+  const myBets = myBetRows.map(b => ({ caseIndex: b.caseIndex, amount: parseFloat(String(b.amount)) }));
   res.json({
-    roundId:    round.id,
-    status:     "betting" as const,
+    roundId:     round.id,
+    status:      "betting" as const,
     betsPerCase: buildBetsPerCase(bets),
-    timeLeft:   Math.max(0, round.closesAt.getTime() - Date.now()),
-    closesAt:   round.closesAt.toISOString(),
-    myBet:      null,
+    timeLeft:    Math.max(0, round.closesAt.getTime() - Date.now()),
+    closesAt:    round.closesAt.toISOString(),
+    myBets,
+    myBet:       myBets[0] ?? null,
   });
 });
 
