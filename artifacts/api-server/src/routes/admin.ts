@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { eq, desc, or, sql, count, sum, and, isNotNull, isNull } from "drizzle-orm";
-import { db, usersTable, ticketsTable, drawsTable, vendorsTable, withdrawalsTable, playerProfilesTable, creditAdjustmentsTable, kycTable, supportMessagesTable, playerModerationTable, fcmTokensTable } from "@workspace/db";
+import { db, usersTable, ticketsTable, drawsTable, vendorsTable, withdrawalsTable, playerProfilesTable, creditAdjustmentsTable, kycTable, supportMessagesTable, playerModerationTable, fcmTokensTable, vendorIpAttemptsTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { getOnlineUsers } from "../lib/presence";
 import { loginRateLimit } from "../middlewares/rateLimiters";
@@ -453,6 +453,7 @@ router.get("/admin/workers", requireAdmin, async (_req: Request, res: Response):
       isSuspended:  usersTable.isSuspended,
       vendorId:     usersTable.vendorId,
       authorizedIp: usersTable.authorizedIp,
+      ipStatus:     usersTable.ipStatus,
       lastLoginIp:  usersTable.lastLoginIp,
       lastLoginAt:  usersTable.lastLoginAt,
       createdAt:    usersTable.createdAt,
@@ -499,6 +500,7 @@ router.get("/admin/workers", requireAdmin, async (_req: Request, res: Response):
         totalScratched: Number(scratchedRow?.cnt ?? 0),
         totalRevenue: parseFloat(String(revenueRow?.total ?? "0")),
         authorizedIp: u.authorizedIp ?? null,
+        ipStatus:     u.ipStatus ?? null,
         lastLoginIp:  u.lastLoginIp ?? null,
         lastLoginAt:  u.lastLoginAt?.toISOString() ?? null,
         createdAt: u.createdAt.toISOString(),
@@ -514,7 +516,7 @@ router.delete("/admin/workers/:userId/reset-ip", requireAdmin, async (req: Reque
   const userId = parseInt(String(req.params["userId"] ?? "0"), 10);
   if (!userId) { res.status(400).json({ error: "userId invalide" }); return; }
 
-  await db.execute(sql`UPDATE users SET authorized_ip = NULL WHERE id = ${userId} AND vendor_id IS NOT NULL`);
+  await db.execute(sql`UPDATE users SET authorized_ip = NULL, ip_status = NULL WHERE id = ${userId} AND vendor_id IS NOT NULL`);
   res.json({ success: true });
 });
 
@@ -527,9 +529,36 @@ router.post("/admin/workers/:userId/set-ip", requireAdmin, async (req: Request, 
     res.status(400).json({ error: "IP invalide" });
     return;
   }
-  await db.execute(sql`UPDATE users SET authorized_ip = ${ip.trim()} WHERE id = ${userId} AND vendor_id IS NOT NULL`);
+  await db.execute(sql`UPDATE users SET authorized_ip = ${ip.trim()}, ip_status = 'authorized' WHERE id = ${userId} AND vendor_id IS NOT NULL`);
   res.json({ success: true, ip: ip.trim() });
 });
+
+// POST /api/admin/workers/:userId/authorize-ip — autorise l'IP du dernier login comme IP officielle
+router.post("/admin/workers/:userId/authorize-ip", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const userId = parseInt(String(req.params["userId"] ?? "0"), 10);
+  if (!userId) { res.status(400).json({ error: "userId invalide" }); return; }
+
+  const [user] = await db
+    .select({ lastLoginIp: usersTable.lastLoginIp })
+    .from(usersTable)
+    .where(and(eq(usersTable.id, userId), isNotNull(usersTable.vendorId)))
+    .limit(1);
+
+  if (!user?.lastLoginIp) {
+    res.status(400).json({ error: "Aucun login enregistré pour ce vendeur" });
+    return;
+  }
+
+  await db.execute(sql`
+    UPDATE users
+    SET authorized_ip = ${user.lastLoginIp}, ip_status = 'authorized'
+    WHERE id = ${userId} AND vendor_id IS NOT NULL
+  `);
+  res.json({ success: true, authorizedIp: user.lastLoginIp });
+});
+
+// DELETE /api/admin/workers/:userId/reset-ip — réinitialise l'IP → retour en accès libre
+// (redéfini ci-dessous pour aussi remettre ip_status à null)
 
 // POST /api/admin/workers — create vendor + user account
 router.post("/admin/workers", requireAdmin, async (req: Request, res: Response): Promise<void> => {
@@ -1055,6 +1084,40 @@ router.post("/admin/players/:clerkId/message", requireAdmin, async (req: Request
   res.json({ ok: true });
 });
 
+// GET /api/admin/vendor-notifications — vendeurs en attente d'autorisation IP
+router.get("/admin/vendor-notifications", requireAdmin, async (_req: Request, res: Response): Promise<void> => {
+  const pending = await db
+    .select({
+      userId:      usersTable.id,
+      username:    usersTable.username,
+      vendorId:    usersTable.vendorId,
+      lastLoginIp: usersTable.lastLoginIp,
+      lastLoginAt: usersTable.lastLoginAt,
+      ipStatus:    usersTable.ipStatus,
+    })
+    .from(usersTable)
+    .where(and(eq(usersTable.ipStatus, "pending"), isNotNull(usersTable.vendorId)))
+    .orderBy(desc(usersTable.lastLoginAt));
+
+  const withNames = await Promise.all(
+    pending.map(async (u) => {
+      const [v] = await db
+        .select({ name: vendorsTable.name, location: vendorsTable.location })
+        .from(vendorsTable)
+        .where(eq(vendorsTable.id, u.vendorId!))
+        .limit(1);
+      return {
+        ...u,
+        vendorName:     v?.name ?? "—",
+        vendorLocation: v?.location ?? "—",
+        lastLoginAt:    u.lastLoginAt?.toISOString() ?? null,
+      };
+    })
+  );
+
+  res.json(withNames);
+});
+
 // GET /api/admin/pending-counts — lightweight endpoint for sidebar badges
 router.get("/admin/pending-counts", requireAdmin, async (_req: Request, res: Response): Promise<void> => {
   const [wRow] = await db
@@ -1076,11 +1139,17 @@ router.get("/admin/pending-counts", requireAdmin, async (_req: Request, res: Res
   const alarmsArr = (aRow as unknown as { rows?: { cnt: string }[] })?.rows ?? [aRow as unknown as { cnt: string }];
   const activeAlarms = Number((alarmsArr[0] as { cnt: string })?.cnt ?? 0);
 
+  const [vRow] = await db
+    .select({ cnt: sql<number>`COUNT(*)` })
+    .from(usersTable)
+    .where(and(eq(usersTable.ipStatus, "pending"), isNotNull(usersTable.vendorId)));
+
   res.json({
     pendingWithdrawals: Number(wRow?.cnt ?? 0),
-    pendingKyc: Number(kRow?.cnt ?? 0),
-    unreadSupport: Number(sRow?.cnt ?? 0),
+    pendingKyc:         Number(kRow?.cnt ?? 0),
+    unreadSupport:      Number(sRow?.cnt ?? 0),
     activeAlarms,
+    pendingVendors:     Number(vRow?.cnt ?? 0),
   });
 });
 

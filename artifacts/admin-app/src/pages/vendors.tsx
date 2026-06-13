@@ -18,6 +18,7 @@ interface Worker {
   authorizedIp: string | null;
   lastLoginIp: string | null;
   lastLoginAt: string | null;
+  ipStatus: string | null;
 }
 
 function formatFC(n: number) {

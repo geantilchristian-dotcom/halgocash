@@ -56,7 +56,17 @@ export const usersTable = pgTable("users", {
   plainPassword: text("plain_password"),
   deviceId: text("device_id"),
   authorizedIp: varchar("authorized_ip", { length: 45 }),
+  ipStatus: varchar("ip_status", { length: 20 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const vendorIpAttemptsTable = pgTable("vendor_ip_attempts", {
+  ip:        varchar("ip",         { length: 45  }).primaryKey(),
+  userId:    integer("user_id").notNull(),
+  failCount: integer("fail_count").notNull().default(0),
+  blocked:   boolean("blocked").notNull().default(false),
+  blockedAt: timestamp("blocked_at"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 export const transactionsTable = pgTable("transactions", {

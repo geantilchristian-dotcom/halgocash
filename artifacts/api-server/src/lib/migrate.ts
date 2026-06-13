@@ -378,6 +378,24 @@ export async function runMigrations() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS authorized_ip VARCHAR(45)
     `);
 
+    // ── IP status on users ────────────────────────────────────────────────────
+    await client.query(`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS ip_status VARCHAR(20)
+    `);
+
+    // ── Vendor IP attempts (blocage après 2 tentatives non autorisées) ─────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS vendor_ip_attempts (
+        ip         VARCHAR(45) PRIMARY KEY,
+        user_id    INTEGER NOT NULL,
+        fail_count INTEGER NOT NULL DEFAULT 0,
+        blocked    BOOLEAN NOT NULL DEFAULT FALSE,
+        blocked_at TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
     // ── POS Sales (tickets générés par les vendeurs) ──────────────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS pos_sales (

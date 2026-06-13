@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import { eq, or, sum, and, isNotNull, desc, count, sql } from "drizzle-orm";
-import { db, usersTable, ticketsTable, withdrawalsTable, playerProfilesTable, creditAdjustmentsTable } from "@workspace/db";
+import { db, usersTable, ticketsTable, withdrawalsTable, playerProfilesTable, creditAdjustmentsTable, vendorIpAttemptsTable } from "@workspace/db";
 import { RegisterBody } from "@workspace/api-zod";
 import { z } from "zod";
 import { logger } from "../lib/logger";
@@ -149,6 +149,7 @@ router.post("/auth/login", loginRateLimit, async (req, res): Promise<void> => {
       plainPassword: usersTable.plainPassword,
       createdAt:    usersTable.createdAt,
       authorizedIp: usersTable.authorizedIp,
+      ipStatus:     usersTable.ipStatus,
     })
     .from(usersTable)
     .where(or(
@@ -181,21 +182,77 @@ router.post("/auth/login", loginRateLimit, async (req, res): Promise<void> => {
     "unknown";
 
   // ── Verrouillage IP — comptes vendeur uniquement ──────────────────────────
-  // L'admin fixe l'IP autorisée depuis le panneau "Points de vente".
-  // Tant qu'aucune IP n'est définie → connexion libre.
-  // Une fois l'IP définie → seul cet appareil est autorisé.
   if (user.role === "vendor") {
     try {
+      // Vérifier si cette IP est bannie (2 tentatives échouées)
+      const [attempt] = await db
+        .select({ blocked: vendorIpAttemptsTable.blocked })
+        .from(vendorIpAttemptsTable)
+        .where(eq(vendorIpAttemptsTable.ip, ip))
+        .limit(1);
+
+      if (attempt?.blocked) {
+        // IP bannie : répondre 404 (appareil invisible)
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+
       const storedIp = user.authorizedIp ?? null;
 
       if (storedIp !== null && storedIp !== ip) {
+        // Tentative depuis un appareil non autorisé → incrémenter le compteur
+        await db
+          .insert(vendorIpAttemptsTable)
+          .values({
+            ip,
+            userId: user.id,
+            failCount: 1,
+            blocked: false,
+            updatedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: vendorIpAttemptsTable.ip,
+            set: {
+              failCount: sql`vendor_ip_attempts.fail_count + 1`,
+              blocked:   sql`vendor_ip_attempts.fail_count + 1 >= 2`,
+              blockedAt: sql`CASE WHEN vendor_ip_attempts.fail_count + 1 >= 2 THEN NOW() ELSE NULL END`,
+              updatedAt: new Date(),
+            },
+          });
+
         res.status(403).json({
           error: "Connexion refusée : cet appareil n'est pas autorisé. Contactez l'administrateur.",
         });
         return;
       }
+
+      // Premier login (pas d'IP autorisée définie) → marquer comme "en attente"
+      if (storedIp === null && (user.ipStatus ?? null) !== "authorized") {
+        await db
+          .update(usersTable)
+          .set({ ipStatus: "pending", lastLoginIp: ip, lastLoginAt: new Date() })
+          .where(eq(usersTable.id, user.id));
+
+        // Réponse complète directement après la mise à jour
+        const setSessionPending = () => {
+          req.session.userId = user.id;
+          req.session.save((saveErr) => {
+            if (saveErr) {
+              logger.error({ err: saveErr }, "Session save failed");
+              res.status(500).json({ error: "Erreur serveur" });
+              return;
+            }
+            req.log.info({ userId: user.id, role: user.role }, "Vendor first login (pending)");
+            res.json({ id: user.id, email: user.email, username: user.username, role: user.role, vendorId: user.vendorId });
+          });
+        };
+        req.session.regenerate((err) => {
+          if (err) { setSessionPending(); return; }
+          setSessionPending();
+        });
+        return;
+      }
     } catch (ipErr) {
-      // Colonne pas encore en prod — on laisse passer
       logger.warn({ err: ipErr }, "IP binding skipped (column may not exist yet)");
     }
   }

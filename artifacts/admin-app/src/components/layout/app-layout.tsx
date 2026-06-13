@@ -1,6 +1,6 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   Ticket as TicketIcon,
@@ -26,6 +26,10 @@ import {
   Dices,
   CalendarCheck,
   Siren,
+  Bell,
+  MapPin,
+  Wifi,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -39,6 +43,18 @@ interface PendingCounts {
   pendingKyc: number;
   unreadSupport: number;
   activeAlarms: number;
+  pendingVendors: number;
+}
+
+interface VendorNotification {
+  userId: number;
+  username: string;
+  vendorId: number;
+  vendorName: string;
+  vendorLocation: string;
+  lastLoginIp: string | null;
+  lastLoginAt: string | null;
+  ipStatus: string | null;
 }
 
 interface NavItem {
@@ -109,6 +125,125 @@ function Badge({ count }: { count: number }) {
   );
 }
 
+// ── Cloche de notification vendeurs ──────────────────────────────────────────
+function VendorNotificationBell() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const qc = useQueryClient();
+
+  const { data: notifications = [] } = useQuery<VendorNotification[]>({
+    queryKey: ["/api/admin/vendor-notifications"],
+    queryFn: async () => {
+      const r = await fetch("/api/admin/vendor-notifications", { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+  });
+
+  const authorizeMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const r = await fetch(`/api/admin/workers/${userId}/authorize-ip`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!r.ok) throw new Error("Erreur autorisation");
+      return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/vendor-notifications"] });
+      qc.invalidateQueries({ queryKey: ["/api/admin/pending-counts"] });
+      qc.invalidateQueries({ queryKey: ["/api/admin/workers"] });
+    },
+  });
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const count = notifications.length;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="relative p-1.5 rounded-md text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
+        title="Nouveaux logins vendeurs"
+      >
+        <Bell className="h-4 w-4" />
+        {count > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full text-[9px] font-bold flex items-center justify-center bg-indigo-500 text-white leading-none">
+            {count}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-8 w-72 rounded-xl shadow-2xl border border-zinc-800 bg-zinc-950 z-50 overflow-hidden">
+          <div className="px-3 py-2 border-b border-zinc-800 flex items-center justify-between">
+            <p className="text-[11px] font-bold text-zinc-200 uppercase tracking-wider">Logins vendeurs</p>
+            <span className="text-[10px] text-zinc-600">{count} en attente</span>
+          </div>
+
+          {count === 0 ? (
+            <div className="px-4 py-6 text-center">
+              <p className="text-xs text-zinc-600">Aucun nouveau login</p>
+            </div>
+          ) : (
+            <div className="max-h-80 overflow-y-auto divide-y divide-zinc-800/60">
+              {notifications.map((n) => (
+                <div key={n.userId} className="px-3 py-3">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold text-zinc-100 truncate">{n.vendorName}</p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-2.5 h-2.5 text-zinc-600 shrink-0" />
+                        <p className="text-[10px] text-zinc-500 truncate">{n.vendorLocation}</p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25 font-bold">
+                      EN ATTENTE
+                    </span>
+                  </div>
+
+                  {n.lastLoginIp && (
+                    <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded-md bg-indigo-500/10 border border-indigo-500/20">
+                      <Wifi className="w-3 h-3 text-indigo-400 shrink-0" />
+                      <span className="text-[10px] font-mono text-indigo-300">{n.lastLoginIp}</span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => authorizeMutation.mutate(n.userId)}
+                      disabled={authorizeMutation.isPending}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[10px] font-bold transition-colors bg-green-600/20 text-green-400 border border-green-600/30 hover:bg-green-600/30"
+                    >
+                      <Check className="w-3 h-3" />
+                      {authorizeMutation.isPending ? "…" : "Autoriser et verrouiller"}
+                    </button>
+                  </div>
+
+                  {n.lastLoginAt && (
+                    <p className="text-[9px] text-zinc-700 mt-1.5">
+                      {new Date(n.lastLoginAt).toLocaleString("fr-FR")}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
@@ -117,7 +252,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     queryKey: ["/api/admin/pending-counts"],
     queryFn: async () => {
       const r = await fetch("/api/admin/pending-counts", { credentials: "include" });
-      if (!r.ok) return { pendingWithdrawals: 0, pendingKyc: 0, unreadSupport: 0 };
+      if (!r.ok) return { pendingWithdrawals: 0, pendingKyc: 0, unreadSupport: 0, activeAlarms: 0, pendingVendors: 0 };
       return r.json();
     },
     refetchInterval: 20_000,
@@ -271,6 +406,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           </button>
           <span className="font-bold text-sm text-white truncate">{pageTitle}</span>
           <div className="ml-auto flex items-center gap-2">
+            <VendorNotificationBell />
             <Zap className="w-3.5 h-3.5 text-indigo-400" />
             <span className="text-[10px] text-zinc-600 uppercase tracking-widest">Halgo</span>
           </div>
@@ -284,6 +420,9 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
           <ChevronRight className="w-3 h-3 text-zinc-700" />
           <span className="text-xs text-zinc-600 font-mono">Halgo Cash Admin</span>
+          <div className="ml-auto">
+            <VendorNotificationBell />
+          </div>
         </div>
 
         <main className="flex-1 overflow-auto p-4 md:p-6 bg-zinc-950">
