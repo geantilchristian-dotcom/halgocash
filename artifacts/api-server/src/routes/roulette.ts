@@ -70,13 +70,12 @@ router.post("/roulette/spin", async (req, res): Promise<void> => {
   const wonAmount = Math.floor(amount * seg.multiplier);
   const netChange = wonAmount - amount;
 
-  if (netChange !== 0) {
-    await db.insert(creditAdjustmentsTable).values({
-      clerkId,
-      amount: String(netChange),
-      reason: "roulette_spin",
-    });
-  }
+  await db.insert(creditAdjustmentsTable).values({
+    clerkId,
+    amount: String(netChange !== 0 ? netChange : 0),
+    reason: "roulette_spin",
+    refId:  `${segmentIdx}:${amount}`,
+  });
 
   const newBalance = Math.max(0, currentBalance + netChange);
   res.json({ segmentIdx, label: seg.label, multiplier: seg.multiplier, wonAmount, newBalance });
