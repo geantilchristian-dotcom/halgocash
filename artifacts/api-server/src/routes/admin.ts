@@ -497,26 +497,41 @@ router.post("/admin/workers", requireAdmin, async (req: Request, res: Response):
   const normalizedEmail = email.toLowerCase().trim();
   const normalizedUsername = username.trim();
 
-  // Check username uniqueness
+  // Helper: returns true if a user record is orphaned (vendor deleted but user remained)
+  const isOrphan = async (vendorId: number | null): Promise<boolean> => {
+    if (!vendorId) return true;
+    const [v] = await db.select({ id: vendorsTable.id }).from(vendorsTable).where(eq(vendorsTable.id, vendorId)).limit(1);
+    return !v;
+  };
+
+  // Check username uniqueness — auto-clean orphaned records
   const [existingUsername] = await db
-    .select({ id: usersTable.id })
+    .select({ id: usersTable.id, vendorId: usersTable.vendorId })
     .from(usersTable)
     .where(eq(usersTable.username, normalizedUsername))
     .limit(1);
   if (existingUsername) {
-    res.status(409).json({ error: "Nom d'utilisateur déjà pris. Retrouvez le compte dans la liste et modifiez le mot de passe si nécessaire." });
-    return;
+    if (await isOrphan(existingUsername.vendorId ?? null)) {
+      await db.delete(usersTable).where(eq(usersTable.id, existingUsername.id));
+    } else {
+      res.status(409).json({ error: "Nom d'utilisateur déjà pris par un compte actif." });
+      return;
+    }
   }
 
-  // Check email uniqueness (case-insensitive)
+  // Check email uniqueness (case-insensitive) — auto-clean orphaned records
   const [existingEmail] = await db
-    .select({ id: usersTable.id })
+    .select({ id: usersTable.id, vendorId: usersTable.vendorId })
     .from(usersTable)
     .where(sql`LOWER(${usersTable.email}) = ${normalizedEmail}`)
     .limit(1);
   if (existingEmail) {
-    res.status(409).json({ error: "Cet email est déjà associé à un compte. Retrouvez-le dans la liste et modifiez le mot de passe si nécessaire." });
-    return;
+    if (await isOrphan(existingEmail.vendorId ?? null)) {
+      await db.delete(usersTable).where(eq(usersTable.id, existingEmail.id));
+    } else {
+      res.status(409).json({ error: "Cet email est déjà associé à un compte actif." });
+      return;
+    }
   }
 
   // Create vendor record
