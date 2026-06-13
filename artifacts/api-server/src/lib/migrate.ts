@@ -362,6 +362,29 @@ export async function runMigrations() {
       CREATE INDEX IF NOT EXISTS idx_malette_bets_clerk ON malette_bets (round_id, clerk_id)
     `);
 
+    // ── device_id column (ajout progressif) ─────────────────────────────────
+    await client.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS device_id TEXT
+    `);
+
+    // ── POS Sales (tickets générés par les vendeurs) ──────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS pos_sales (
+        id           SERIAL PRIMARY KEY,
+        vendor_id    INTEGER NOT NULL,
+        unit_amount  DECIMAL(12,2) NOT NULL,
+        quantity     INTEGER NOT NULL,
+        total_amount DECIMAL(12,2) NOT NULL,
+        codes        TEXT[] NOT NULL DEFAULT '{}',
+        currency     TEXT NOT NULL DEFAULT 'USD',
+        created_at   TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_pos_sales_vendor ON pos_sales (vendor_id)
+    `);
+
     logger.info("Database migrations completed successfully");
   } finally {
     client.release();

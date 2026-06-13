@@ -299,6 +299,17 @@ export const vendorDayClosuresTable = pgTable("vendor_day_closures", {
   closedAt: timestamp("closed_at").notNull().defaultNow(),
 });
 
+export const posSalesTable = pgTable("pos_sales", {
+  id:          serial("id").primaryKey(),
+  vendorId:    integer("vendor_id").notNull(),
+  unitAmount:  decimal("unit_amount",  { precision: 12, scale: 2 }).notNull(),
+  quantity:    integer("quantity").notNull(),
+  totalAmount: decimal("total_amount", { precision: 12, scale: 2 }).notNull(),
+  codes:       text("codes").array().notNull().default([]),
+  currency:    text("currency").notNull().default("USD"),
+  createdAt:   timestamp("created_at").notNull().defaultNow(),
+});
+
 export const vendorAlarmsTable = pgTable("vendor_alarms", {
   id: serial("id").primaryKey(),
   vendorId: integer("vendor_id").notNull(),

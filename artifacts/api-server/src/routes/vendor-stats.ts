@@ -14,7 +14,7 @@ router.get("/vendor/stats", async (req, res): Promise<void> => {
   }
 
   const [vendorUser] = await db
-    .select()
+    .select({ vendorId: usersTable.vendorId })
     .from(usersTable)
     .where(eq(usersTable.id, vendorUserId))
     .limit(1);
@@ -102,7 +102,7 @@ router.get("/vendor/tickets", async (req, res): Promise<void> => {
   }
 
   const [vendorUser] = await db
-    .select()
+    .select({ vendorId: usersTable.vendorId })
     .from(usersTable)
     .where(eq(usersTable.id, vendorUserId))
     .limit(1);
