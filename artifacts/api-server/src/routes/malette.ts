@@ -150,7 +150,7 @@ async function processExpiredRounds(): Promise<void> {
           .set({ multiplier: String(mult), payout: String(payout) })
           .where(eq(maletteBetsTable.id, bet.id));
 
-        if (payout > 0) {
+        if (payout > 0 && !bet.clerkId.startsWith("pos:")) {
           await db.insert(creditAdjustmentsTable).values({
             clerkId: bet.clerkId,
             amount:  String(payout),

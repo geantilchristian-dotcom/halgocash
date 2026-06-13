@@ -416,6 +416,36 @@ export async function runMigrations() {
       CREATE INDEX IF NOT EXISTS idx_pos_sales_vendor ON pos_sales (vendor_id)
     `);
 
+    // ── POS Game Tickets (jeux vendeur : malette, sport) ──────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS pos_game_tickets (
+        id                SERIAL PRIMARY KEY,
+        ticket_code       VARCHAR(12) NOT NULL UNIQUE,
+        vendor_id         INTEGER NOT NULL,
+        vendor_user_id    INTEGER NOT NULL,
+        game_type         VARCHAR(20) NOT NULL,
+        game_ref_id       INTEGER,
+        selection         JSONB,
+        home_team         TEXT,
+        away_team         TEXT,
+        match_date        TIMESTAMP,
+        amount_fc         INTEGER NOT NULL,
+        potential_payout_fc INTEGER,
+        status            VARCHAR(20) NOT NULL DEFAULT 'pending',
+        actual_payout_fc  INTEGER,
+        created_at        TIMESTAMP NOT NULL DEFAULT NOW(),
+        settled_at        TIMESTAMP,
+        paid_at           TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_pos_game_tickets_vendor ON pos_game_tickets (vendor_id);
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_pos_game_tickets_code ON pos_game_tickets (ticket_code);
+    `);
+
     logger.info("Database migrations completed successfully");
   } finally {
     client.release();

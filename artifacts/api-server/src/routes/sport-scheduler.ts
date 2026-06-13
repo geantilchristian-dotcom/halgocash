@@ -88,8 +88,8 @@ export async function runSettlementJob(): Promise<{ settled: number; errors: num
             .set({ status: won ? "won" : "lost", settledAt: new Date() })
             .where(eq(sportBetsTable.id, bet.id));
 
-          // 4. Credit winner's main FC balance via creditAdjustments
-          if (won) {
+          // 4. Credit winner's main FC balance (skip POS tickets)
+          if (won && !bet.clerkId.startsWith("pos:")) {
             await db.insert(creditAdjustmentsTable).values({
               clerkId: bet.clerkId,
               amount: bet.potentialWin,

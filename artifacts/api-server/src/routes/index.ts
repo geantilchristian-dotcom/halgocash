@@ -29,6 +29,7 @@ import maletteRouter from "./malette";
 import posRouter from "./pos";
 import paymentsRouter from "./payments";
 import vendorDayRouter from "./vendor-day";
+import posGamesRouter from "./pos-games";
 
 const router: IRouter = Router();
 
@@ -62,5 +63,6 @@ router.use(maletteRouter);
 router.use(posRouter);
 router.use(paymentsRouter);
 router.use(vendorDayRouter);
+router.use(posGamesRouter);
 
 export default router;

@@ -338,6 +338,27 @@ export const vendorAlarmsTable = pgTable("vendor_alarms", {
 export type VendorDayClosure = typeof vendorDayClosuresTable.$inferSelect;
 export type VendorAlarm = typeof vendorAlarmsTable.$inferSelect;
 
+export const posGameTicketsTable = pgTable("pos_game_tickets", {
+  id:               serial("id").primaryKey(),
+  ticketCode:       varchar("ticket_code", { length: 12 }).notNull().unique(),
+  vendorId:         integer("vendor_id").notNull(),
+  vendorUserId:     integer("vendor_user_id").notNull(),
+  gameType:         varchar("game_type", { length: 20 }).notNull(),
+  gameRefId:        integer("game_ref_id"),
+  selection:        json("selection"),
+  homeTeam:         text("home_team"),
+  awayTeam:         text("away_team"),
+  matchDate:        timestamp("match_date"),
+  amountFc:         integer("amount_fc").notNull(),
+  potentialPayoutFc: integer("potential_payout_fc"),
+  status:           varchar("status", { length: 20 }).notNull().default("pending"),
+  actualPayoutFc:   integer("actual_payout_fc"),
+  createdAt:        timestamp("created_at").notNull().defaultNow(),
+  settledAt:        timestamp("settled_at"),
+  paidAt:           timestamp("paid_at"),
+});
+export type PosGameTicket = typeof posGameTicketsTable.$inferSelect;
+
 export const insertVendorSchema = createInsertSchema(vendorsTable).omit({ id: true, createdAt: true });
 export const insertDrawSchema = createInsertSchema(drawsTable).omit({ id: true, createdAt: true, drawnAt: true, winningTicketCode: true, winningNumbers: true, prizePool: true });
 export const insertTicketSchema = createInsertSchema(ticketsTable).omit({ id: true, createdAt: true });

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { AppLayout } from "../components/layout/app-layout";
 import { useAuth } from "@/lib/auth-context";
+import JeuxTab from "./caisse-jeux";
 import {
   Printer,
   Loader2,
@@ -92,7 +93,7 @@ const MM_NETWORKS = [
 ] as const;
 
 type MmStep = "form" | "pending" | "success" | "error";
-type Tab = "pos" | "mobilemoney" | "journee";
+type Tab = "pos" | "mobilemoney" | "journee" | "jeux";
 
 // ── Time helpers for open/close logic ──
 // Work window: 08:00 → 16:30
@@ -339,6 +340,7 @@ export default function Caisse() {
             {([
               { id: "pos",         label: "Tickets POS",  icon: ReceiptText },
               { id: "mobilemoney", label: "Mobile Money", icon: Smartphone  },
+              { id: "jeux",        label: "Jeux",         icon: TrendingUp  },
               { id: "journee",     label: "Journée",      icon: CalendarCheck },
             ] as const).map(({ id, label, icon: Icon }) => (
               <button
@@ -591,6 +593,20 @@ export default function Caisse() {
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════
+              TAB — JEUX POS
+          ══════════════════════════════════════════ */}
+          {tab === "jeux" && (
+            <div className="rounded-2xl bg-white shadow-sm border border-gray-100 p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="w-5 h-5 text-blue-700" />
+                <h2 className="font-black text-base text-gray-900">Jeux POS</h2>
+                <span className="ml-auto text-[10px] text-gray-400 font-medium">Malette · Sport</span>
+              </div>
+              <JeuxTab />
             </div>
           )}
 
