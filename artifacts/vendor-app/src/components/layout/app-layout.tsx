@@ -8,7 +8,9 @@ import {
   ReceiptText,
   Siren,
   X,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -89,13 +91,81 @@ function AlarmButton() {
   );
 }
 
+function LogoutButton() {
+  const { logout } = useAuth();
+  const [, navigate] = useLocation();
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleLogout = async () => {
+    setLoading(true);
+    try {
+      await logout();
+      navigate("/login");
+    } catch {
+      // silent
+    }
+    setLoading(false);
+    setShowConfirm(false);
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => setShowConfirm(true)}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95"
+        style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.15)" }}
+      >
+        <LogOut className="w-3.5 h-3.5" />
+        Quitter
+      </button>
+
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center pb-28 px-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowConfirm(false)} />
+          <div className="relative w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/40 shadow-2xl p-5">
+            <button onClick={() => setShowConfirm(false)} className="absolute top-3 right-3 p-1 text-zinc-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center">
+                <LogOut className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="font-black text-white text-sm">Se déconnecter ?</p>
+                <p className="text-xs text-zinc-400">Vous devrez vous reconnecter pour accéder à l'espace vendeur.</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold text-sm hover:bg-zinc-700 transition-all"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => void handleLogout()}
+                disabled={loading}
+                className="flex-1 py-2.5 rounded-xl font-black text-sm transition-all active:scale-[0.98]"
+                style={{ background: HEADER_BG, color: "#8DC63F" }}
+              >
+                {loading ? "…" : "Se déconnecter"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function AppLayout({ children }: AppLayoutProps) {
   const [location] = useLocation();
 
   return (
     <div className="min-h-[100dvh] w-full flex flex-col" style={{ background: "#f2f5f2" }}>
 
-      {/* ── Top header with alarm ── */}
+      {/* ── Top header with alarm + logout ── */}
       <header
         className="sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 shrink-0"
         style={{ background: HEADER_BG, boxShadow: "0 2px 12px rgba(10,32,16,0.3)" }}
@@ -114,7 +184,10 @@ export function AppLayout({ children }: AppLayoutProps) {
             letterSpacing: "-0.02em", lineHeight: 1,
           }}>Cash</span>
         </div>
-        <AlarmButton />
+        <div className="flex items-center gap-2">
+          <LogoutButton />
+          <AlarmButton />
+        </div>
       </header>
 
       {/* ── Main Content ── */}
