@@ -102,7 +102,7 @@ function GameSelector({ onSelect }: { onSelect: (g: GameMode) => void }) {
   }, []);
 
   const jackpot = Number(draw?.jackpotAmount ?? 0);
-  const recentSpinCount = roulette?.recentSpins.length ?? 0;
+  const recentSpinCount = roulette?.recentSpins?.length ?? 0;
 
   const cards: { game: GameMode; icon: string; label: string; sub: string; color: string; glow: string }[] = [
     {

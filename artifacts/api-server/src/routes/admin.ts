@@ -1135,9 +1135,8 @@ router.get("/admin/pending-counts", requireAdmin, async (_req: Request, res: Res
     .from(supportMessagesTable)
     .where(and(eq(supportMessagesTable.fromAdmin, false), eq(supportMessagesTable.isRead, false)));
 
-  const [aRow] = await db.execute(sql`SELECT COUNT(*) AS cnt FROM vendor_alarms WHERE status = 'active'`);
-  const alarmsArr = (aRow as unknown as { rows?: { cnt: string }[] })?.rows ?? [aRow as unknown as { cnt: string }];
-  const activeAlarms = Number((alarmsArr[0] as { cnt: string })?.cnt ?? 0);
+  const aResult = await db.execute(sql`SELECT COUNT(*) AS cnt FROM vendor_alarms WHERE status = 'active'`);
+  const activeAlarms = Number((aResult.rows[0] as { cnt: string } | undefined)?.cnt ?? 0);
 
   const [vRow] = await db
     .select({ cnt: sql<number>`COUNT(*)` })

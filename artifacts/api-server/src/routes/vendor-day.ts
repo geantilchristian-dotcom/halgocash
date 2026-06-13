@@ -191,7 +191,7 @@ router.post("/admin/alarms/:id/dismiss", async (req: Request, res: Response) => 
   const [admin] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, session.userId)).limit(1);
   if (admin?.role !== "admin") return void res.status(403).json({ error: "Accès refusé" });
 
-  const alarmId = parseInt(req.params["id"] ?? "0", 10);
+  const alarmId = parseInt(String(req.params["id"] ?? "0"), 10);
   await db.execute(sql`
     UPDATE vendor_alarms SET status = 'dismissed', dismissed_at = NOW()
     WHERE id = ${alarmId}
