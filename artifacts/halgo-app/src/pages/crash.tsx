@@ -185,10 +185,6 @@ function generateFeedId(): string {
   return `ID:${n1}-${n2}${letter}`;
 }
 
-const SEED_HISTORY: HistoryEntry[] = [
-  { cp: 2.14 }, { cp: 1.03 }, { cp: 8.73 }, { cp: 1.02 }, { cp: 4.55 },
-  { cp: 1.22 }, { cp: 15.33 }, { cp: 3.01 }, { cp: 1.55 }, { cp: 6.78 },
-];
 
 // Bet amounts pool for simulated players
 const SIM_BETS = [200, 500, 1000, 2000, 5000, 10000];
@@ -378,7 +374,7 @@ export default function CrashGame() {
   const [phase, setPhase]               = useState<Phase>("waiting");
   const [multiplier, setMultiplier]     = useState(1.0);
   const [countdown, setCountdown]       = useState(BET_WINDOW_S);
-  const [history, setHistory]           = useState<HistoryEntry[]>(SEED_HISTORY);
+  const [history, setHistory]           = useState<HistoryEntry[]>([]);
   const [balance, setBalance]           = useState<number>(0);
   const [balanceLoaded, setBalanceLoaded] = useState(false);
   const [balanceFlash, setBalanceFlash] = useState(false);
@@ -445,6 +441,18 @@ export default function CrashGame() {
       .catch(() => { setBalanceLoaded(true); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded]);
+
+  // ── Load real crash history from server on mount ───────────────────────────
+  useEffect(() => {
+    fetch("/api/crash/history")
+      .then(r => r.ok ? r.json() as Promise<{ history: number[] }> : null)
+      .then(d => {
+        if (d?.history?.length) {
+          setHistory(d.history.map(cp => ({ cp })));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Resize canvas ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -842,6 +850,12 @@ export default function CrashGame() {
         // ── First message or new round → full rebuild via startRound ──────────
         if (!initialised || roundId !== lastRoundId) {
           initialised  = true;
+          // When the server just started a new cycle (show phase), the previous
+          // crash result is in prevCrashPoint — prepend it to history immediately
+          if (roundId !== lastRoundId && sPhase === "show" && state.prevCrashPoint) {
+            const cp = parseFloat(state.prevCrashPoint.toFixed(2));
+            setHistory(h => [{ cp }, ...h].slice(0, 25));
+          }
           lastRoundId  = roundId;
           const cp =
             sPhase === "flying"  ? state.crashPoint      :

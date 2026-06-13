@@ -55,12 +55,19 @@ let activeCycle: Cycle = { id: 0, startedAt: 0, crashPoint: 2.0 };
 let cycleTimer: ReturnType<typeof setTimeout> | null = null;
 let lastCrashedPoint = 2.0; // saved when each cycle ends — shown during the 2s crash display
 
+// Rolling crash history — last 30 results, newest first
+const crashHistory: number[] = [];
+
 // Declared here (before startCycle boot call) so broadcastCrashState can reference it at startup
 const sseClients = new Set<Response>();
 
 function startCycle(): void {
   // Save crash point from the cycle that just ended
-  if (activeCycle.id !== 0) lastCrashedPoint = activeCycle.crashPoint;
+  if (activeCycle.id !== 0) {
+    lastCrashedPoint = activeCycle.crashPoint;
+    crashHistory.unshift(parseFloat(activeCycle.crashPoint.toFixed(2)));
+    if (crashHistory.length > 30) crashHistory.pop();
+  }
 
   const startedAt = Date.now();
   const id = Math.floor(startedAt / 1000);
@@ -77,6 +84,17 @@ function startCycle(): void {
   // Broadcast new state immediately to all SSE clients
   broadcastCrashState();
 }
+
+// Pre-seed history with estimated past rounds (HMAC is deterministic)
+// Average cycle ≈ 30s — good enough to show plausible recent history at startup
+;(function preSeedHistory() {
+  const nowS = Math.floor(Date.now() / 1000);
+  const AVG_CYCLE_S = 30;
+  for (let i = 1; i <= 25; i++) {
+    const estId = nowS - i * AVG_CYCLE_S;
+    crashHistory.push(parseFloat(hmacCrashPoint(estId).toFixed(2)));
+  }
+})();
 
 startCycle(); // boot
 
@@ -145,6 +163,11 @@ async function getBalance(userId: string): Promise<number> {
   const credits = creditsRow?.total ? parseFloat(String(creditsRow.total)) : 0;
   return Math.max(0, wins + credits - paid - pending);
 }
+
+// ── GET /api/crash/history ────────────────────────────────────────────────────
+router.get("/crash/history", (_req, res): void => {
+  res.json({ history: crashHistory.slice(0, 25) });
+});
 
 // ── GET /api/crash/round ──────────────────────────────────────────────────────
 // During betting window  → returns commitment (NO crash point — can't be predicted)
