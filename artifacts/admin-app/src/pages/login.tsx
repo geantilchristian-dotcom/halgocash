@@ -16,6 +16,7 @@ export default function Login() {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,6 +102,22 @@ export default function Login() {
                     {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+              </div>
+
+              {/* Mot de passe oublié */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowForgot((v) => !v)}
+                  className="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+                >
+                  Mot de passe oublié ?
+                </button>
+                {showForgot && (
+                  <p className="mt-2 text-xs text-zinc-400 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5">
+                    Contactez le responsable technique Halgo Cash pour réinitialiser votre mot de passe.
+                  </p>
+                )}
               </div>
 
               <Button

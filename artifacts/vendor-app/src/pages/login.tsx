@@ -22,6 +22,7 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
   const [deviceId, setDeviceId] = useState("");
 
   useEffect(() => {
@@ -111,6 +112,22 @@ export default function Login() {
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
+          </div>
+
+          {/* Mot de passe oublié */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowForgot((v) => !v)}
+              className="text-xs text-green-600 hover:text-green-700 font-medium transition-colors"
+            >
+              Mot de passe oublié ?
+            </button>
+            {showForgot && (
+              <p className="mt-2 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+                Contactez votre administrateur Halgo Cash pour réinitialiser votre mot de passe.
+              </p>
+            )}
           </div>
 
           {/* Remember me */}
