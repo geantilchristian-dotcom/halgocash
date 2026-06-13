@@ -165,23 +165,27 @@ router.post("/auth/login", loginRateLimit, async (req, res): Promise<void> => {
   // First login from any device registers that device.
   // Subsequent logins from a different device are rejected.
   if (user.role === "vendor" || user.role === "admin") {
-    const rows = await db.execute(
-      sql`SELECT device_id FROM users WHERE id = ${user.id} LIMIT 1`
-    );
-    const rowList = ((rows as unknown as { rows?: unknown[] }).rows ?? (rows as unknown as unknown[]));
-    const storedDeviceId = ((rowList[0] as { device_id?: string | null } | undefined)?.device_id) ?? null;
+    try {
+      const storedDeviceId = user.deviceId ?? null;
 
-    if (storedDeviceId === null) {
-      // First time — register this device
-      if (deviceId) {
-        await db.execute(sql`UPDATE users SET device_id = ${deviceId} WHERE id = ${user.id}`);
+      if (storedDeviceId === null) {
+        // First time — register this device
+        if (deviceId) {
+          await db
+            .update(usersTable)
+            .set({ deviceId })
+            .where(eq(usersTable.id, user.id));
+        }
+      } else if (deviceId && storedDeviceId !== deviceId) {
+        // Device mismatch — block
+        res.status(403).json({
+          error: "Connexion refusée : appareil non reconnu. Contactez l'administrateur.",
+        });
+        return;
       }
-    } else if (deviceId && storedDeviceId !== deviceId) {
-      // Device mismatch — block
-      res.status(403).json({
-        error: "Connexion refusée : appareil non reconnu. Contactez l'administrateur.",
-      });
-      return;
+    } catch (deviceErr) {
+      // La colonne device_id n'existe pas encore en production — on ignore et on continue
+      logger.warn({ err: deviceErr }, "Device binding skipped (column may not exist yet)");
     }
   }
 
