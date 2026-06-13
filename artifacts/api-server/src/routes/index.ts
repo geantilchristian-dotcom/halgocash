@@ -30,6 +30,7 @@ import posRouter from "./pos";
 import paymentsRouter from "./payments";
 import vendorDayRouter from "./vendor-day";
 import posGamesRouter from "./pos-games";
+import displayRouter from "./display";
 
 const router: IRouter = Router();
 
@@ -64,5 +65,6 @@ router.use(posRouter);
 router.use(paymentsRouter);
 router.use(vendorDayRouter);
 router.use(posGamesRouter);
+router.use(displayRouter);
 
 export default router;

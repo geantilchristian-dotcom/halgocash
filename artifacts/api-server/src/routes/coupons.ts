@@ -167,7 +167,46 @@ router.post("/tickets/activate", async (req, res): Promise<void> => {
     .returning({ id: ticketsTable.id });
 
   if (claimed.length === 0) {
-    // Either already activated before this request, or race condition lost
+    // Ticket already activated — if scratched anonymously (no clerkId) and
+    // the current user IS authenticated, link the ticket to them now so their
+    // balance reflects the win.
+    if (effectiveUserId && !ticket.registeredByClerkId) {
+      const relinked = await db
+        .update(ticketsTable)
+        .set({ registeredByClerkId: effectiveUserId })
+        .where(and(eq(ticketsTable.id, ticket.id), isNull(ticketsTable.registeredByClerkId)))
+        .returning({ id: ticketsTable.id });
+
+      if (relinked.length > 0) {
+        // Linked successfully — compute authoritative balance
+        const [[winsRow2], [paidRow2], [pendingRow2], [creditsRow2]] = await Promise.all([
+          db.select({ total: sum(ticketsTable.prizeAmount) }).from(ticketsTable)
+            .where(and(eq(ticketsTable.registeredByClerkId, effectiveUserId), eq(ticketsTable.isWinner, true), isNotNull(ticketsTable.prizeAmount))),
+          db.select({ total: sum(withdrawalsTable.amount) }).from(withdrawalsTable)
+            .where(and(eq(withdrawalsTable.clerkId, effectiveUserId), eq(withdrawalsTable.status, "paid"))),
+          db.select({ total: sum(withdrawalsTable.amount) }).from(withdrawalsTable)
+            .where(and(eq(withdrawalsTable.clerkId, effectiveUserId), eq(withdrawalsTable.status, "pending"))),
+          db.select({ total: sum(creditAdjustmentsTable.amount) }).from(creditAdjustmentsTable)
+            .where(eq(creditAdjustmentsTable.clerkId, effectiveUserId)),
+        ]);
+        const wins2    = winsRow2?.total    ? parseFloat(String(winsRow2.total))    : 0;
+        const paid2    = paidRow2?.total    ? parseFloat(String(paidRow2.total))    : 0;
+        const pending2 = pendingRow2?.total ? parseFloat(String(pendingRow2.total)) : 0;
+        const credits2 = creditsRow2?.total ? parseFloat(String(creditsRow2.total)) : 0;
+        res.json({
+          code: ticket.code,
+          series: ticket.series,
+          isWinner: ticket.isWinner,
+          prizeAmount: ticket.isWinner ? amount : null,
+          prizeLabel,
+          alreadyActivated: true,
+          newBalance: Math.max(0, wins2 + credits2 - paid2 - pending2),
+        });
+        return;
+      }
+    }
+
+    // Ticket belongs to another user or can't be linked
     const msg = ticket.isWinner
       ? `Ce ticket a déjà été gratté — Résultat : ${prizeLabel} (${amount.toLocaleString("fr-FR")} FC). Il ne peut plus être utilisé.`
       : "Ce ticket a déjà été gratté — Résultat : Perdant. Il ne peut plus être utilisé.";

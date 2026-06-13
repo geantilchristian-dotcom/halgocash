@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Loader2, Printer, RefreshCw, Gamepad2, Search } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -107,6 +108,9 @@ function MaletteTicketPrint({
       <div style={{ fontWeight: 900, letterSpacing: 3, fontSize: 13 }}>
         Code: {ticket.ticketCode}
       </div>
+      <div style={{ display: "flex", justifyContent: "center", margin: "6px 0" }}>
+        <QRCodeSVG value={ticket.ticketCode} size={72} bgColor="#ffffff" fgColor="#000000" />
+      </div>
       <div style={{ fontSize: 9, color: "#999" }}>{now}</div>
       <div style={{ textAlign: "center", fontSize: 9, marginTop: 4 }}>
         Conservez ce ticket — Réclamez vos gains au vendeur
@@ -151,6 +155,9 @@ function SportTicketPrint({
       <hr style={{ margin: "5px 0", borderStyle: "dashed", borderWidth: 1 }} />
       <div style={{ fontWeight: 900, letterSpacing: 3, fontSize: 13 }}>
         Code: {ticket.ticketCode}
+      </div>
+      <div style={{ display: "flex", justifyContent: "center", margin: "6px 0" }}>
+        <QRCodeSVG value={ticket.ticketCode} size={72} bgColor="#ffffff" fgColor="#000000" />
       </div>
       <div style={{ fontSize: 9, color: "#999" }}>{now}</div>
       <div style={{ textAlign: "center", fontSize: 9, marginTop: 4 }}>
