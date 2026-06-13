@@ -14,7 +14,7 @@ import ScanRetrait from "@/pages/scan-retrait";
 import Rapport from "@/pages/rapport";
 import Historique from "@/pages/historique";
 import Caisse from "@/pages/caisse";
-import { Loader2 } from "lucide-react";
+import { Loader2, ShieldOff } from "lucide-react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,6 +43,30 @@ function ProtectedRouter() {
 
   if (user && (location === "/login" || location === "/register")) {
     return <Redirect to="/" />;
+  }
+
+  // Logged in but not linked to a vendor — full block
+  if (user && !user.vendorId && location !== "/login" && location !== "/register") {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 text-center gap-5">
+        <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center">
+          <ShieldOff className="w-8 h-8 text-red-500" />
+        </div>
+        <div>
+          <p className="text-xl font-black text-gray-900">Accès refusé</p>
+          <p className="text-sm text-gray-500 mt-2 max-w-xs">
+            Votre compte n'est pas associé à un point de vente.
+            Contactez un administrateur Halgo Cash.
+          </p>
+        </div>
+        <button
+          onClick={() => fetch("/api/auth/logout", { method: "POST", credentials: "include" }).then(() => window.location.replace("/vendor/login"))}
+          className="px-6 py-2.5 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-600 active:scale-95 transition-all"
+        >
+          Se déconnecter
+        </button>
+      </div>
+    );
   }
 
   return (

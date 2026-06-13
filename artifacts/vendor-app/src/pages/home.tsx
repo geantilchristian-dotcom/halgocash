@@ -108,6 +108,15 @@ export default function Home() {
     <AppLayout>
       <div className="space-y-4">
 
+        {/* ── Site branding ── */}
+        <div className="text-center pt-1 pb-2">
+          <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-gray-400">Espace vendeur</p>
+          <div className="flex items-center justify-center gap-1 leading-none mt-0.5">
+            <span className="font-black text-2xl tracking-tight text-gray-900">HALGO</span>
+            <span className="font-black text-2xl tracking-tight text-green-600">CASH</span>
+          </div>
+        </div>
+
         {/* ── Réception de billets (banner) ── */}
         {stats.pendingReceptionTickets > 0 && (
           <button

@@ -4,6 +4,7 @@ import { eq, desc, or, sql, count, sum, and, isNotNull, isNull } from "drizzle-o
 import { db, usersTable, ticketsTable, drawsTable, vendorsTable, withdrawalsTable, playerProfilesTable, creditAdjustmentsTable, kycTable, supportMessagesTable, playerModerationTable, fcmTokensTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { getOnlineUsers } from "../lib/presence";
+import { loginRateLimit } from "../middlewares/rateLimiters";
 
 const router: IRouter = Router();
 
@@ -143,8 +144,8 @@ function buildPrizeDistribution(
   };
 }
 
-// POST /api/admin/login
-router.post("/admin/login", async (req: Request, res: Response): Promise<void> => {
+// POST /api/admin/login — rate-limited (anti-bruteforce: 5 attempts / 15 min)
+router.post("/admin/login", loginRateLimit, async (req: Request, res: Response): Promise<void> => {
   const { identifier, password } = req.body as { identifier: string; password: string };
   if (!identifier || !password) {
     res.status(400).json({ error: "Identifiant et mot de passe requis" });
