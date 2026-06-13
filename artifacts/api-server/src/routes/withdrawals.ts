@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, sum, isNotNull } from "drizzle-orm";
+import { eq, desc, and, sum, isNotNull, sql } from "drizzle-orm";
 import { db, withdrawalsTable, vendorsTable, usersTable, ticketsTable, creditAdjustmentsTable } from "@workspace/db";
 import { getAuth, clerkClient } from "@clerk/express";
 import { withdrawalRateLimit } from "../middlewares/rateLimiters";
@@ -207,6 +207,8 @@ router.get("/withdrawals/:token", async (req, res): Promise<void> => {
 });
 
 // POST /api/withdrawals/:token/pay — vendor pays a withdrawal
+// Uses a PostgreSQL advisory lock (pg_advisory_xact_lock) to prevent race conditions:
+// concurrent pay requests for the same token queue up instead of double-paying.
 router.post("/withdrawals/:token/pay", async (req, res): Promise<void> => {
   const vendorUserId = req.session.userId;
   if (!vendorUserId) {
@@ -226,62 +228,80 @@ router.post("/withdrawals/:token/pay", async (req, res): Promise<void> => {
   }
 
   const token = String(req.params["token"]);
-  const [w] = await db
-    .select()
-    .from(withdrawalsTable)
-    .where(eq(withdrawalsTable.token, token))
-    .limit(1);
 
-  if (!w) {
-    res.status(404).json({ error: "Code de retrait introuvable" });
-    return;
-  }
-
-  if (w.status === "paid") {
-    res.status(409).json({ error: "Ce retrait a déjà été payé" });
-    return;
-  }
-
-  // Fetch Clerk profile snapshot to store permanently
+  // Fetch Clerk profile snapshot outside the transaction (network call, no lock needed)
   let clientPostNom: string | null = null;
   let clientPhone: string | null = null;
   let clientAge: string | null = null;
   let clientAddress: string | null = null;
-  try {
-    const clerkUser = await clerkClient.users.getUser(w.clerkId);
-    const meta = clerkUser.unsafeMetadata as Record<string, string | undefined>;
-    clientPostNom = meta?.postNom ?? null;
-    clientPhone = meta?.telephone ?? null;
-    clientAge = meta?.age ?? null;
-    clientAddress = meta?.adresse ?? null;
-  } catch { /* ignore */ }
 
-  const [updated] = await db
-    .update(withdrawalsTable)
-    .set({
-      status: "paid",
-      paidByVendorId: vendorUser.vendorId,
-      paidAt: new Date(),
-      clientPostNom,
-      clientPhone,
-      clientAge,
-      clientAddress,
-    })
-    .where(eq(withdrawalsTable.token, token))
-    .returning();
+  let result: { id: number; clerkName: string; amount: string; status: string; paidAt: Date | null } | null = null;
+  let alreadyPaid = false;
+  let notFound = false;
+
+  try {
+    await db.transaction(async (tx) => {
+      // Advisory lock keyed to token hash — serialises concurrent pay attempts
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${token}))`);
+
+      const [w] = await tx
+        .select()
+        .from(withdrawalsTable)
+        .where(eq(withdrawalsTable.token, token))
+        .limit(1);
+
+      if (!w) { notFound = true; return; }
+      if (w.status === "paid") { alreadyPaid = true; return; }
+
+      // Fetch Clerk profile (outside lock scope is fine — read-only external call)
+      try {
+        const clerkUser = await clerkClient.users.getUser(w.clerkId);
+        const meta = clerkUser.unsafeMetadata as Record<string, string | undefined>;
+        clientPostNom = meta?.postNom ?? null;
+        clientPhone = meta?.telephone ?? null;
+        clientAge = meta?.age ?? null;
+        clientAddress = meta?.adresse ?? null;
+      } catch { /* ignore — proceed without profile snapshot */ }
+
+      const [updated] = await tx
+        .update(withdrawalsTable)
+        .set({
+          status: "paid",
+          paidByVendorId: vendorUser.vendorId,
+          paidAt: new Date(),
+          clientPostNom,
+          clientPhone,
+          clientAge,
+          clientAddress,
+        })
+        .where(eq(withdrawalsTable.token, token))
+        .returning();
+
+      result = updated ?? null;
+    });
+  } catch (err) {
+    req.log.error({ err }, "Withdrawal pay transaction failed");
+    res.status(500).json({ error: "Erreur serveur lors du paiement" });
+    return;
+  }
+
+  if (notFound) { res.status(404).json({ error: "Code de retrait introuvable" }); return; }
+  if (alreadyPaid) { res.status(409).json({ error: "Ce retrait a déjà été payé" }); return; }
+  if (!result) { res.status(500).json({ error: "Erreur lors de la mise à jour" }); return; }
 
   const [vendor] = await db
     .select({ name: vendorsTable.name })
     .from(vendorsTable)
-    .where(eq(vendorsTable.id, vendorUser.vendorId))
+    .where(eq(vendorsTable.id, vendorUser.vendorId!))
     .limit(1);
 
+  const r = result as { id: number; clerkName: string; amount: string; status: string; paidAt: Date | null };
   res.json({
-    id: updated!.id,
-    clerkName: updated!.clerkName,
-    amount: parseFloat(String(updated!.amount)),
-    status: updated!.status,
-    paidAt: updated!.paidAt?.toISOString() ?? null,
+    id: r.id,
+    clerkName: r.clerkName,
+    amount: parseFloat(r.amount),
+    status: r.status,
+    paidAt: r.paidAt?.toISOString() ?? null,
     paidByVendorName: vendor?.name ?? null,
   });
 });

@@ -1,0 +1,56 @@
+C'est noté, Boss ! C'est une excellente décision d'avoir choisi **PostgreSQL 18**. Pour une plateforme de loterie et de fintech avec des transactions financières critiques, la robustesse d'une base de données relationnelle (système ACID) est bien plus sécurisée et adaptée que MongoDB.
+Voici la note de service corrigée et mise à jour avec vos spécifications techniques exactes. Vous pouvez la copier-coller pour votre équipe.
+# NOTE DE SERVICE TECHNIQUE : SÉCURISATION ET OPTIMISATION AVANT LANCEMENT – HALGO CASH
+**De :** Direction Générale (Gentil Rhuhune Usilolijuwa)
+**À :** Équipe de Développement Back-end & Front-end
+**Objet :** Feuille de route obligatoire – Sécurisation des flux, des accès et optimisation réseau pour le marché RDC
+Messieurs,
+L'architecture visuelle et la configuration initiale de notre plateforme **Halgo Cash** sont opérationnelles (Domaine, HTTPS, routage de base). Félicitations pour ce premier jalon.
+Cependant, s'agissant d'une plateforme Fintech/Loterie manipulant des flux financiers et des crédits marchands, la version actuelle fonctionne, mais elle n'est pas encore armée pour résister à des attaques réelles. En tant que Directeur du projet, je vous soumets cette feuille de route technique **non négociable**. Ces correctifs et modules manquants doivent être intégrés et testés avant toute mise en production officielle.
+## 1. SÉCURITÉ DE SURFACE ET INFRASTRUCTURE (Routes /sign-in et APIs)
+ * [ ] **Implémentation d'un Rate Limiter (Anti-Brute Force) :**
+   * *Ce qui manque :* Actuellement, les formulaires acceptent les requêtes infinies. Un robot peut tester des milliers de mots de passe par seconde.
+   * *Action attendue :* Intégrer d'urgence le package express-rate-limit sur toutes les routes d'authentification et les endpoints sensibles de l'API. Limiter à **5 tentatives maximum par tranche de 15 minutes** par adresse IP.
+ * [ ] **Protection et Masquage des En-têtes HTTP :**
+   * *Ce qui manque :* Le serveur expose publiquement des détails sur nos technologies (signatures Express/Node), ce qui aide les hackers à cibler nos failles.
+   * *Action attendue :* Installer et configurer le middleware **helmet** pour nettoyer les en-têtes HTTP et désactiver explicitement le header X-Powered-By.
+ * [ ] **Intégration d'un anti-robot invisible :**
+   * *Action attendue :* Intégrer **Cloudflare Turnstile** ou **reCAPTCHA v3** sur la page de connexion pour bloquer les requêtes automatisées sans alourdir l'expérience utilisateur.
+## 2. BLINDAGE DE L'ESPACE MARCHAND (/vendor/ et /vendor/login)
+ * [ ] **Messages d'erreur génériques (Anti-Énumération) :**
+   * *Ce qui manque :* Les messages d'erreur ne doivent pas indiquer si c'est le numéro de téléphone ou le mot de passe qui est faux.
+   * *Action attendue :* Uniformiser la réponse du serveur en cas d'échec de connexion. Renvoyer systématiquement : *"Identifiant ou mot de passe incorrect"*, que le numéro de vendeur existe ou non dans notre base de données.
+ * [ ] **Gestion stricte des Sessions au Comptoir (Session Timeout) :**
+   * *Ce qui manque :* Sur le terrain, un vendeur peut laisser son écran allumé. Quelqu'un pourrait imprimer des tickets à sa place.
+   * *Action attendue :* Configurer un **Auto-Logout automatique après 15 minutes d'inactivité**. Pour se reconnecter rapidement au guichet en cours de journée, autoriser le vendeur à entrer un **code PIN rapide à 4 chiffres** plutôt que son mot de passe complet.
+ * [ ] **Sécurisation des Jetons d'Authentification (JWT) :**
+   * *Action attendue :* Si vous utilisez des tokens pour maintenir les sessions des vendeurs, interdisez leur stockage dans le localStorage (trop vulnérable aux failles XSS). Stockez-les obligatoirement dans des cookies sécurisés avec les options **httpOnly: true**, **secure: true**, et **sameSite: 'strict'**.
+## 3. LOGIQUE MÉTIER, TRANSACTIONS ET SÉCURITÉ DE LA BASE DE DONNÉES (PostgreSQL 18)
+ * [ ] **Double validation systématique Côté Serveur (Back-end) :**
+   * *Ce qui manque :* La validation actuelle repose trop sur l'interface (Front-end).
+   * *Action attendue :* L'application mobile du vendeur ne doit avoir aucun pouvoir décisionnel. Le serveur doit assainir et valider chaque paramètre entrant via un outil comme express-validator ou joi avant d'interagir avec **PostgreSQL**.
+ * [ ] **Blocage des requêtes simultanées (Race Conditions) au Retrait via Transactions ACID :**
+   * *Le risque :* Un client valide son code gagnant et clique frénétiquement 3 fois de suite sur "Retirer" pour tenter de doubler le gain avant la mise à jour de la base de données.
+   * *Action attendue :* Utiliser la puissance de **PostgreSQL 18** en implémentant des **transactions SQL strictes avec verrous (Locks)**. Dès qu'un code de ticket est soumis pour un *retrait*, son statut doit passer instantanément à *"En cours"* ou *"Traité"* à l'aide d'une requête isolée, avant même que l'appel API vers notre agrégateur (SerdiPay) ne soit déclenché.
+ * [ ] **Complexité des Codes de Tickets uniques :**
+   * *Action attendue :* Assurez-vous que l'algorithme qui génère les codes uniques imprimés sur les billets utilise une source cryptographique forte (pas de suite logique, pas de fonctions basiques). Les codes doivent être complexes, uniques et indexés efficacement en base de données.
+## 4. FORTIFICATION DE L'INTERFACE D'ADMINISTRATION (/admin/)
+ * [ ] **Masquage de la Route Admin :**
+   * *Ce qui manque :* L'URL /admin/ est standard et trop facile à repérer par les scanners de failles.
+   * *Action attendue :* Modifier la route d'accès à l'administration. Remplacer /admin par une chaîne complexe et secrète connue uniquement de la direction (ex: /h-secure-admin-7721/).
+ * [ ] **Authentification à Double Facteur (2FA) Obligatoire :**
+   * *Action attendue :* Intégrer l'obligation d'un code de validation (via Google Authenticator ou protocole OTP) pour tout accès au Dashboard Administrateur. Le mot de passe seul est proscrit pour ce niveau de privilège.
+ * [ ] **Mise en place d'un Journal d'Audit (Audit Logs) :**
+   * *Action attendue :* Créer une table spécifique dans **PostgreSQL** qui enregistre en lecture seule chaque action sensible effectuée par un administrateur (ex: modification d'un solde vendeur, suppression de compte, modification des algorithmes de gains) avec horodatage strict, ID de l'admin et adresse IP.
+## 5. OPTIMISATION POUR LES CONTRAINTES DU RÉSEAU EN RDC
+ * [ ] **Politique d'interdiction de mise en cache privée :**
+   * *Action attendue :* Configurer les headers de réponse sur /vendor/ et /admin/ pour forcer les navigateurs à ne pas mettre les pages privées en mémoire cache (Cache-Control: no-store). Si un utilisateur clique sur le bouton "Retour" après s'être déconnecté, il doit faire face à une page expirée et non à ses anciennes données financières.
+ * [ ] **Code Splitting et Allègement de la charge initiale :**
+   * *Ce qui manque :* L'application semble charger tous ses composants d'un coup, ce qui va provoquer des "pages blanches" sur le terrain à Bukavu ou Kinshasa si la connexion 3G/4G faiblit.
+   * *Action attendue :* Mettre en place du *Lazy Loading* (chargement différé). La page /vendor/login doit être ultra-légère. Les modules lourds du tableau de bord ne doivent se charger qu'après authentification réussie.
+### Objectif final :
+Je demande à ce qu'un **Test de Charge (Load Testing)** soit simulé via un outil comme **k6** ou **JMeter** pour valider le comportement de notre serveur Node.js et de notre base de données **PostgreSQL 18** face à une simulation de **500 connexions et requêtes d'impression de tickets simultanées**.
+Je souhaite obtenir un rapport d'avancement sur ces différents points d'ici la fin de la semaine. Notre sérieux commercial dépend de la robustesse technique que vous allez livrer.
+Bon travail à tous.
+**Gentil Rhuhune Usilolijuwa**
+*Fondateur & CEO, Halgo Cash*

@@ -158,6 +158,33 @@ app.use(
   })),
 );
 
+// ── Private-page cache control — prevents browser back-button data leak ───
+// /vendor and /admin pages must never be stored in browser cache.
+app.use(["/vendor", "/admin"], (_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
+// ── Vendor session idle timeout (15 minutes) ──────────────────────────────
+// If a vendor session has been inactive for >15 min, destroy it automatically.
+// lastActivity is updated on every authenticated vendor API call.
+const VENDOR_IDLE_MS = 15 * 60 * 1000;
+app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+  const sess = req.session as typeof req.session & { userId?: number; lastActivity?: number };
+  if (sess.userId) {
+    const now = Date.now();
+    if (sess.lastActivity && now - sess.lastActivity > VENDOR_IDLE_MS) {
+      req.session.destroy(() => {});
+      res.status(401).json({ error: "Session expirée. Reconnectez-vous." });
+      return;
+    }
+    sess.lastActivity = now;
+  }
+  next();
+});
+
 // ── API routes ────────────────────────────────────────────────────────────
 app.use("/api", router);
 

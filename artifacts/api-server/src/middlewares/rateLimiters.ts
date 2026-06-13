@@ -12,10 +12,10 @@ function userKey(req: Request): string {
 }
 
 // ── Auth / Admin ───────────────────────────────────────────────────────────
-// Anti-bruteforce — login endpoint: 8 attempts per 15 minutes per IP
+// Anti-bruteforce — login endpoint: 5 attempts per 15 minutes per IP
 export const loginRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 8,
+  max: 5,
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { error: "Trop de tentatives de connexion. Réessayez dans 15 minutes." },
