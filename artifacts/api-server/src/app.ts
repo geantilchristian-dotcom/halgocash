@@ -207,14 +207,20 @@ app.use("/api", router);
 {
   const root = process.cwd();
 
+  const noCacheHeaders = {
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    Pragma: "no-cache",
+    Expires: "0",
+  };
+
   function tryServeApp(basePath: string, distDir: string) {
     const absDir = path.join(root, distDir);
     if (!fs.existsSync(absDir)) return;
     logger.info({ basePath, absDir }, "Serving static app");
     app.use(basePath, express.static(absDir, { index: false }));
-    // SPA fallback — all unmatched sub-routes return index.html
+    // SPA fallback — all unmatched sub-routes return index.html (never cached)
     app.use(basePath, (_req: Request, res: Response) => {
-      res.sendFile(path.join(absDir, "index.html"));
+      res.set(noCacheHeaders).sendFile(path.join(absDir, "index.html"));
     });
   }
 
@@ -227,8 +233,9 @@ app.use("/api", router);
   if (fs.existsSync(halgoDist)) {
     logger.info({ halgoDist }, "Serving halgo-app at /");
     app.use(express.static(halgoDist, { index: false }));
+    // index.html never cached — always fetch latest on navigation
     app.use((_req: Request, res: Response) => {
-      res.sendFile(path.join(halgoDist, "index.html"));
+      res.set(noCacheHeaders).sendFile(path.join(halgoDist, "index.html"));
     });
   }
 }
