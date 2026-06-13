@@ -100,14 +100,25 @@ export function AppLayout({ children }: AppLayoutProps) {
         className="sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 shrink-0"
         style={{ background: HEADER_BG, boxShadow: "0 2px 12px rgba(10,32,16,0.3)" }}
       >
-        <span className="text-sm font-black tracking-tight" style={{ color: "#fff" }}>
-          halgo<span style={{ color: "#F5C518" }}>Cash</span>
-        </span>
+        <div className="flex items-baseline gap-0 select-none">
+          <span style={{
+            fontFamily: "'Plus Jakarta Sans','Montserrat',sans-serif",
+            fontWeight: 900, fontStyle: "italic",
+            fontSize: "1.35rem", color: "#ffffff",
+            letterSpacing: "-0.02em", lineHeight: 1,
+          }}>halgo</span>
+          <span style={{
+            fontFamily: "'Plus Jakarta Sans','Montserrat',sans-serif",
+            fontWeight: 900, fontStyle: "italic",
+            fontSize: "1.35rem", color: "#8DC63F",
+            letterSpacing: "-0.02em", lineHeight: 1,
+          }}>Cash</span>
+        </div>
         <AlarmButton />
       </header>
 
       {/* ── Main Content ── */}
-      <main className="flex-1 overflow-auto pb-24 px-4 pt-5 max-w-md mx-auto w-full">
+      <main className="flex-1 overflow-auto pb-24 px-4 pt-3 max-w-md mx-auto w-full">
         {children}
       </main>
 
