@@ -159,7 +159,15 @@ router.post("/admin/login", loginRateLimit, async (req: Request, res: Response):
   }
 
   const [user] = await db
-    .select()
+    .select({
+      id:           usersTable.id,
+      email:        usersTable.email,
+      username:     usersTable.username,
+      role:         usersTable.role,
+      isSuspended:  usersTable.isSuspended,
+      passwordHash: usersTable.passwordHash,
+      vendorId:     usersTable.vendorId,
+    })
     .from(usersTable)
     .where(or(eq(usersTable.email, identifier), eq(usersTable.username, identifier)))
     .limit(1);
@@ -437,7 +445,15 @@ router.get("/admin/batches/:series", requireAdmin, async (req: Request, res: Res
 // GET /api/admin/workers — list all vendor users with their stats
 router.get("/admin/workers", requireAdmin, async (_req: Request, res: Response): Promise<void> => {
   const vendorUsers = await db
-    .select()
+    .select({
+      id:           usersTable.id,
+      username:     usersTable.username,
+      email:        usersTable.email,
+      plainPassword: usersTable.plainPassword,
+      isSuspended:  usersTable.isSuspended,
+      vendorId:     usersTable.vendorId,
+      createdAt:    usersTable.createdAt,
+    })
     .from(usersTable)
     .where(isNotNull(usersTable.vendorId))
     .orderBy(usersTable.createdAt);
