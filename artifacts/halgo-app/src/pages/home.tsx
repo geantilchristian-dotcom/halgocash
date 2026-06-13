@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { MobileMoneyModal } from "@/components/mobile-money-modal";
 import {
   X, QrCode, Sparkles, Loader2,
   ChevronRight, Eye, EyeOff,
   Ticket, AlertCircle, CheckCircle, Scan,
   Home as HomeIcon, User, Settings,
   Bell, CheckCheck, Clock, Shield, Lock, Camera, Tag,
-  Users, Copy, Plane, Zap, Gem, TrendingUp, Gift, Trophy, UserPlus, CircleDot,
+  Users, Copy, Plane, Zap, Gem, TrendingUp, Gift, Trophy, UserPlus, CircleDot, Smartphone,
 } from "lucide-react";
 import type { LucideProps } from "lucide-react";
 import { useUser, useAuth } from "@clerk/react";
@@ -336,6 +337,7 @@ export default function Home() {
 
   // ── Send money ──
   const [showActionSheet,  setShowActionSheet]  = useState(false);
+  const [showRechargeModal, setShowRechargeModal] = useState(false);
   const [showSendMoney,    setShowSendMoney]    = useState(false);
   const [sendCode,         setSendCode]         = useState("");
   const [sendAmount,       setSendAmount]       = useState("");
@@ -1744,6 +1746,21 @@ export default function Home() {
               Que souhaitez-vous faire ?
             </p>
 
+            {/* Recharger via Mobile Money */}
+            <button
+              onClick={() => { setShowActionSheet(false); setShowRechargeModal(true); }}
+              className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all active:scale-[0.97]"
+              style={{ background: "rgba(141,198,63,0.08)", border: "1px solid rgba(141,198,63,0.2)" }}
+            >
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(141,198,63,0.15)" }}>
+                <Smartphone style={{ width: 20, height: 20, color: "#8DC63F" }} />
+              </div>
+              <div className="text-left">
+                <p className="font-black text-white text-[14px] leading-tight">Recharger via Mobile Money</p>
+                <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>M-Pesa · Airtel Money · Orange Money</p>
+              </div>
+            </button>
+
             {/* Retrait */}
             <button
               onClick={() => { setShowActionSheet(false); openRetrait(); }}
@@ -2242,6 +2259,16 @@ export default function Home() {
           100% { transform: translateX(-50%); }
         }
       `}</style>
+
+      {/* ═══════════════ MOBILE MONEY RECHARGE MODAL ═══════════════ */}
+      <MobileMoneyModal
+        open={showRechargeModal}
+        onClose={() => setShowRechargeModal(false)}
+        onSuccess={() => {
+          setShowRechargeModal(false);
+          void fetchBalance();
+        }}
+      />
     </div>
   );
 }

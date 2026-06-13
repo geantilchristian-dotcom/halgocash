@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AppLayout } from "../components/layout/app-layout";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -10,6 +10,9 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
+  Smartphone,
+  CheckCircle,
+  X,
 } from "lucide-react";
 
 interface PosSale {
@@ -49,6 +52,14 @@ function fmtDate(d: string) {
   });
 }
 
+const MM_NETWORKS = [
+  { id: "VODACOM_MPESA", label: "M-Pesa",      color: "#E40613" },
+  { id: "AIRTEL_MONEY",  label: "Airtel Money", color: "#FF0000" },
+  { id: "ORANGE_MONEY",  label: "Orange Money", color: "#FF6600" },
+] as const;
+
+type MmStep = "form" | "pending" | "success" | "error";
+
 export default function Caisse() {
   const { user } = useAuth();
   const [unitAmount, setUnitAmount] = useState<string>("");
@@ -58,6 +69,18 @@ export default function Caisse() {
   const [error, setError] = useState("");
   const [sale, setSale] = useState<PosSale | null>(null);
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
+
+  // ── Mobile Money state ──
+  const [mmTab, setMmTab] = useState<"pos" | "mobilemoney">("pos");
+  const [mmAmount, setMmAmount] = useState("");
+  const [mmCurrency, setMmCurrency] = useState<"USD" | "CDF">("USD");
+  const [mmPhone, setMmPhone] = useState("+243");
+  const [mmNetwork, setMmNetwork] = useState("VODACOM_MPESA");
+  const [mmStep, setMmStep] = useState<MmStep>("form");
+  const [mmChargeId, setMmChargeId] = useState<string | null>(null);
+  const [mmMessage, setMmMessage] = useState("");
+  const [mmError, setMmError] = useState("");
+  const [mmPollCount, setMmPollCount] = useState(0);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const printRef = useRef<HTMLDivElement>(null);
@@ -116,6 +139,47 @@ export default function Caisse() {
     window.print();
   };
 
+  // ── Mobile Money: initier l'encaissement ──
+  const handleMmSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMmError("");
+    setMmStep("pending");
+    try {
+      const res = await fetch("/api/payments/mobile-money/vendor", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: parseFloat(mmAmount), currency: mmCurrency, phone: mmPhone, network: mmNetwork }),
+      });
+      const data = await res.json() as { chargeId?: string; message?: string; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Erreur serveur");
+      setMmChargeId(data.chargeId ?? null);
+      setMmMessage(data.message ?? "En attente de confirmation client.");
+      setMmPollCount(0);
+    } catch (err: unknown) {
+      setMmError((err as Error).message);
+      setMmStep("error");
+    }
+  };
+
+  // ── Mobile Money: polling du statut ──
+  useEffect(() => {
+    if (mmStep !== "pending" || !mmChargeId) return;
+    if (mmPollCount >= 24) { setMmError("Délai dépassé. Réessayez."); setMmStep("error"); return; }
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/payments/mobile-money/status/${mmChargeId}`, { credentials: "include" });
+        const data = await res.json() as { status?: string };
+        if (data.status === "successful" || data.status === "success" || data.status === "completed") {
+          setMmStep("success");
+        } else if (data.status === "failed" || data.status === "cancelled") {
+          setMmError("Paiement refusé ou annulé."); setMmStep("error");
+        } else { setMmPollCount((c) => c + 1); }
+      } catch { setMmPollCount((c) => c + 1); }
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [mmStep, mmChargeId, mmPollCount]);
+
   if (!user?.vendorId) {
     return (
       <AppLayout>
@@ -150,8 +214,26 @@ export default function Caisse() {
       <AppLayout>
         <div className="space-y-5">
 
-          {/* ── Form ── */}
-          <div className="rounded-2xl bg-white shadow-sm border border-gray-100 p-5">
+          {/* ── Onglets ── */}
+          <div className="flex rounded-xl overflow-hidden border border-gray-200">
+            <button
+              onClick={() => setMmTab("pos")}
+              className="flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-1.5 transition-all"
+              style={mmTab === "pos" ? { background: "#16a34a", color: "#fff" } : { background: "#f9fafb", color: "#6b7280" }}
+            >
+              <ReceiptText className="w-4 h-4" /> Tickets POS
+            </button>
+            <button
+              onClick={() => setMmTab("mobilemoney")}
+              className="flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-1.5 transition-all"
+              style={mmTab === "mobilemoney" ? { background: "#16a34a", color: "#fff" } : { background: "#f9fafb", color: "#6b7280" }}
+            >
+              <Smartphone className="w-4 h-4" /> Mobile Money
+            </button>
+          </div>
+
+          {/* ── Form POS ── */}
+          {mmTab === "pos" && <div className="rounded-2xl bg-white shadow-sm border border-gray-100 p-5">
             <div className="flex items-center gap-2 mb-4">
               <ReceiptText className="w-5 h-5 text-green-600" />
               <h2 className="font-black text-base text-gray-900">Générer des tickets</h2>
@@ -251,10 +333,10 @@ export default function Caisse() {
                 Générer les tickets
               </button>
             </form>
-          </div>
+          </div>}
 
           {/* ── Generated tickets ── */}
-          {sale && (
+          {mmTab === "pos" && sale && (
             <div className="rounded-2xl bg-white shadow-sm border border-gray-100 p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -300,7 +382,7 @@ export default function Caisse() {
           )}
 
           {/* ── History ── */}
-          <div className="rounded-2xl bg-white shadow-sm border border-gray-100 overflow-hidden">
+          {mmTab === "pos" && <div className="rounded-2xl bg-white shadow-sm border border-gray-100 overflow-hidden">
             <button
               onClick={() => { if (!history) void loadHistory(); else setHistory(null); }}
               className="w-full flex items-center justify-between px-5 py-4"
@@ -367,7 +449,110 @@ export default function Caisse() {
                 })}
               </div>
             )}
-          </div>
+          </div>}
+
+          {/* ── Mobile Money Encaissement ── */}
+          {mmTab === "mobilemoney" && (
+            <div className="rounded-2xl bg-white shadow-sm border border-gray-100 p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Smartphone className="w-5 h-5 text-green-600" />
+                <h2 className="font-black text-base text-gray-900">Encaissement Mobile Money</h2>
+              </div>
+
+              {mmStep === "form" && (
+                <form onSubmit={(e) => { void handleMmSubmit(e); }} className="space-y-4">
+                  {/* Réseau */}
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Réseau</p>
+                    <div className="flex gap-2">
+                      {MM_NETWORKS.map((n) => (
+                        <button key={n.id} type="button" onClick={() => setMmNetwork(n.id)}
+                          className="flex-1 py-2 rounded-xl text-xs font-bold border transition-all"
+                          style={mmNetwork === n.id
+                            ? { background: n.color + "18", border: `2px solid ${n.color}`, color: n.color }
+                            : { background: "#f9fafb", border: "1px solid #e5e7eb", color: "#9ca3af" }}
+                        >{n.label}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Devise */}
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Devise</p>
+                    <div className="flex rounded-xl overflow-hidden border border-gray-200">
+                      {(["USD", "CDF"] as const).map((c) => (
+                        <button key={c} type="button" onClick={() => setMmCurrency(c)}
+                          className="flex-1 py-2.5 text-sm font-bold transition-all"
+                          style={mmCurrency === c ? { background: "#16a34a", color: "#fff" } : { background: "#f9fafb", color: "#6b7280" }}
+                        >{c}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Montant */}
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Montant</p>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">
+                        {mmCurrency === "USD" ? "$" : "FC"}
+                      </span>
+                      <input type="number" min="1" step="any" placeholder="0.00" required
+                        value={mmAmount} onChange={(e) => setMmAmount(e.target.value)}
+                        className="w-full h-12 pl-9 pr-4 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 font-bold focus:outline-none focus:border-green-400"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Téléphone */}
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Téléphone client</p>
+                    <input type="tel" placeholder="+243810000000" required
+                      value={mmPhone} onChange={(e) => setMmPhone(e.target.value)}
+                      className="w-full h-12 px-4 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 focus:outline-none focus:border-green-400"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">Format : +243 suivi de 9 chiffres</p>
+                  </div>
+
+                  <button type="submit"
+                    className="w-full h-12 rounded-xl bg-green-600 text-white font-black text-sm hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Smartphone className="w-4 h-4" /> Initier l'encaissement
+                  </button>
+                </form>
+              )}
+
+              {mmStep === "pending" && (
+                <div className="text-center py-8">
+                  <Loader2 className="w-12 h-12 text-green-600 animate-spin mx-auto mb-3" />
+                  <p className="font-black text-gray-900 mb-1">En attente de confirmation</p>
+                  <p className="text-sm text-gray-500 max-w-xs mx-auto">{mmMessage || "Le client doit confirmer le paiement sur son téléphone."}</p>
+                  <p className="text-xs text-gray-300 mt-4">Vérification automatique toutes les 5 secondes…</p>
+                </div>
+              )}
+
+              {mmStep === "success" && (
+                <div className="text-center py-8">
+                  <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                  <p className="font-black text-green-700 text-lg mb-1">Paiement reçu !</p>
+                  <p className="text-sm text-gray-500 mb-5">{mmAmount} {mmCurrency} encaissés.</p>
+                  <button onClick={() => { setMmStep("form"); setMmAmount(""); setMmPhone("+243"); setMmChargeId(null); }}
+                    className="px-6 py-2.5 rounded-xl bg-green-600 text-white font-bold text-sm hover:bg-green-700 active:scale-95 transition-all"
+                  >Nouvel encaissement</button>
+                </div>
+              )}
+
+              {mmStep === "error" && (
+                <div className="text-center py-8">
+                  <X className="w-12 h-12 text-red-400 mx-auto mb-3" />
+                  <p className="font-black text-red-600 mb-1">Échec du paiement</p>
+                  <p className="text-sm text-gray-500 mb-5">{mmError}</p>
+                  <button onClick={() => setMmStep("form")}
+                    className="px-6 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-bold text-sm hover:bg-gray-200 active:scale-95 transition-all"
+                  >Réessayer</button>
+                </div>
+              )}
+            </div>
+          )}
 
         </div>
       </AppLayout>

@@ -27,6 +27,7 @@ import minesRouter from "./mines";
 import liveFeedRouter from "./live-feed";
 import maletteRouter from "./malette";
 import posRouter from "./pos";
+import paymentsRouter from "./payments";
 
 const router: IRouter = Router();
 
@@ -58,5 +59,6 @@ router.use(minesRouter);
 router.use(liveFeedRouter);
 router.use(maletteRouter);
 router.use(posRouter);
+router.use(paymentsRouter);
 
 export default router;
