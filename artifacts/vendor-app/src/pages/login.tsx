@@ -55,20 +55,16 @@ export default function Login() {
   const displayCode = deviceId ? deviceId.slice(0, 8).toUpperCase() : "…";
 
   return (
-    <div className="min-h-screen w-full bg-white flex items-center justify-center px-6">
-      <div className="w-full max-w-sm">
+    <div className="min-h-[100dvh] w-full bg-white flex flex-col justify-center px-6 py-10">
+      <div className="w-full max-w-sm mx-auto">
 
-        {/* ── Brand — nom seul, pas d'icône ─────────────────────────────── */}
-        <div className="text-center mb-7">
-          <p className="text-3xl font-black tracking-tight">
-            <span className="text-gray-900">halgo</span>
-            <span className="text-green-500">Cash</span>
+        {/* ── Brand ─────────────────────────────────────────────────────── */}
+        <div className="text-center mb-8">
+          <p className="text-4xl font-black tracking-tight leading-none">
+            <span className="text-gray-900">halgo</span><span className="text-green-500">Cash</span>
           </p>
+          <p className="text-sm font-medium text-gray-400 mt-2 tracking-widest uppercase">Espace vendeur</p>
         </div>
-
-        <h1 className="text-lg font-semibold text-gray-700 text-center mb-6">
-          Bienvenue
-        </h1>
 
         {/* Error */}
         {error && (
