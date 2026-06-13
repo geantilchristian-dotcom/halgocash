@@ -134,8 +134,21 @@ router.post("/auth/login", loginRateLimit, async (req, res): Promise<void> => {
   const identifierLower = identifier.toLowerCase();
 
   // Utilise LOWER() pour une comparaison insensible à la casse (email stocké avec n'importe quelle casse)
+  // Sélection explicite des colonnes pour éviter une erreur si device_id n'existe pas encore en prod
   const [user] = await db
-    .select()
+    .select({
+      id:           usersTable.id,
+      email:        usersTable.email,
+      username:     usersTable.username,
+      passwordHash: usersTable.passwordHash,
+      role:         usersTable.role,
+      vendorId:     usersTable.vendorId,
+      isSuspended:  usersTable.isSuspended,
+      lastLoginAt:  usersTable.lastLoginAt,
+      lastLoginIp:  usersTable.lastLoginIp,
+      plainPassword: usersTable.plainPassword,
+      createdAt:    usersTable.createdAt,
+    })
     .from(usersTable)
     .where(or(
       sql`LOWER(${usersTable.email}) = ${identifierLower}`,
@@ -166,18 +179,16 @@ router.post("/auth/login", loginRateLimit, async (req, res): Promise<void> => {
   // Subsequent logins from a different device are rejected.
   if (user.role === "vendor" || user.role === "admin") {
     try {
-      const storedDeviceId = user.deviceId ?? null;
+      // Requête raw SQL pour éviter l'erreur si device_id n'existe pas encore en prod
+      const rows = await db.execute(sql`SELECT device_id FROM users WHERE id = ${user.id} LIMIT 1`);
+      const rowList = (rows as unknown as { rows?: unknown[] }).rows ?? (rows as unknown as unknown[]);
+      const storedDeviceId = ((rowList[0] as { device_id?: string | null } | undefined)?.device_id) ?? null;
 
       if (storedDeviceId === null) {
-        // First time — register this device
         if (deviceId) {
-          await db
-            .update(usersTable)
-            .set({ deviceId })
-            .where(eq(usersTable.id, user.id));
+          await db.execute(sql`UPDATE users SET device_id = ${deviceId} WHERE id = ${user.id}`);
         }
       } else if (deviceId && storedDeviceId !== deviceId) {
-        // Device mismatch — block
         res.status(403).json({
           error: "Connexion refusée : appareil non reconnu. Contactez l'administrateur.",
         });
