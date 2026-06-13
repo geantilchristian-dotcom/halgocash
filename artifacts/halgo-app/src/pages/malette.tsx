@@ -100,80 +100,67 @@ function Case({
         }}>MOI</div>
       )}
 
-      {/* Briefcase CSS icon */}
-      <div style={{ position: "relative", width: 52, height: 44 }}>
-        {/* Handle */}
+      {/* Suitcase image — quadrant from 2×2 sprite */}
+      <div style={{ position: "relative", width: 96, height: 84 }}>
+        {/* Sprite crop: top-left=01, top-right=02, bottom-left=03, bottom-right=04 */}
         <div style={{
-          position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)",
-          width: 22, height: 10,
-          border: `2.5px solid ${accent ?? "rgba(255,255,255,0.35)"}`,
-          borderBottom: "none",
-          borderRadius: "7px 7px 0 0",
-          transition: "border-color 0.35s",
+          width: "100%", height: "100%",
+          backgroundImage: "url('/malettes.png')",
+          backgroundSize: "200% 200%",
+          backgroundPosition: [
+            "0% 0%",       // 0 → 01 noir
+            "100% 0%",     // 1 → 02 rouge
+            "0% 100%",     // 2 → 03 bleu marine
+            "100% 100%",   // 3 → 04 violet
+          ][index] ?? "0% 0%",
+          backgroundRepeat: "no-repeat",
+          filter: revealed && !t?.win
+            ? "grayscale(0.7) brightness(0.5)"
+            : selected
+            ? `drop-shadow(0 0 10px rgba(245,197,24,0.85))`
+            : spinning
+            ? "drop-shadow(0 0 6px rgba(245,197,24,0.5))"
+            : t?.win
+            ? `drop-shadow(0 0 14px ${t.glow})`
+            : "none",
+          transition: "filter 0.35s",
+          borderRadius: 8,
         }} />
-        {/* Body */}
-        <div style={{
-          position:   "absolute", top: 8, left: 0, right: 0, bottom: 0,
-          borderRadius: 10,
-          border:      `2px solid ${accent ?? "rgba(255,255,255,0.2)"}`,
-          background:  t ? `${t.color}1a` : selected ? "rgba(245,197,24,0.12)" : spinning ? "rgba(245,197,24,0.07)" : "rgba(255,255,255,0.05)",
-          display:     "flex", alignItems: "center", justifyContent: "center",
-          transition:  "all 0.35s",
-          overflow:    "hidden",
-        }}>
-          {/* Latch (hidden when open/spinning) */}
-          {!revealed && !spinning && (
-            <div style={{
-              position:   "absolute",
-              top: "40%", left: "50%", transform: "translateX(-50%)",
-              width: 12, height: 8,
-              borderRadius: 3,
-              background:   selected ? "#F5C518" : "rgba(255,255,255,0.2)",
-              border:       `1px solid ${selected ? "rgba(245,197,24,0.6)" : "rgba(255,255,255,0.1)"}`,
-            }} />
-          )}
 
-          {/* Question mark while spinning */}
-          {spinning && (
-            <span style={{
-              fontSize: 18, fontWeight: 900,
-              color: "#F5C518",
-              animation: "malette-question 0.4s ease-in-out infinite alternate",
-              display: "block",
-            }}>?</span>
-          )}
+        {/* Question mark overlay while spinning */}
+        {spinning && (
+          <span style={{
+            position: "absolute", top: "50%", left: "50%",
+            transform: "translate(-50%, -50%)",
+            fontSize: 22, fontWeight: 900, color: "#F5C518",
+            animation: "malette-question 0.4s ease-in-out infinite alternate",
+            textShadow: "0 0 12px rgba(245,197,24,0.9)",
+            pointerEvents: "none",
+          }}>?</span>
+        )}
 
-          {revealed && t && (
-            <span style={{ fontSize: 20, filter: `drop-shadow(0 0 8px ${t.glow})` }}>{t.emoji}</span>
-          )}
-
-          {!revealed && !spinning && (
-            <span style={{
-              fontSize: 11, fontWeight: 900, letterSpacing: "0.04em",
-              color: selected ? "#F5C518" : "rgba(255,255,255,0.4)",
-              marginTop: 10,
-            }}>N°{index + 1}</span>
-          )}
-        </div>
+        {/* Multiplier overlay when revealed */}
+        {revealed && t && (
+          <div style={{
+            position: "absolute", bottom: -2, left: "50%", transform: "translateX(-50%)",
+            background: t.win ? t.color : "rgba(255,255,255,0.12)",
+            borderRadius: 6, padding: "2px 8px",
+            fontSize: 13, fontWeight: 900, color: t.win ? "#000" : "rgba(255,255,255,0.5)",
+            whiteSpace: "nowrap",
+            boxShadow: t.win ? `0 0 12px ${t.glow}` : "none",
+          }}>{t.emoji} {t.text}</div>
+        )}
       </div>
 
       {/* Label below */}
-      {revealed && t ? (
-        <span style={{ fontSize: 14, fontWeight: 900, color: t.color, letterSpacing: "0.02em" }}>
-          {t.text}
-        </span>
-      ) : spinning ? (
-        <span style={{ fontSize: 10, fontWeight: 900, color: "rgba(245,197,24,0.6)" }}>…</span>
-      ) : (
-        <div style={{ textAlign: "center" }}>
-          <p style={{ fontSize: 10, fontWeight: 900, color: selected ? "#F5C518" : "rgba(255,255,255,0.3)", marginBottom: 2 }}>
-            N°{index + 1}
-          </p>
-          <p style={{ fontSize: 11, fontWeight: 700, color: totalBet > 0 ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.2)" }}>
-            {totalBet > 0 ? `${formatFC(totalBet)} FC` : "—"}
-          </p>
-        </div>
-      )}
+      <div style={{ textAlign: "center" }}>
+        <p style={{ fontSize: 10, fontWeight: 900, color: selected ? "#F5C518" : t ? t.color : "rgba(255,255,255,0.35)", marginBottom: 2, letterSpacing: "0.06em" }}>
+          N°{index + 1}
+        </p>
+        <p style={{ fontSize: 11, fontWeight: 700, color: totalBet > 0 ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.2)" }}>
+          {spinning ? "…" : totalBet > 0 ? `${formatFC(totalBet)} FC` : "—"}
+        </p>
+      </div>
     </button>
   );
 }
