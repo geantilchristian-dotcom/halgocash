@@ -723,8 +723,12 @@ function MaletteView({ onBack }: { onBack: () => void }) {
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 export default function Home() {
+  const VALID_GAMES: GameMode[] = ["halgo-cash", "roulette", "malette"];
   const [selectedGame, setSelectedGame] = useState<GameMode | null>(() => {
-    try { return localStorage.getItem("halgo_display_game") as GameMode | null; } catch { return null; }
+    try {
+      const stored = localStorage.getItem("halgo_display_game") as GameMode | null;
+      return stored && VALID_GAMES.includes(stored) ? stored : null;
+    } catch { return null; }
   });
 
   const handleSelect = (g: GameMode) => {
