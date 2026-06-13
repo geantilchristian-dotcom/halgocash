@@ -325,4 +325,27 @@ router.get("/malette/round/:id", async (req, res): Promise<void> => {
   });
 });
 
+// ── GET /api/malette/history — 20 derniers rounds fermés ─────────────────────
+router.get("/malette/history", async (_req, res): Promise<void> => {
+  try {
+    const rounds = await db
+      .select({
+        id:          maletteRoundsTable.id,
+        multipliers: maletteRoundsTable.multipliers,
+        closedAt:    maletteRoundsTable.closedAt,
+      })
+      .from(maletteRoundsTable)
+      .where(eq(maletteRoundsTable.status, "closed"))
+      .orderBy(desc(maletteRoundsTable.closedAt))
+      .limit(20);
+    res.json(rounds.map(r => ({
+      roundId:     r.id,
+      multipliers: r.multipliers,
+      closedAt:    r.closedAt,
+    })));
+  } catch {
+    res.status(500).json({ error: "Erreur" });
+  }
+});
+
 export default router;

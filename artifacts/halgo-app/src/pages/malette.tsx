@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@clerk/react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Loader2, Timer, Users2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 function formatFC(n: number): string {
@@ -10,154 +10,130 @@ function formatFC(n: number): string {
 
 function formatTime(ms: number): string {
   const secs = Math.max(0, Math.floor(ms / 1000));
-  const m    = Math.floor(secs / 60);
-  const s    = secs % 60;
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
 function multInfo(m: number) {
-  if (m === 0)   return { text: "×0",   color: "#ef4444", glow: "#ef444460", emoji: "💸", win: false };
-  if (m <= 1.15) return { text: "×1.1", color: "#eab308", glow: "#eab30860", emoji: "🔄", win: true  };
-  if (m <= 1.6)  return { text: "×1.5", color: "#22c55e", glow: "#22c55e60", emoji: "💎", win: true  };
-  return             { text: "×2.5", color: "#F5C518", glow: "#F5C51860", emoji: "🏆", win: true  };
+  if (m === 0)   return { text: "×0",   color: "#ef4444", bg: "#fef2f2", win: false };
+  if (m <= 1.15) return { text: "×1.1", color: "#d97706", bg: "#fffbeb", win: true  };
+  if (m <= 1.6)  return { text: "×1.5", color: "#16a34a", bg: "#f0fdf4", win: true  };
+  return             { text: "×2.5", color: "#b45309", bg: "#fef3c7", win: true  };
 }
+
+// ── 4 briefcase color schemes ─────────────────────────────────────────────────
+const SCHEMES = [
+  { body: "#1a1a2e", accent: "#F5C518", shadow: "rgba(245,197,24,0.35)" },
+  { body: "#7b0e1b", accent: "#FFD060", shadow: "rgba(255,208,96,0.35)"  },
+  { body: "#0d2f5b", accent: "#60C0FF", shadow: "rgba(96,192,255,0.35)"  },
+  { body: "#3a0b5e", accent: "#CC88FF", shadow: "rgba(204,136,255,0.35)" },
+];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface MyBet {
-  caseIndex:  number;
-  amount:     number;
-  multiplier: number | null;
-  payout:     number | null;
-}
-
+interface MyBet { caseIndex: number; amount: number; multiplier: number | null; payout: number | null; }
 interface RoundData {
-  roundId:         number;
-  status:          "betting" | "closed";
-  betsPerCase:     number[];
-  timeLeft:        number;
-  closesAt?:       string;
-  multipliers?:    number[] | null;
-  totalCollected?: number;
-  totalPaid?:      number;
-  closedAt?:       string | null;
-  myBet?:          MyBet | null;
+  roundId: number; status: "betting" | "closed";
+  betsPerCase: number[]; timeLeft: number; closesAt?: string;
+  multipliers?: number[] | null; totalCollected?: number; totalPaid?: number;
+  closedAt?: string | null; myBet?: MyBet | null;
 }
-
-// "spinning" = animation de tirage entre fermeture des paris et révélation
+interface HistoryEntry { roundId: number; multipliers: number[] | null; closedAt: string | null; }
 type Phase = "loading" | "betting" | "waiting" | "locking" | "spinning" | "closed";
 
-// ── Briefcase component ───────────────────────────────────────────────────────
-function Case({
-  index, totalBet, multiplier, isMyBet,
-  selected, selectable, revealed, spinning, spinDelay,
-  onClick,
+// ── CSS Briefcase ─────────────────────────────────────────────────────────────
+function CaseSVG({ scheme, number, dim }: { scheme: typeof SCHEMES[0]; number: number; dim: boolean }) {
+  const { body, accent } = scheme;
+  const op = dim ? 0.35 : 1;
+  return (
+    <svg viewBox="0 0 100 86" style={{ width: "100%", height: "100%", opacity: op, transition: "opacity 0.3s" }}>
+      {/* Handle */}
+      <path d="M36 22 Q36 10 50 10 Q64 10 64 22" fill="none" stroke={accent} strokeWidth="5" strokeLinecap="round" />
+      {/* Body shadow */}
+      <rect x="6" y="22" width="88" height="60" rx="10" fill="rgba(0,0,0,0.18)" transform="translate(2,3)" />
+      {/* Body */}
+      <rect x="6" y="22" width="88" height="60" rx="10" fill={body} />
+      {/* Shine */}
+      <rect x="6" y="22" width="88" height="20" rx="10" fill="rgba(255,255,255,0.07)" />
+      {/* Horizontal divider */}
+      <rect x="6" y="50" width="88" height="4" fill={accent} opacity="0.55" />
+      {/* Clasp outer */}
+      <rect x="39" y="43" width="22" height="18" rx="5" fill={accent} />
+      {/* Clasp inner */}
+      <rect x="43" y="47" width="14" height="10" rx="3" fill={body} />
+      {/* Number */}
+      <text x="50" y="75" textAnchor="middle" fill={accent} fontSize="13" fontWeight="900" fontFamily="system-ui,sans-serif">
+        N°{number}
+      </text>
+    </svg>
+  );
+}
+
+function CaseCard({
+  index, totalBet, multiplier, isMyBet, selected, selectable, revealed, spinning, spinDelay, onClick,
 }: {
-  index:      number;
-  totalBet:   number;
-  multiplier?: number;
-  isMyBet:    boolean;
-  selected:   boolean;
-  selectable: boolean;
-  revealed:   boolean;
-  spinning:   boolean;
-  spinDelay:  number;
-  onClick?:   () => void;
+  index: number; totalBet: number; multiplier?: number; isMyBet: boolean;
+  selected: boolean; selectable: boolean; revealed: boolean; spinning: boolean;
+  spinDelay: number; onClick?: () => void;
 }) {
-  const t         = revealed && multiplier !== undefined ? multInfo(multiplier) : null;
-  const accent    = t?.color ?? (selected ? "#F5C518" : undefined);
-  const borderClr = t?.color ?? (selected ? "#F5C518" : selectable ? "rgba(245,197,24,0.35)" : "rgba(255,255,255,0.1)");
-  const bgClr     = t ? `${t.color}14` : selected ? "rgba(245,197,24,0.1)" : "rgba(255,255,255,0.04)";
+  const scheme = SCHEMES[index]!;
+  const info = revealed && multiplier !== undefined ? multInfo(multiplier) : null;
+  const borderColor = info ? info.color : selected ? "#16a34a" : "rgba(0,0,0,0.10)";
+  const bgColor = info ? info.bg : selected ? "#f0fdf4" : "#f8f9fa";
+  const glow = (selected || info?.win) ? `0 0 0 3px ${selected ? "#16a34a40" : info?.color + "40"}` : "none";
 
   return (
     <button
       onClick={selectable ? onClick : undefined}
       disabled={!selectable}
       style={{
-        border:          `2px solid ${borderClr}`,
-        background:      bgClr,
-        borderRadius:    18,
-        padding:         "18px 10px 14px",
-        display:         "flex",
-        flexDirection:   "column",
-        alignItems:      "center",
-        gap:             8,
-        cursor:          selectable ? "pointer" : "default",
-        transition:      spinning ? "none" : "all 0.35s cubic-bezier(0.34,1.56,0.64,1)",
-        boxShadow:       (t?.win || selected) ? `0 0 22px ${t?.glow ?? "rgba(245,197,24,0.4)"}` : "none",
-        position:        "relative",
+        border: `2px solid ${borderColor}`,
+        background: bgColor,
+        borderRadius: 16,
+        padding: "10px 8px 8px",
+        display: "flex", flexDirection: "column", alignItems: "center",
+        cursor: selectable ? "pointer" : "default",
+        transition: spinning ? "none" : "all 0.3s cubic-bezier(0.34,1.56,0.64,1)",
+        boxShadow: glow,
+        position: "relative",
         WebkitTapHighlightColor: "transparent",
-        minHeight:       120,
-        animation:       spinning ? `malette-shake 0.55s ease-in-out ${spinDelay}ms 3 both` : undefined,
+        width: "100%", height: "100%",
+        animation: spinning ? `mshake 0.5s ease-in-out ${spinDelay}ms 3 both` : undefined,
       }}
     >
-      {/* "MOI" badge */}
       {isMyBet && (
         <div style={{
-          position: "absolute", top: 7, right: 9,
-          fontSize: 8, fontWeight: 900, color: "#F5C518",
-          background: "rgba(245,197,24,0.18)", borderRadius: 4, padding: "1px 5px",
-          letterSpacing: "0.06em",
+          position: "absolute", top: 6, right: 7,
+          fontSize: 8, fontWeight: 900, color: "#16a34a",
+          background: "#dcfce7", borderRadius: 4, padding: "1px 5px",
         }}>MOI</div>
       )}
 
-      {/* Suitcase image — quadrant from 2×2 sprite */}
-      <div style={{ position: "relative", width: 96, height: 84 }}>
-        {/* Sprite crop: top-left=01, top-right=02, bottom-left=03, bottom-right=04 */}
-        <div style={{
-          width: "100%", height: "100%",
-          backgroundImage: "url('/malettes.png')",
-          backgroundSize: "200% 200%",
-          backgroundPosition: [
-            "0% 0%",       // 0 → 01 noir
-            "100% 0%",     // 1 → 02 rouge
-            "0% 100%",     // 2 → 03 bleu marine
-            "100% 100%",   // 3 → 04 violet
-          ][index] ?? "0% 0%",
-          backgroundRepeat: "no-repeat",
-          filter: revealed && !t?.win
-            ? "grayscale(0.7) brightness(0.5)"
-            : selected
-            ? `drop-shadow(0 0 10px rgba(245,197,24,0.85))`
-            : spinning
-            ? "drop-shadow(0 0 6px rgba(245,197,24,0.5))"
-            : t?.win
-            ? `drop-shadow(0 0 14px ${t.glow})`
-            : "none",
-          transition: "filter 0.35s",
-          borderRadius: 8,
-        }} />
-
-        {/* Question mark overlay while spinning */}
+      {/* Briefcase SVG filling the cell */}
+      <div style={{ flex: 1, width: "100%", padding: "0 4px", position: "relative" }}>
+        <CaseSVG scheme={scheme} number={index + 1} dim={revealed && !info?.win} />
         {spinning && (
           <span style={{
             position: "absolute", top: "50%", left: "50%",
             transform: "translate(-50%, -50%)",
-            fontSize: 22, fontWeight: 900, color: "#F5C518",
-            animation: "malette-question 0.4s ease-in-out infinite alternate",
-            textShadow: "0 0 12px rgba(245,197,24,0.9)",
-            pointerEvents: "none",
+            fontSize: 26, fontWeight: 900, color: scheme.accent,
+            animation: "mq 0.4s ease-in-out infinite alternate",
+            filter: `drop-shadow(0 0 8px ${scheme.shadow})`,
           }}>?</span>
         )}
-
-        {/* Multiplier overlay when revealed */}
-        {revealed && t && (
+        {revealed && info && (
           <div style={{
-            position: "absolute", bottom: -2, left: "50%", transform: "translateX(-50%)",
-            background: t.win ? t.color : "rgba(255,255,255,0.12)",
-            borderRadius: 6, padding: "2px 8px",
-            fontSize: 13, fontWeight: 900, color: t.win ? "#000" : "rgba(255,255,255,0.5)",
-            whiteSpace: "nowrap",
-            boxShadow: t.win ? `0 0 12px ${t.glow}` : "none",
-          }}>{t.emoji} {t.text}</div>
+            position: "absolute", bottom: 2, left: "50%", transform: "translateX(-50%)",
+            background: info.color, borderRadius: 6, padding: "2px 10px",
+            fontSize: 13, fontWeight: 900, color: "#fff", whiteSpace: "nowrap",
+            boxShadow: `0 2px 8px ${info.color}60`,
+          }}>{info.text}</div>
         )}
       </div>
 
-      {/* Label below */}
-      <div style={{ textAlign: "center" }}>
-        <p style={{ fontSize: 10, fontWeight: 900, color: selected ? "#F5C518" : t ? t.color : "rgba(255,255,255,0.35)", marginBottom: 2, letterSpacing: "0.06em" }}>
-          N°{index + 1}
-        </p>
-        <p style={{ fontSize: 11, fontWeight: 700, color: totalBet > 0 ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.2)" }}>
+      {/* Bottom label */}
+      <div style={{ textAlign: "center", marginTop: 4 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: totalBet > 0 ? "#374151" : "#d1d5db", margin: 0 }}>
           {spinning ? "…" : totalBet > 0 ? `${formatFC(totalBet)} FC` : "—"}
         </p>
       </div>
@@ -165,20 +141,45 @@ function Case({
   );
 }
 
+// ── History chip ──────────────────────────────────────────────────────────────
+function HistoryChip({ entry }: { entry: HistoryEntry }) {
+  const mults = entry.multipliers ?? [];
+  const best = mults.length > 0 ? Math.max(...mults) : null;
+  const info = best !== null ? multInfo(best) : null;
+  const winCase = mults.indexOf(best ?? -1) + 1;
+  return (
+    <div style={{
+      flexShrink: 0,
+      display: "flex", flexDirection: "column", alignItems: "center",
+      gap: 2, padding: "4px 8px", borderRadius: 8,
+      background: info ? info.bg : "#f3f4f6",
+      border: `1px solid ${info ? info.color + "50" : "#e5e7eb"}`,
+      minWidth: 52,
+    }}>
+      <span style={{ fontSize: 9, color: "#9ca3af", fontWeight: 700, letterSpacing: "0.04em" }}>
+        R.{entry.roundId}
+      </span>
+      <span style={{ fontSize: 12, fontWeight: 900, color: info?.color ?? "#6b7280" }}>
+        {info ? info.text : "—"}
+      </span>
+      {winCase > 0 && (
+        <span style={{ fontSize: 8, color: "#6b7280", fontWeight: 600 }}>N°{winCase}</span>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 const BET_PRESETS = [500, 1_000, 5_000, 10_000, 50_000];
-const SPIN_DURATION_MS = 1_800; // durée de l'animation de tirage (ms)
+const SPIN_MS = 1_800;
 
 export default function MalettePage() {
-  const [, navigate]   = useLocation();
-  const { getToken }   = useAuth();
+  const [, navigate] = useLocation();
+  const { getToken } = useAuth();
 
   const authFetch = useCallback(async (url: string, opts: RequestInit = {}) => {
-    const token   = await getToken().catch(() => null);
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      ...(opts.headers as Record<string, string> ?? {}),
-    };
+    const token = await getToken().catch(() => null);
+    const headers: Record<string, string> = { "Content-Type": "application/json", ...(opts.headers as Record<string, string> ?? {}) };
     if (token) headers["Authorization"] = `Bearer ${token}`;
     return fetch(url, { ...opts, headers });
   }, [getToken]);
@@ -191,24 +192,24 @@ export default function MalettePage() {
   const [error,        setError]        = useState<string | null>(null);
   const [timeLeft,     setTimeLeft]     = useState(0);
   const [phase,        setPhase]        = useState<Phase>("loading");
+  const [history,      setHistory]      = useState<HistoryEntry[]>([]);
 
-  const closesAtMs      = useRef<number | null>(null);
-  const pollTimer       = useRef<ReturnType<typeof setInterval> | null>(null);
-  const phaseRef        = useRef<Phase>("loading");        // always-current phase (avoids stale closures)
-  const pendingResult   = useRef<RoundData | null>(null);  // holds closed data during spin
-
-  // Keep phaseRef in sync
+  const closesAtMs    = useRef<number | null>(null);
+  const pollTimer     = useRef<ReturnType<typeof setInterval> | null>(null);
+  const phaseRef      = useRef<Phase>("loading");
+  const pendingResult = useRef<RoundData | null>(null);
   useEffect(() => { phaseRef.current = phase; }, [phase]);
 
-  // ── Balance ────────────────────────────────────────────────────────────────
   const fetchBalance = useCallback(() => {
-    authFetch("/api/auth/balance")
-      .then(r => r.ok ? r.json() as Promise<{ balance: number }> : null)
-      .then(d => { if (d) setBalance(d.balance); })
-      .catch(() => {});
+    authFetch("/api/auth/balance").then(r => r.ok ? r.json() as Promise<{ balance: number }> : null)
+      .then(d => { if (d) setBalance(d.balance); }).catch(() => {});
   }, [authFetch]);
 
-  // ── Fetch round ────────────────────────────────────────────────────────────
+  const fetchHistory = useCallback(() => {
+    authFetch("/api/malette/history").then(r => r.ok ? r.json() as Promise<HistoryEntry[]> : null)
+      .then(d => { if (d) setHistory(d); }).catch(() => {});
+  }, [authFetch]);
+
   const fetchRound = useCallback(async () => {
     try {
       const res = await authFetch("/api/malette/round/current");
@@ -218,383 +219,347 @@ export default function MalettePage() {
       if (data.status === "betting") {
         closesAtMs.current = data.closesAt ? new Date(data.closesAt).getTime() : null;
         setRound(data);
-        // Réinitialise la sélection si c'est un nouveau round
         if (phaseRef.current === "closed" || phaseRef.current === "spinning") {
-          setSelectedCase(null);
-          setError(null);
+          setSelectedCase(null); setError(null); fetchHistory();
         }
         setPhase(data.myBet ? "waiting" : "betting");
         return;
       }
 
-      // status === "closed"
       const cur = phaseRef.current;
       if (cur === "closed" || cur === "spinning") {
-        // Déjà en train de montrer le résultat ou l'animation — ne rien faire
         if (cur === "closed") setRound(data);
         return;
       }
-
-      // Transition vers résultat : d'abord l'animation de tirage
       pendingResult.current = data;
-      closesAtMs.current    = null;
+      closesAtMs.current = null;
       setPhase("spinning");
-      setRound(prev => prev ? { ...prev } : data); // garde les données du round actif visuellement
-
+      setRound(prev => prev ? { ...prev } : data);
       setTimeout(() => {
         setRound(pendingResult.current);
         setPhase("closed");
-        fetchBalance();
-      }, SPIN_DURATION_MS);
+        fetchBalance(); fetchHistory();
+      }, SPIN_MS);
+    } catch { }
+  }, [authFetch, fetchBalance, fetchHistory]);
 
-    } catch { /* ignore réseau */ }
-  }, [authFetch, fetchBalance]);
+  useEffect(() => { void fetchRound(); fetchBalance(); fetchHistory(); }, [fetchRound, fetchBalance, fetchHistory]);
 
-  // Initial load
-  useEffect(() => {
-    void fetchRound();
-    fetchBalance();
-  }, [fetchRound, fetchBalance]);
-
-  // Countdown (tick toutes les 250ms)
   useEffect(() => {
     const t = setInterval(() => {
-      if (closesAtMs.current !== null) {
-        const left = Math.max(0, closesAtMs.current - Date.now());
-        setTimeLeft(left);
-      }
+      if (closesAtMs.current !== null) setTimeLeft(Math.max(0, closesAtMs.current - Date.now()));
     }, 250);
     return () => clearInterval(t);
   }, []);
 
-  // Poll toutes les 3 secondes
   useEffect(() => {
     if (pollTimer.current) clearInterval(pollTimer.current);
     pollTimer.current = setInterval(() => { void fetchRound(); }, 3_000);
     return () => { if (pollTimer.current) clearInterval(pollTimer.current); };
   }, [fetchRound]);
 
-  // ── Place bet ──────────────────────────────────────────────────────────────
   const handleBet = async () => {
     if (!round || round.status !== "betting") return;
     if (selectedCase === null) { setError("Choisissez une malette d'abord"); return; }
     const amount = parseInt(betInput.replace(/[\s\u00a0]/g, ""), 10);
     if (isNaN(amount) || amount < 100) { setError("Mise minimum : 100 FC"); return; }
-    setError(null);
-    setLoading(true);
+    setError(null); setLoading(true);
     try {
-      const res  = await authFetch("/api/malette/bet", {
+      const res = await authFetch("/api/malette/bet", {
         method: "POST",
-        body:   JSON.stringify({ roundId: round.roundId, caseIndex: selectedCase, amount }),
+        body: JSON.stringify({ roundId: round.roundId, caseIndex: selectedCase, amount }),
       });
       const json = await res.json() as { ok?: boolean; error?: string };
       if (!res.ok) { setError(json.error ?? "Erreur serveur"); return; }
-      await fetchRound();
-      fetchBalance();
-    } finally {
-      setLoading(false);
-    }
+      await fetchRound(); fetchBalance();
+    } finally { setLoading(false); }
   };
 
-  // ── Derived state ──────────────────────────────────────────────────────────
-  const myBet    = round?.myBet ?? null;
-  const mults    = round?.multipliers ?? null;
-  const revealed = phase === "closed" && Array.isArray(mults);
-  const isLocked = phase === "locking" || (phase === "betting" && timeLeft > 0 && timeLeft <= 2_000);
-  const myMult   = revealed && myBet ? (mults?.[myBet.caseIndex] ?? 0) : null;
-  const myPayout = myBet?.payout ?? null;
-  const myWin    = myPayout !== null && myPayout > 0;
-  const totalPot = (round?.betsPerCase ?? []).reduce((a, b) => a + b, 0);
-
-  // Couleur du timer
-  const timerColor = (() => {
-    if (phase === "spinning")           return "#F5C518";
-    if (phase === "closed")             return "#F5C518";
-    if (isLocked)                       return "#ef4444";
-    if (timeLeft < 10_000 && timeLeft > 0) return "#ef4444";
-    return "rgba(255,255,255,0.55)";
-  })();
-
-  // Message du timer bar
-  const timerMsg = (() => {
-    if (phase === "loading")  return "Chargement…";
-    if (phase === "spinning") return "🎲 Tirage en cours…";
-    if (phase === "closed")   return "✨ Résultats du round";
-    if (isLocked)             return "🔒 Paris fermés — tirage imminent";
-    if (phase === "betting")  return `Paris ouverts · ${formatTime(timeLeft)}`;
-    if (phase === "waiting")  return `Pari enregistré · ${formatTime(timeLeft)}`;
-    return formatTime(timeLeft);
-  })();
-
+  const myBet     = round?.myBet ?? null;
+  const mults     = round?.multipliers ?? null;
+  const revealed  = phase === "closed" && Array.isArray(mults);
+  const isLocked  = phase === "locking" || (phase === "betting" && timeLeft > 0 && timeLeft <= 2_000);
+  const myMult    = revealed && myBet ? (mults?.[myBet.caseIndex] ?? 0) : null;
+  const myPayout  = myBet?.payout ?? null;
+  const myWin     = myPayout !== null && myPayout > 0;
   const canBet    = phase === "betting" && !myBet && !isLocked;
   const isSpinning = phase === "spinning";
 
+  // Timer display values
+  const timerSecs = Math.max(0, Math.floor(timeLeft / 1000));
+  const timerPct  = round?.timeLeft ? Math.min(1, timeLeft / round.timeLeft) : 0;
+  const timerLabel = (() => {
+    if (phase === "loading")  return { text: "Chargement…",         color: "#6b7280", bg: "#f3f4f6" };
+    if (phase === "spinning") return { text: "🎲 Tirage en cours…", color: "#b45309", bg: "#fef3c7" };
+    if (phase === "closed")   return { text: "✨ Résultats",         color: "#15803d", bg: "#f0fdf4" };
+    if (isLocked)             return { text: "🔒 Paris fermés",     color: "#dc2626", bg: "#fef2f2" };
+    if (phase === "waiting")  return { text: "Pari enregistré",     color: "#1d4ed8", bg: "#eff6ff" };
+    return                           { text: "Paris ouverts",       color: "#15803d", bg: "#f0fdf4" };
+  })();
+
   return (
-    <div
-      className="min-h-dvh flex flex-col"
-      style={{ background: "linear-gradient(160deg,#060d0a 0%,#0b1e12 60%,#060d0a 100%)" }}
-    >
+    <div style={{
+      height: "100dvh", overflow: "hidden",
+      display: "flex", flexDirection: "column",
+      background: "#ffffff",
+    }}>
+
       {/* ── Header ── */}
-      <div className="flex items-center gap-3 px-4 pt-5 pb-2 shrink-0">
+      <div style={{
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "12px 16px 10px",
+        borderBottom: "1px solid #f1f5f9",
+        background: "#fff",
+        flexShrink: 0,
+      }}>
         <button
           onClick={() => navigate("/app")}
-          className="flex items-center justify-center rounded-xl active:scale-95 transition-transform"
-          style={{ width: 36, height: 36, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+          style={{
+            width: 36, height: 36, borderRadius: 10,
+            border: "1.5px solid #e5e7eb", background: "#f9fafb",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer",
+          }}
         >
-          <ArrowLeft style={{ width: 18, height: 18, color: "rgba(255,255,255,0.8)" }} />
+          <ArrowLeft style={{ width: 18, height: 18, color: "#374151" }} />
         </button>
-        <div className="flex-1 min-w-0">
-          <p className="text-white font-black text-[16px] leading-tight tracking-tight">MALETTE SECRÈTE</p>
-          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#F5C518" }}>
-            Round collaboratif · 4 malettes
+        <div style={{ flex: 1 }}>
+          <p style={{ fontWeight: 900, fontSize: 16, color: "#111827", letterSpacing: "-0.02em", margin: 0 }}>
+            MALETTE SECRÈTE
           </p>
         </div>
         {balance !== null && (
-          <div className="text-right shrink-0">
-            <p className="text-[9px] uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.35)" }}>Solde</p>
-            <p className="font-black text-[13px]" style={{ color: "#F5C518" }}>{formatFC(balance)} FC</p>
+          <div style={{ textAlign: "right" }}>
+            <p style={{ fontSize: 9, color: "#9ca3af", fontWeight: 700, margin: 0, letterSpacing: "0.05em" }}>SOLDE</p>
+            <p style={{ fontSize: 14, fontWeight: 900, color: "#111827", margin: 0 }}>{formatFC(balance)} FC</p>
           </div>
         )}
       </div>
 
-      {/* ── Timer bar ── */}
-      <div
-        className="mx-4 mb-3 rounded-xl px-4 py-2.5 flex items-center gap-3 shrink-0"
-        style={{
-          background: isSpinning || phase === "closed"
-            ? "rgba(245,197,24,0.08)"
-            : isLocked ? "rgba(239,68,68,0.12)"
-            : "rgba(255,255,255,0.04)",
-          border: `1px solid ${isSpinning || phase === "closed" ? "rgba(245,197,24,0.3)" : isLocked ? "rgba(239,68,68,0.3)" : "rgba(255,255,255,0.08)"}`,
-          transition: "all 0.5s",
-        }}
-      >
-        <Timer style={{ width: 14, height: 14, flexShrink: 0, color: timerColor }} />
-        <p
-          className="text-[12px] font-black flex-1"
-          style={{
-            color: timerColor,
-            animation: isSpinning ? "pulse-text 0.5s ease-in-out infinite alternate" : undefined,
-          }}
-        >
-          {timerMsg}
-        </p>
-        {totalPot > 0 && (
-          <div className="flex items-center gap-1 shrink-0">
-            <Users2 style={{ width: 11, height: 11, color: "rgba(255,255,255,0.3)" }} />
-            <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.35)" }}>
-              {formatFC(totalPot)} FC
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* ── 4 Briefcases (2×2) ── */}
-      <div className="flex-1 px-4 flex flex-col justify-center gap-4">
-        <div className="grid grid-cols-2 gap-3 mx-auto w-full max-w-xs">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Case
-              key={i}
-              index={i}
-              totalBet={round?.betsPerCase?.[i] ?? 0}
-              multiplier={mults?.[i] ?? undefined}
-              isMyBet={myBet?.caseIndex === i}
-              selected={selectedCase === i && canBet}
-              selectable={canBet}
-              revealed={revealed}
-              spinning={isSpinning}
-              spinDelay={i * 100}
-              onClick={() => { setSelectedCase(i); setError(null); }}
+      {/* ── Timer card ── */}
+      <div style={{
+        margin: "10px 14px 6px",
+        borderRadius: 14,
+        background: timerLabel.bg,
+        border: `1.5px solid ${timerLabel.color}30`,
+        padding: "10px 16px",
+        display: "flex", alignItems: "center", gap: 12,
+        flexShrink: 0,
+      }}>
+        {/* Circular progress */}
+        <div style={{ position: "relative", width: 48, height: 48, flexShrink: 0 }}>
+          <svg viewBox="0 0 48 48" style={{ width: 48, height: 48, transform: "rotate(-90deg)" }}>
+            <circle cx="24" cy="24" r="20" fill="none" stroke={`${timerLabel.color}20`} strokeWidth="4" />
+            <circle cx="24" cy="24" r="20" fill="none" stroke={timerLabel.color} strokeWidth="4"
+              strokeLinecap="round"
+              strokeDasharray={`${125.6}`}
+              strokeDashoffset={`${125.6 * (1 - (isSpinning || phase === "closed" ? 0 : timerPct))}`}
+              style={{ transition: "stroke-dashoffset 0.25s linear" }}
             />
+          </svg>
+          <div style={{
+            position: "absolute", inset: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 11, fontWeight: 900, color: timerLabel.color,
+          }}>
+            {isSpinning ? "🎲" : phase === "closed" ? "✓" : phase === "loading" ? "…" : formatTime(timeLeft)}
+          </div>
+        </div>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: 15, fontWeight: 900, color: timerLabel.color, margin: 0,
+            animation: isSpinning ? "mpulse 0.5s ease-in-out infinite alternate" : undefined,
+          }}>
+            {timerLabel.text}
+          </p>
+          <p style={{ fontSize: 11, color: "#9ca3af", margin: "2px 0 0", fontWeight: 600 }}>
+            {phase === "waiting" && myBet ? `Malette N°${myBet.caseIndex + 1} · ${formatFC(myBet.amount)} FC misés` :
+             phase === "closed" && myBet && myMult !== null
+              ? (myWin ? `+${formatFC(myPayout ?? 0)} FC  —  ×${myMult}` : `Malette N°${myBet.caseIndex + 1} était vide`)
+              : round ? `Round #${round.roundId}` : ""}
+          </p>
+        </div>
+        {/* Distribution dots */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 3, flexShrink: 0 }}>
+          {[{ l: "×0", c: "#ef4444" }, { l: "×1.1", c: "#d97706" }, { l: "×2.5", c: "#b45309" }].map(t => (
+            <div key={t.l} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: t.c }} />
+              <span style={{ fontSize: 9, fontWeight: 800, color: t.c }}>{t.l}</span>
+            </div>
           ))}
         </div>
-
-        {/* ── Result card ── */}
-        {phase === "closed" && myBet && myMult !== null && (
-          <div
-            className="mx-auto w-full max-w-xs rounded-2xl px-4 py-4 text-center"
-            style={{
-              background:  myWin ? "rgba(245,197,24,0.08)" : "rgba(239,68,68,0.08)",
-              border:      `1.5px solid ${myWin ? "rgba(245,197,24,0.35)" : "rgba(239,68,68,0.3)"}`,
-              boxShadow:   myWin ? "0 0 28px rgba(245,197,24,0.15)" : "none",
-              animation:   "fade-up 0.5s ease-out both",
-            }}
-          >
-            <p className="text-2xl mb-1">{myWin ? "✨" : "😔"}</p>
-            <p className="font-black text-[20px]" style={{ color: myWin ? "#F5C518" : "#ef4444" }}>
-              {myWin ? `+${formatFC(myPayout ?? 0)} FC` : "Perdu"}
-            </p>
-            <p className="text-[11px] mt-1.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-              {myWin
-                ? `Malette N°${myBet.caseIndex + 1} · ×${myMult} — mise de ${formatFC(myBet.amount)} FC`
-                : `Malette N°${myBet.caseIndex + 1} était vide — mise de ${formatFC(myBet.amount)} FC`}
-            </p>
-          </div>
-        )}
-
-        {phase === "closed" && !myBet && (
-          <div
-            className="mx-auto w-full max-w-xs rounded-2xl px-4 py-3 text-center"
-            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
-          >
-            <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.35)" }}>
-              Vous n'avez pas misé sur ce round · Nouveau round dans quelques secondes…
-            </p>
-          </div>
-        )}
       </div>
 
-      {/* ── Bottom panel ── */}
-      <div
-        className="shrink-0 px-4 pt-4 rounded-t-3xl"
-        style={{
-          background:     "rgba(10,20,14,0.96)",
-          border:         "1px solid rgba(255,255,255,0.07)",
-          borderBottom:   "none",
-          backdropFilter: "blur(16px)",
-          paddingBottom:  "max(16px, env(safe-area-inset-bottom))",
-        }}
-      >
-        {/* Mise form */}
+      {/* ── Briefcases 2×2 ── */}
+      <div style={{
+        flex: 1, padding: "0 14px",
+        display: "grid", gridTemplateColumns: "1fr 1fr",
+        gridTemplateRows: "1fr 1fr",
+        gap: 10,
+        minHeight: 0,
+      }}>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <CaseCard
+            key={i}
+            index={i}
+            totalBet={round?.betsPerCase?.[i] ?? 0}
+            multiplier={mults?.[i] ?? undefined}
+            isMyBet={myBet?.caseIndex === i}
+            selected={selectedCase === i && canBet}
+            selectable={canBet}
+            revealed={revealed}
+            spinning={isSpinning}
+            spinDelay={i * 120}
+            onClick={() => { setSelectedCase(i); setError(null); }}
+          />
+        ))}
+      </div>
+
+      {/* ── History strip ── */}
+      <div style={{ padding: "8px 14px 4px", flexShrink: 0 }}>
+        <p style={{ fontSize: 9, fontWeight: 800, color: "#9ca3af", letterSpacing: "0.08em", margin: "0 0 5px", textTransform: "uppercase" }}>
+          Historique des rounds
+        </p>
+        <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}
+          className="hide-scrollbar"
+        >
+          {history.length === 0 ? (
+            <span style={{ fontSize: 11, color: "#d1d5db", fontStyle: "italic" }}>Aucun historique encore…</span>
+          ) : history.map(e => <HistoryChip key={e.roundId} entry={e} />)}
+        </div>
+      </div>
+
+      {/* ── Bet panel ── */}
+      <div style={{
+        flexShrink: 0, padding: "10px 14px",
+        background: "#f8fafc",
+        borderTop: "1px solid #e5e7eb",
+        paddingBottom: `max(14px, env(safe-area-inset-bottom))`,
+      }}>
+
         {canBet && (
-          <div className="space-y-3">
-            <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.4)" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", margin: 0, letterSpacing: "0.04em" }}>
               {selectedCase !== null
-                ? `Malette N°${selectedCase + 1} · Choisissez votre mise`
+                ? `Malette N°${selectedCase + 1} sélectionnée · choisissez votre mise`
                 : "👆 Tapez sur une malette pour la choisir"}
             </p>
-            <div className="flex flex-wrap gap-1.5">
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {BET_PRESETS.map(p => (
-                <button
-                  key={p}
-                  onClick={() => setBetInput(String(p))}
-                  className="px-3 py-1.5 rounded-xl text-[11px] font-black transition-all active:scale-95"
-                  style={{
-                    background: betInput === String(p) ? "rgba(245,197,24,0.2)" : "rgba(255,255,255,0.05)",
-                    border:     `1px solid ${betInput === String(p) ? "#F5C518" : "rgba(255,255,255,0.1)"}`,
-                    color:      betInput === String(p) ? "#F5C518" : "rgba(255,255,255,0.6)",
-                  }}
-                >{formatFC(p)} FC</button>
+                <button key={p} onClick={() => setBetInput(String(p))} style={{
+                  padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 800, cursor: "pointer",
+                  background: betInput === String(p) ? "#16a34a" : "#fff",
+                  border: `1.5px solid ${betInput === String(p) ? "#16a34a" : "#e5e7eb"}`,
+                  color: betInput === String(p) ? "#fff" : "#374151",
+                  transition: "all 0.15s",
+                }}>
+                  {formatFC(p)} FC
+                </button>
               ))}
             </div>
-            <div className="flex gap-2">
+            <div style={{ display: "flex", gap: 8 }}>
               <input
-                type="number"
-                value={betInput}
+                type="number" value={betInput}
                 onChange={e => setBetInput(e.target.value)}
                 placeholder="Montant (FC)"
-                className="flex-1 rounded-xl px-4 py-3 text-white font-bold text-[14px] outline-none"
-                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}
+                style={{
+                  flex: 1, borderRadius: 10, padding: "10px 14px",
+                  fontSize: 14, fontWeight: 700, color: "#111827",
+                  border: "1.5px solid #e5e7eb", background: "#fff", outline: "none",
+                }}
               />
               <button
                 onClick={() => { void handleBet(); }}
                 disabled={loading || selectedCase === null}
-                className="px-5 py-3 rounded-xl font-black text-[13px] uppercase tracking-wide flex items-center gap-2 active:scale-95 transition-all disabled:opacity-50"
                 style={{
-                  background: "linear-gradient(135deg,#c8921a 0%,#F5C518 100%)",
-                  color: "#000", boxShadow: "0 4px 14px rgba(245,197,24,0.3)", minWidth: 96,
+                  padding: "10px 20px", borderRadius: 10, fontWeight: 900, fontSize: 13,
+                  cursor: loading || selectedCase === null ? "not-allowed" : "pointer",
+                  background: loading || selectedCase === null
+                    ? "#e5e7eb"
+                    : "linear-gradient(135deg,#15803d,#22c55e)",
+                  color: loading || selectedCase === null ? "#9ca3af" : "#fff",
+                  border: "none", display: "flex", alignItems: "center", gap: 6,
+                  boxShadow: selectedCase !== null ? "0 4px 12px rgba(22,163,74,0.35)" : "none",
+                  transition: "all 0.2s",
                 }}
               >
-                {loading
-                  ? <Loader2 className="animate-spin" style={{ width: 18, height: 18 }} />
-                  : <>🧳 Miser</>}
+                {loading ? <Loader2 style={{ width: 16, height: 16, animation: "spin 1s linear infinite" }} /> : "🧳 MISER"}
               </button>
             </div>
-            {error && <p className="text-[11px]" style={{ color: "#ef4444" }}>{error}</p>}
+            {error && <p style={{ fontSize: 11, color: "#dc2626", margin: 0 }}>{error}</p>}
           </div>
         )}
 
-        {/* Paris fermés (2 dernières secondes ou tirage) */}
         {(isLocked || isSpinning) && (
-          <div
-            className="py-3 px-4 rounded-2xl text-center"
-            style={{
-              background: "rgba(239,68,68,0.1)",
-              border: "1px solid rgba(239,68,68,0.25)",
-              animation: isSpinning ? "pulse-border 0.8s ease-in-out infinite" : undefined,
-            }}
-          >
-            <p className="font-black text-[13px]" style={{ color: "#ef4444" }}>
+          <div style={{
+            padding: "12px 16px", borderRadius: 12, textAlign: "center",
+            background: isSpinning ? "#fef3c7" : "#fef2f2",
+            border: `1px solid ${isSpinning ? "#d97706" : "#dc2626"}30`,
+          }}>
+            <p style={{ fontWeight: 900, fontSize: 13, color: isSpinning ? "#b45309" : "#dc2626", margin: 0 }}>
               {isSpinning ? "🎲 Les malettes tournent…" : "🔒 Paris fermés"}
             </p>
             {myBet && (
-              <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
+              <p style={{ fontSize: 10, color: "#9ca3af", margin: "3px 0 0" }}>
                 Malette N°{myBet.caseIndex + 1} · {formatFC(myBet.amount)} FC
               </p>
             )}
           </div>
         )}
 
-        {/* En attente du résultat (mis mais round encore ouvert) */}
         {phase === "waiting" && myBet && !isLocked && (
-          <div
-            className="py-3 px-4 rounded-2xl text-center"
-            style={{ background: "rgba(245,197,24,0.07)", border: "1px solid rgba(245,197,24,0.15)" }}
-          >
-            <p className="font-black text-[13px]" style={{ color: "rgba(245,197,24,0.85)" }}>
+          <div style={{
+            padding: "12px 16px", borderRadius: 12, textAlign: "center",
+            background: "#eff6ff", border: "1px solid #bfdbfe",
+          }}>
+            <p style={{ fontWeight: 900, fontSize: 13, color: "#1d4ed8", margin: 0 }}>
               🧳 Malette N°{myBet.caseIndex + 1} · {formatFC(myBet.amount)} FC misés
             </p>
-            <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-              En attente du tirage…
+            <p style={{ fontSize: 10, color: "#6b7280", margin: "3px 0 0" }}>En attente du tirage…</p>
+          </div>
+        )}
+
+        {phase === "closed" && !myBet && (
+          <div style={{
+            padding: "12px 16px", borderRadius: 12, textAlign: "center",
+            background: "#f8fafc", border: "1px solid #e5e7eb",
+          }}>
+            <p style={{ fontSize: 11, color: "#6b7280", margin: 0 }}>
+              Vous n'avez pas misé sur ce round · Nouveau round dans quelques secondes…
             </p>
           </div>
         )}
 
-        {/* Distribution */}
-        <div className="mt-3 pt-3 flex items-center justify-between" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-          <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.22)" }}>
-            Distribution
-          </p>
-          <div className="flex gap-3">
-            {[
-              { label: "×0",   color: "#ef4444", qty: 2 },
-              { label: "×1.1", color: "#eab308", qty: 1 },
-              { label: "×2.5", color: "#F5C518", qty: 1 },
-            ].map(t => (
-              <div key={t.label} className="flex items-center gap-1">
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: t.color }} />
-                <span style={{ fontSize: 10, color: t.color, fontWeight: 900 }}>{t.label}</span>
-                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)" }}>×{t.qty}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {phase === "loading" && (
-          <div className="flex items-center justify-center py-4 gap-2">
-            <Loader2 className="animate-spin" style={{ width: 18, height: 18, color: "#F5C518" }} />
-            <span className="text-[12px]" style={{ color: "rgba(255,255,255,0.4)" }}>Chargement du round…</span>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 12 }}>
+            <Loader2 style={{ width: 18, height: 18, color: "#9ca3af", animation: "spin 1s linear infinite" }} />
+            <span style={{ fontSize: 12, color: "#9ca3af" }}>Chargement du round…</span>
           </div>
         )}
       </div>
 
-      {/* ── CSS Animations ── */}
       <style>{`
-        @keyframes malette-shake {
+        @keyframes mshake {
           0%   { transform: scale(1)    rotate(0deg);  }
-          15%  { transform: scale(1.07) rotate(-7deg); }
-          30%  { transform: scale(0.96) rotate(7deg);  }
-          45%  { transform: scale(1.06) rotate(-5deg); }
-          60%  { transform: scale(0.97) rotate(5deg);  }
-          75%  { transform: scale(1.04) rotate(-3deg); }
+          20%  { transform: scale(1.06) rotate(-6deg); }
+          40%  { transform: scale(0.97) rotate(6deg);  }
+          60%  { transform: scale(1.04) rotate(-4deg); }
+          80%  { transform: scale(0.98) rotate(4deg);  }
           100% { transform: scale(1)    rotate(0deg);  }
         }
-        @keyframes malette-question {
+        @keyframes mq {
           from { opacity: 0.5; transform: scale(0.9); }
           to   { opacity: 1;   transform: scale(1.1); }
         }
-        @keyframes pulse-text {
+        @keyframes mpulse {
           from { opacity: 0.7; }
           to   { opacity: 1;   }
         }
-        @keyframes pulse-border {
-          0%, 100% { border-color: rgba(239,68,68,0.25); }
-          50%      { border-color: rgba(239,68,68,0.55); }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
         }
-        @keyframes fade-up {
-          from { opacity: 0; transform: translateY(12px); }
-          to   { opacity: 1; transform: translateY(0);    }
-        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
     </div>
   );
