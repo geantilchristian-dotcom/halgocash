@@ -362,6 +362,12 @@ export async function runMigrations() {
       CREATE INDEX IF NOT EXISTS idx_malette_bets_clerk ON malette_bets (round_id, clerk_id)
     `);
 
+    // ── withdrawals — colonnes client ajoutées après la création initiale ────
+    await client.query(`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS client_post_nom TEXT`);
+    await client.query(`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS client_phone    TEXT`);
+    await client.query(`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS client_age      TEXT`);
+    await client.query(`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS client_address  TEXT`);
+
     // ── device_id column (ajout progressif) ─────────────────────────────────
     await client.query(`
       ALTER TABLE users ADD COLUMN IF NOT EXISTS device_id TEXT

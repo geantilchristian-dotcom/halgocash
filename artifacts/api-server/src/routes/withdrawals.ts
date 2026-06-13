@@ -217,7 +217,7 @@ router.post("/withdrawals/:token/pay", async (req, res): Promise<void> => {
   }
 
   const [vendorUser] = await db
-    .select()
+    .select({ id: usersTable.id, vendorId: usersTable.vendorId })
     .from(usersTable)
     .where(eq(usersTable.id, vendorUserId))
     .limit(1);
@@ -315,7 +315,7 @@ router.get("/vendor/withdrawals", async (req, res): Promise<void> => {
   }
 
   const [vendorUser] = await db
-    .select()
+    .select({ vendorId: usersTable.vendorId })
     .from(usersTable)
     .where(eq(usersTable.id, vendorUserId))
     .limit(1);
