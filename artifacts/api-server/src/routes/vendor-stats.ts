@@ -174,7 +174,7 @@ router.get("/vendor/rapport", async (req, res): Promise<void> => {
   const vendorUserId = req.session.userId;
   if (!vendorUserId) { res.status(401).json({ error: "Non authentifié" }); return; }
 
-  const [vendorUser] = await db.select().from(usersTable).where(eq(usersTable.id, vendorUserId)).limit(1);
+  const [vendorUser] = await db.select({ vendorId: usersTable.vendorId }).from(usersTable).where(eq(usersTable.id, vendorUserId)).limit(1);
   if (!vendorUser?.vendorId) { res.status(403).json({ error: "Accès vendeur requis" }); return; }
 
   const vid = vendorUser.vendorId;
@@ -213,7 +213,7 @@ router.get("/vendor/rapport/:clerkId", async (req, res): Promise<void> => {
   const vendorUserId = req.session.userId;
   if (!vendorUserId) { res.status(401).json({ error: "Non authentifié" }); return; }
 
-  const [vendorUser] = await db.select().from(usersTable).where(eq(usersTable.id, vendorUserId)).limit(1);
+  const [vendorUser] = await db.select({ vendorId: usersTable.vendorId }).from(usersTable).where(eq(usersTable.id, vendorUserId)).limit(1);
   if (!vendorUser?.vendorId) { res.status(403).json({ error: "Accès vendeur requis" }); return; }
 
   const clerkId = String(req.params["clerkId"] ?? "");

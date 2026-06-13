@@ -14,7 +14,13 @@ async function requireAdmin(req: Request, res: Response, next: NextFunction): Pr
     res.status(401).json({ error: "Non authentifié" });
     return;
   }
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  const [user] = await db.select({
+    id: usersTable.id, email: usersTable.email, username: usersTable.username,
+    passwordHash: usersTable.passwordHash, role: usersTable.role,
+    vendorId: usersTable.vendorId, isSuspended: usersTable.isSuspended,
+    lastLoginAt: usersTable.lastLoginAt, lastLoginIp: usersTable.lastLoginIp,
+    plainPassword: usersTable.plainPassword, createdAt: usersTable.createdAt,
+  }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   if (!user || user.role !== "admin") {
     res.status(403).json({ error: "Accès réservé aux administrateurs" });
     return;
@@ -329,7 +335,7 @@ router.put("/admin/credentials", requireAdmin, async (req: Request, res: Respons
       res.status(400).json({ error: "Mot de passe actuel requis" });
       return;
     }
-    const [current] = await db.select().from(usersTable).where(eq(usersTable.id, adminUser.id)).limit(1);
+    const [current] = await db.select({ passwordHash: usersTable.passwordHash }).from(usersTable).where(eq(usersTable.id, adminUser.id)).limit(1);
     const valid = await bcrypt.compare(currentPassword, current!.passwordHash);
     if (!valid) {
       res.status(400).json({ error: "Mot de passe actuel incorrect" });
@@ -351,7 +357,7 @@ router.put("/admin/credentials", requireAdmin, async (req: Request, res: Respons
   }
 
   await db.update(usersTable).set(updates).where(eq(usersTable.id, adminUser.id));
-  const [updated] = await db.select().from(usersTable).where(eq(usersTable.id, adminUser.id)).limit(1);
+  const [updated] = await db.select({ id: usersTable.id, email: usersTable.email, username: usersTable.username, role: usersTable.role }).from(usersTable).where(eq(usersTable.id, adminUser.id)).limit(1);
   res.json({ id: updated!.id, email: updated!.email, username: updated!.username, role: updated!.role });
 });
 
@@ -574,7 +580,12 @@ router.patch("/admin/workers/:userId", requireAdmin, async (req: Request, res: R
     vendorName?: string; location?: string; phone?: string;
   };
 
-  const [worker] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  const [worker] = await db.select({
+    id: usersTable.id, email: usersTable.email, username: usersTable.username,
+    passwordHash: usersTable.passwordHash, role: usersTable.role,
+    vendorId: usersTable.vendorId, isSuspended: usersTable.isSuspended,
+    plainPassword: usersTable.plainPassword,
+  }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   if (!worker || worker.role !== "vendor") { res.status(404).json({ error: "Vendeur introuvable" }); return; }
 
   // Check username/email uniqueness if changed

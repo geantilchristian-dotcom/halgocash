@@ -268,7 +268,19 @@ router.get("/auth/me", async (req, res): Promise<void> => {
   }
 
   const [user] = await db
-    .select()
+    .select({
+      id:           usersTable.id,
+      email:        usersTable.email,
+      username:     usersTable.username,
+      passwordHash: usersTable.passwordHash,
+      role:         usersTable.role,
+      vendorId:     usersTable.vendorId,
+      isSuspended:  usersTable.isSuspended,
+      lastLoginAt:  usersTable.lastLoginAt,
+      lastLoginIp:  usersTable.lastLoginIp,
+      plainPassword: usersTable.plainPassword,
+      createdAt:    usersTable.createdAt,
+    })
     .from(usersTable)
     .where(eq(usersTable.id, userId))
     .limit(1);
