@@ -13,6 +13,7 @@ import NotFound from "@/pages/not-found";
 import ScanRetrait from "@/pages/scan-retrait";
 import Rapport from "@/pages/rapport";
 import Historique from "@/pages/historique";
+import Caisse from "@/pages/caisse";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient({
@@ -54,6 +55,7 @@ function ProtectedRouter() {
       <Route path="/scan-retrait" component={ScanRetrait} />
       <Route path="/rapport" component={Rapport} />
       <Route path="/historique" component={Historique} />
+      <Route path="/caisse" component={Caisse} />
       <Route component={NotFound} />
     </Switch>
   );
