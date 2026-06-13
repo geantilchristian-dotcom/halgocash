@@ -268,6 +268,10 @@ router.post("/malette/bet", async (req, res): Promise<void> => {
   if (!round || round.closesAt <= new Date()) {
     res.status(400).json({ error: "Ce round est fermé" }); return;
   }
+  // Les paris se ferment automatiquement 2 secondes avant la clôture
+  if (round.closesAt.getTime() - Date.now() < 2_000) {
+    res.status(400).json({ error: "Tirage imminent — les paris sont fermés" }); return;
+  }
 
   // Une seule mise par joueur par round
   const [existing] = await db.select({ id: maletteBetsTable.id })

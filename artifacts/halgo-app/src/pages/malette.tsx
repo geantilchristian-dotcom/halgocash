@@ -16,10 +16,10 @@ function formatTime(ms: number): string {
 }
 
 function multInfo(m: number) {
-  if (m === 0)    return { text: "×0",   color: "#ef4444", glow: "#ef444460", emoji: "💸", win: false };
-  if (m <= 1.15)  return { text: "×1.1", color: "#eab308", glow: "#eab30860", emoji: "🔄", win: true  };
-  if (m <= 1.6)   return { text: "×1.5", color: "#22c55e", glow: "#22c55e60", emoji: "💎", win: true  };
-  return              { text: "×2.5", color: "#F5C518", glow: "#F5C51860", emoji: "🏆", win: true  };
+  if (m === 0)   return { text: "×0",   color: "#ef4444", glow: "#ef444460", emoji: "💸", win: false };
+  if (m <= 1.15) return { text: "×1.1", color: "#eab308", glow: "#eab30860", emoji: "🔄", win: true  };
+  if (m <= 1.6)  return { text: "×1.5", color: "#22c55e", glow: "#22c55e60", emoji: "💎", win: true  };
+  return             { text: "×2.5", color: "#F5C518", glow: "#F5C51860", emoji: "🏆", win: true  };
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -31,22 +31,26 @@ interface MyBet {
 }
 
 interface RoundData {
-  roundId:        number;
-  status:         "betting" | "closed";
-  betsPerCase:    number[];
-  timeLeft:       number;
-  closesAt?:      string;
-  multipliers?:   number[] | null;
+  roundId:         number;
+  status:          "betting" | "closed";
+  betsPerCase:     number[];
+  timeLeft:        number;
+  closesAt?:       string;
+  multipliers?:    number[] | null;
   totalCollected?: number;
-  totalPaid?:     number;
-  closedAt?:      string | null;
-  myBet?:         MyBet | null;
+  totalPaid?:      number;
+  closedAt?:       string | null;
+  myBet?:          MyBet | null;
 }
+
+// "spinning" = animation de tirage entre fermeture des paris et révélation
+type Phase = "loading" | "betting" | "waiting" | "locking" | "spinning" | "closed";
 
 // ── Briefcase component ───────────────────────────────────────────────────────
 function Case({
   index, totalBet, multiplier, isMyBet,
-  selected, selectable, revealed, onClick,
+  selected, selectable, revealed, spinning, spinDelay,
+  onClick,
 }: {
   index:      number;
   totalBet:   number;
@@ -55,6 +59,8 @@ function Case({
   selected:   boolean;
   selectable: boolean;
   revealed:   boolean;
+  spinning:   boolean;
+  spinDelay:  number;
   onClick?:   () => void;
 }) {
   const t         = revealed && multiplier !== undefined ? multInfo(multiplier) : null;
@@ -67,20 +73,21 @@ function Case({
       onClick={selectable ? onClick : undefined}
       disabled={!selectable}
       style={{
-        border:     `2px solid ${borderClr}`,
-        background: bgClr,
-        borderRadius: 18,
-        padding:    "18px 10px 14px",
-        display:    "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap:        8,
-        cursor:     selectable ? "pointer" : "default",
-        transition: "all 0.35s cubic-bezier(0.34,1.56,0.64,1)",
-        boxShadow:  t?.win || selected ? `0 0 22px ${t?.glow ?? "rgba(245,197,24,0.4)"}` : "none",
-        position:   "relative",
+        border:          `2px solid ${borderClr}`,
+        background:      bgClr,
+        borderRadius:    18,
+        padding:         "18px 10px 14px",
+        display:         "flex",
+        flexDirection:   "column",
+        alignItems:      "center",
+        gap:             8,
+        cursor:          selectable ? "pointer" : "default",
+        transition:      spinning ? "none" : "all 0.35s cubic-bezier(0.34,1.56,0.64,1)",
+        boxShadow:       (t?.win || selected) ? `0 0 22px ${t?.glow ?? "rgba(245,197,24,0.4)"}` : "none",
+        position:        "relative",
         WebkitTapHighlightColor: "transparent",
-        minHeight:  120,
+        minHeight:       120,
+        animation:       spinning ? `malette-shake 0.55s ease-in-out ${spinDelay}ms 3 both` : undefined,
       }}
     >
       {/* "MOI" badge */}
@@ -106,29 +113,41 @@ function Case({
         }} />
         {/* Body */}
         <div style={{
-          position: "absolute", top: 8, left: 0, right: 0, bottom: 0,
+          position:   "absolute", top: 8, left: 0, right: 0, bottom: 0,
           borderRadius: 10,
-          border: `2px solid ${accent ?? "rgba(255,255,255,0.2)"}`,
-          background: t ? `${t.color}1a` : selected ? "rgba(245,197,24,0.12)" : "rgba(255,255,255,0.05)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          transition: "all 0.35s",
-          overflow: "hidden",
+          border:      `2px solid ${accent ?? "rgba(255,255,255,0.2)"}`,
+          background:  t ? `${t.color}1a` : selected ? "rgba(245,197,24,0.12)" : spinning ? "rgba(245,197,24,0.07)" : "rgba(255,255,255,0.05)",
+          display:     "flex", alignItems: "center", justifyContent: "center",
+          transition:  "all 0.35s",
+          overflow:    "hidden",
         }}>
-          {/* Latch */}
-          {!revealed && (
+          {/* Latch (hidden when open/spinning) */}
+          {!revealed && !spinning && (
             <div style={{
-              position: "absolute",
+              position:   "absolute",
               top: "40%", left: "50%", transform: "translateX(-50%)",
               width: 12, height: 8,
               borderRadius: 3,
-              background: selected ? "#F5C518" : "rgba(255,255,255,0.2)",
-              border: `1px solid ${selected ? "rgba(245,197,24,0.6)" : "rgba(255,255,255,0.1)"}`,
+              background:   selected ? "#F5C518" : "rgba(255,255,255,0.2)",
+              border:       `1px solid ${selected ? "rgba(245,197,24,0.6)" : "rgba(255,255,255,0.1)"}`,
             }} />
           )}
+
+          {/* Question mark while spinning */}
+          {spinning && (
+            <span style={{
+              fontSize: 18, fontWeight: 900,
+              color: "#F5C518",
+              animation: "malette-question 0.4s ease-in-out infinite alternate",
+              display: "block",
+            }}>?</span>
+          )}
+
           {revealed && t && (
             <span style={{ fontSize: 20, filter: `drop-shadow(0 0 8px ${t.glow})` }}>{t.emoji}</span>
           )}
-          {!revealed && (
+
+          {!revealed && !spinning && (
             <span style={{
               fontSize: 11, fontWeight: 900, letterSpacing: "0.04em",
               color: selected ? "#F5C518" : "rgba(255,255,255,0.4)",
@@ -138,14 +157,18 @@ function Case({
         </div>
       </div>
 
-      {/* Label below briefcase */}
+      {/* Label below */}
       {revealed && t ? (
         <span style={{ fontSize: 14, fontWeight: 900, color: t.color, letterSpacing: "0.02em" }}>
           {t.text}
         </span>
+      ) : spinning ? (
+        <span style={{ fontSize: 10, fontWeight: 900, color: "rgba(245,197,24,0.6)" }}>…</span>
       ) : (
         <div style={{ textAlign: "center" }}>
-          {!revealed && <p style={{ fontSize: 10, fontWeight: 900, color: selected ? "#F5C518" : "rgba(255,255,255,0.3)", marginBottom: 2 }}>N°{index + 1}</p>}
+          <p style={{ fontSize: 10, fontWeight: 900, color: selected ? "#F5C518" : "rgba(255,255,255,0.3)", marginBottom: 2 }}>
+            N°{index + 1}
+          </p>
           <p style={{ fontSize: 11, fontWeight: 700, color: totalBet > 0 ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.2)" }}>
             {totalBet > 0 ? `${formatFC(totalBet)} FC` : "—"}
           </p>
@@ -157,7 +180,7 @@ function Case({
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 const BET_PRESETS = [500, 1_000, 5_000, 10_000, 50_000];
-type Phase = "loading" | "betting" | "waiting" | "closed";
+const SPIN_DURATION_MS = 1_800; // durée de l'animation de tirage (ms)
 
 export default function MalettePage() {
   const [, navigate]   = useLocation();
@@ -182,8 +205,13 @@ export default function MalettePage() {
   const [timeLeft,     setTimeLeft]     = useState(0);
   const [phase,        setPhase]        = useState<Phase>("loading");
 
-  const closesAtMs = useRef<number | null>(null);
-  const pollTimer  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const closesAtMs      = useRef<number | null>(null);
+  const pollTimer       = useRef<ReturnType<typeof setInterval> | null>(null);
+  const phaseRef        = useRef<Phase>("loading");        // always-current phase (avoids stale closures)
+  const pendingResult   = useRef<RoundData | null>(null);  // holds closed data during spin
+
+  // Keep phaseRef in sync
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
 
   // ── Balance ────────────────────────────────────────────────────────────────
   const fetchBalance = useCallback(() => {
@@ -199,17 +227,40 @@ export default function MalettePage() {
       const res = await authFetch("/api/malette/round/current");
       if (!res.ok) return;
       const data = await res.json() as RoundData;
-      setRound(data);
 
       if (data.status === "betting") {
         closesAtMs.current = data.closesAt ? new Date(data.closesAt).getTime() : null;
+        setRound(data);
+        // Réinitialise la sélection si c'est un nouveau round
+        if (phaseRef.current === "closed" || phaseRef.current === "spinning") {
+          setSelectedCase(null);
+          setError(null);
+        }
         setPhase(data.myBet ? "waiting" : "betting");
-      } else {
-        closesAtMs.current = null;
+        return;
+      }
+
+      // status === "closed"
+      const cur = phaseRef.current;
+      if (cur === "closed" || cur === "spinning") {
+        // Déjà en train de montrer le résultat ou l'animation — ne rien faire
+        if (cur === "closed") setRound(data);
+        return;
+      }
+
+      // Transition vers résultat : d'abord l'animation de tirage
+      pendingResult.current = data;
+      closesAtMs.current    = null;
+      setPhase("spinning");
+      setRound(prev => prev ? { ...prev } : data); // garde les données du round actif visuellement
+
+      setTimeout(() => {
+        setRound(pendingResult.current);
         setPhase("closed");
         fetchBalance();
-      }
-    } catch { /* network error — ignore */ }
+      }, SPIN_DURATION_MS);
+
+    } catch { /* ignore réseau */ }
   }, [authFetch, fetchBalance]);
 
   // Initial load
@@ -218,17 +269,18 @@ export default function MalettePage() {
     fetchBalance();
   }, [fetchRound, fetchBalance]);
 
-  // Countdown timer (ticks every 500ms)
+  // Countdown (tick toutes les 250ms)
   useEffect(() => {
     const t = setInterval(() => {
       if (closesAtMs.current !== null) {
-        setTimeLeft(Math.max(0, closesAtMs.current - Date.now()));
+        const left = Math.max(0, closesAtMs.current - Date.now());
+        setTimeLeft(left);
       }
-    }, 500);
+    }, 250);
     return () => clearInterval(t);
   }, []);
 
-  // Poll server every 3 seconds
+  // Poll toutes les 3 secondes
   useEffect(() => {
     if (pollTimer.current) clearInterval(pollTimer.current);
     pollTimer.current = setInterval(() => { void fetchRound(); }, 3_000);
@@ -261,11 +313,34 @@ export default function MalettePage() {
   const myBet    = round?.myBet ?? null;
   const mults    = round?.multipliers ?? null;
   const revealed = phase === "closed" && Array.isArray(mults);
+  const isLocked = phase === "locking" || (phase === "betting" && timeLeft > 0 && timeLeft <= 2_000);
   const myMult   = revealed && myBet ? (mults?.[myBet.caseIndex] ?? 0) : null;
   const myPayout = myBet?.payout ?? null;
   const myWin    = myPayout !== null && myPayout > 0;
-  const hotColor = phase !== "loading" && timeLeft < 10_000 && phase !== "closed";
   const totalPot = (round?.betsPerCase ?? []).reduce((a, b) => a + b, 0);
+
+  // Couleur du timer
+  const timerColor = (() => {
+    if (phase === "spinning")           return "#F5C518";
+    if (phase === "closed")             return "#F5C518";
+    if (isLocked)                       return "#ef4444";
+    if (timeLeft < 10_000 && timeLeft > 0) return "#ef4444";
+    return "rgba(255,255,255,0.55)";
+  })();
+
+  // Message du timer bar
+  const timerMsg = (() => {
+    if (phase === "loading")  return "Chargement…";
+    if (phase === "spinning") return "🎲 Tirage en cours…";
+    if (phase === "closed")   return "✨ Résultats du round";
+    if (isLocked)             return "🔒 Paris fermés — tirage imminent";
+    if (phase === "betting")  return `Paris ouverts · ${formatTime(timeLeft)}`;
+    if (phase === "waiting")  return `Pari enregistré · ${formatTime(timeLeft)}`;
+    return formatTime(timeLeft);
+  })();
+
+  const canBet    = phase === "betting" && !myBet && !isLocked;
+  const isSpinning = phase === "spinning";
 
   return (
     <div
@@ -299,20 +374,23 @@ export default function MalettePage() {
       <div
         className="mx-4 mb-3 rounded-xl px-4 py-2.5 flex items-center gap-3 shrink-0"
         style={{
-          background: revealed ? "rgba(245,197,24,0.08)" : hotColor ? "rgba(239,68,68,0.1)" : "rgba(255,255,255,0.04)",
-          border: `1px solid ${revealed ? "rgba(245,197,24,0.25)" : hotColor ? "rgba(239,68,68,0.3)" : "rgba(255,255,255,0.08)"}`,
+          background: isSpinning || phase === "closed"
+            ? "rgba(245,197,24,0.08)"
+            : isLocked ? "rgba(239,68,68,0.12)"
+            : "rgba(255,255,255,0.04)",
+          border: `1px solid ${isSpinning || phase === "closed" ? "rgba(245,197,24,0.3)" : isLocked ? "rgba(239,68,68,0.3)" : "rgba(255,255,255,0.08)"}`,
           transition: "all 0.5s",
         }}
       >
-        <Timer style={{ width: 14, height: 14, flexShrink: 0, color: revealed ? "#F5C518" : hotColor ? "#ef4444" : "rgba(255,255,255,0.4)" }} />
+        <Timer style={{ width: 14, height: 14, flexShrink: 0, color: timerColor }} />
         <p
           className="text-[12px] font-black flex-1"
-          style={{ color: revealed ? "#F5C518" : hotColor ? "#ef4444" : "rgba(255,255,255,0.6)" }}
+          style={{
+            color: timerColor,
+            animation: isSpinning ? "pulse-text 0.5s ease-in-out infinite alternate" : undefined,
+          }}
         >
-          {phase === "loading" && "Chargement…"}
-          {phase === "betting" && `Paris ouverts · ${formatTime(timeLeft)}`}
-          {phase === "waiting" && `Pari enregistré · ${formatTime(timeLeft)}`}
-          {phase === "closed"  && "✨ Résultats du round"}
+          {timerMsg}
         </p>
         {totalPot > 0 && (
           <div className="flex items-center gap-1 shrink-0">
@@ -334,9 +412,11 @@ export default function MalettePage() {
               totalBet={round?.betsPerCase?.[i] ?? 0}
               multiplier={mults?.[i] ?? undefined}
               isMyBet={myBet?.caseIndex === i}
-              selected={selectedCase === i && phase === "betting" && !myBet}
-              selectable={phase === "betting" && !myBet}
+              selected={selectedCase === i && canBet}
+              selectable={canBet}
               revealed={revealed}
+              spinning={isSpinning}
+              spinDelay={i * 100}
               onClick={() => { setSelectedCase(i); setError(null); }}
             />
           ))}
@@ -347,9 +427,10 @@ export default function MalettePage() {
           <div
             className="mx-auto w-full max-w-xs rounded-2xl px-4 py-4 text-center"
             style={{
-              background: myWin ? "rgba(245,197,24,0.08)" : "rgba(239,68,68,0.08)",
-              border:     `1.5px solid ${myWin ? "rgba(245,197,24,0.35)" : "rgba(239,68,68,0.3)"}`,
-              boxShadow:  myWin ? "0 0 28px rgba(245,197,24,0.15)" : "none",
+              background:  myWin ? "rgba(245,197,24,0.08)" : "rgba(239,68,68,0.08)",
+              border:      `1.5px solid ${myWin ? "rgba(245,197,24,0.35)" : "rgba(239,68,68,0.3)"}`,
+              boxShadow:   myWin ? "0 0 28px rgba(245,197,24,0.15)" : "none",
+              animation:   "fade-up 0.5s ease-out both",
             }}
           >
             <p className="text-2xl mb-1">{myWin ? "✨" : "😔"}</p>
@@ -387,8 +468,8 @@ export default function MalettePage() {
           paddingBottom:  "max(16px, env(safe-area-inset-bottom))",
         }}
       >
-        {/* Mise form — uniquement si pas encore misé */}
-        {phase === "betting" && !myBet && (
+        {/* Mise form */}
+        {canBet && (
           <div className="space-y-3">
             <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.4)" }}>
               {selectedCase !== null
@@ -436,8 +517,29 @@ export default function MalettePage() {
           </div>
         )}
 
-        {/* En attente du résultat */}
-        {(phase === "waiting" || (phase === "betting" && myBet)) && myBet && (
+        {/* Paris fermés (2 dernières secondes ou tirage) */}
+        {(isLocked || isSpinning) && (
+          <div
+            className="py-3 px-4 rounded-2xl text-center"
+            style={{
+              background: "rgba(239,68,68,0.1)",
+              border: "1px solid rgba(239,68,68,0.25)",
+              animation: isSpinning ? "pulse-border 0.8s ease-in-out infinite" : undefined,
+            }}
+          >
+            <p className="font-black text-[13px]" style={{ color: "#ef4444" }}>
+              {isSpinning ? "🎲 Les malettes tournent…" : "🔒 Paris fermés"}
+            </p>
+            {myBet && (
+              <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
+                Malette N°{myBet.caseIndex + 1} · {formatFC(myBet.amount)} FC
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* En attente du résultat (mis mais round encore ouvert) */}
+        {phase === "waiting" && myBet && !isLocked && (
           <div
             className="py-3 px-4 rounded-2xl text-center"
             style={{ background: "rgba(245,197,24,0.07)", border: "1px solid rgba(245,197,24,0.15)" }}
@@ -446,12 +548,12 @@ export default function MalettePage() {
               🧳 Malette N°{myBet.caseIndex + 1} · {formatFC(myBet.amount)} FC misés
             </p>
             <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-              En attente du résultat…
+              En attente du tirage…
             </p>
           </div>
         )}
 
-        {/* Distribution des multiplicateurs */}
+        {/* Distribution */}
         <div className="mt-3 pt-3 flex items-center justify-between" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.22)" }}>
             Distribution
@@ -478,6 +580,35 @@ export default function MalettePage() {
           </div>
         )}
       </div>
+
+      {/* ── CSS Animations ── */}
+      <style>{`
+        @keyframes malette-shake {
+          0%   { transform: scale(1)    rotate(0deg);  }
+          15%  { transform: scale(1.07) rotate(-7deg); }
+          30%  { transform: scale(0.96) rotate(7deg);  }
+          45%  { transform: scale(1.06) rotate(-5deg); }
+          60%  { transform: scale(0.97) rotate(5deg);  }
+          75%  { transform: scale(1.04) rotate(-3deg); }
+          100% { transform: scale(1)    rotate(0deg);  }
+        }
+        @keyframes malette-question {
+          from { opacity: 0.5; transform: scale(0.9); }
+          to   { opacity: 1;   transform: scale(1.1); }
+        }
+        @keyframes pulse-text {
+          from { opacity: 0.7; }
+          to   { opacity: 1;   }
+        }
+        @keyframes pulse-border {
+          0%, 100% { border-color: rgba(239,68,68,0.25); }
+          50%      { border-color: rgba(239,68,68,0.55); }
+        }
+        @keyframes fade-up {
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0);    }
+        }
+      `}</style>
     </div>
   );
 }
