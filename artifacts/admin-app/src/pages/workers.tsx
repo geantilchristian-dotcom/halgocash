@@ -238,6 +238,7 @@ export default function Workers() {
   const [showPwd, setShowPwd] = useState(false);
   const [credWorker, setCredWorker] = useState<Worker | null>(null);
   const [editWorker, setEditWorker] = useState<Worker | null>(null);
+  const [search, setSearch] = useState("");
   const [form, setForm] = useState({ vendorName: "", location: "", phone: "", username: "", email: "", password: "" });
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -297,6 +298,15 @@ export default function Workers() {
           Nouveau vendeur
         </button>
       </div>
+
+      {/* Search */}
+      <input
+        type="text"
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        placeholder="Rechercher par nom, email ou username…"
+        className="w-full px-4 py-2.5 rounded-lg border text-sm outline-none focus:ring-2 focus:ring-primary/40"
+      />
 
       {/* Credentials card after creation */}
       {newWorker && (
@@ -426,9 +436,27 @@ export default function Workers() {
             <p className="text-sm">Créez votre premier compte vendeur avec le bouton ci-dessus.</p>
           </CardContent>
         </Card>
-      ) : (
+      ) : (() => {
+        const q = search.toLowerCase().trim();
+        const filtered = q
+          ? workers.filter(w =>
+              w.vendorName.toLowerCase().includes(q) ||
+              w.email.toLowerCase().includes(q) ||
+              w.username.toLowerCase().includes(q) ||
+              (w.vendorLocation ?? "").toLowerCase().includes(q)
+            )
+          : workers;
+        return filtered.length === 0 ? (
+          <Card>
+            <CardContent className="py-10 flex flex-col items-center gap-2 text-muted-foreground">
+              <Users className="w-8 h-8" />
+              <p className="font-semibold">Aucun résultat pour « {search} »</p>
+              <p className="text-sm">Essayez avec l'email complet ou le nom du point de vente.</p>
+            </CardContent>
+          </Card>
+        ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {workers.map((w) => (
+          {filtered.map((w) => (
             <Card key={w.userId} className={w.isSuspended ? "opacity-60" : ""}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -492,7 +520,8 @@ export default function Workers() {
             </Card>
           ))}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
