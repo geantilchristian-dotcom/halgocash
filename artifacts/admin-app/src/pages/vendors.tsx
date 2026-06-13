@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import { Store, MapPin, Phone, Users, Ticket, TrendingUp, AlertCircle } from "lucide-react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Store, MapPin, Phone, Users, Ticket, TrendingUp, AlertCircle, Trash2, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface Worker {
@@ -21,6 +22,10 @@ function formatFC(n: number) {
 }
 
 export default function Vendors() {
+  const queryClient = useQueryClient();
+  const [confirmDelete, setConfirmDelete] = useState<{ vendorId: number; vendorName: string } | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const { data: workers = [], isLoading } = useQuery<Worker[]>({
     queryKey: ["/api/admin/workers"],
     queryFn: async () => {
@@ -31,9 +36,29 @@ export default function Vendors() {
     refetchInterval: 60_000,
   });
 
-  const active   = workers.filter((w) => !w.isSuspended && w.vendorStatus === "active");
+  const deleteMutation = useMutation({
+    mutationFn: async (vendorId: number) => {
+      const r = await fetch(`/api/admin/vendors/${vendorId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error ?? "Erreur inconnue");
+      return json;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/workers"] });
+      setConfirmDelete(null);
+      setDeleteError(null);
+    },
+    onError: (err: Error) => {
+      setDeleteError(err.message);
+    },
+  });
+
+  const active    = workers.filter((w) => !w.isSuspended && w.vendorStatus === "active");
   const suspended = workers.filter((w) => w.isSuspended);
-  const totalRevenue = workers.reduce((s, w) => s + w.totalRevenue, 0);
+  const totalRevenue   = workers.reduce((s, w) => s + w.totalRevenue, 0);
   const totalScratched = workers.reduce((s, w) => s + w.totalScratched, 0);
 
   return (
@@ -51,10 +76,10 @@ export default function Vendors() {
       {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "Total points",    value: workers.length,               color: "text-white",       icon: Store      },
-          { label: "Actifs",          value: active.length,                color: "text-green-400",   icon: Users      },
-          { label: "Tickets écoulés", value: totalScratched.toLocaleString("fr-FR"), color: "text-indigo-400", icon: Ticket },
-          { label: "Revenus cumulés", value: formatFC(totalRevenue) + " FC", color: "text-yellow-400", icon: TrendingUp },
+          { label: "Total points",    value: workers.length,                          color: "text-white",       icon: Store      },
+          { label: "Actifs",          value: active.length,                           color: "text-green-400",   icon: Users      },
+          { label: "Tickets écoulés", value: totalScratched.toLocaleString("fr-FR"),  color: "text-indigo-400",  icon: Ticket     },
+          { label: "Revenus cumulés", value: formatFC(totalRevenue) + " FC",          color: "text-yellow-400",  icon: TrendingUp },
         ].map((s) => (
           <div key={s.label} className="rounded-xl border border-zinc-800/60 bg-zinc-900/50 p-4">
             <div className="flex items-center justify-between mb-2">
@@ -103,13 +128,26 @@ export default function Vendors() {
                       <p className="text-xs text-zinc-500 truncate">{w.username}</p>
                     </div>
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                    isActive
-                      ? "bg-green-500/10 text-green-400 border border-green-500/20"
-                      : "bg-red-500/10 text-red-400 border border-red-500/20"
-                  }`}>
-                    {isActive ? "Actif" : "Suspendu"}
-                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      isActive
+                        ? "bg-green-500/10 text-green-400 border border-green-500/20"
+                        : "bg-red-500/10 text-red-400 border border-red-500/20"
+                    }`}>
+                      {isActive ? "Actif" : "Suspendu"}
+                    </span>
+                    {/* Delete button */}
+                    <button
+                      onClick={() => {
+                        setDeleteError(null);
+                        setConfirmDelete({ vendorId: w.vendorId, vendorName: w.vendorName });
+                      }}
+                      title="Supprimer ce vendeur"
+                      className="w-6 h-6 flex items-center justify-center rounded-md text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5 mb-3">
@@ -159,6 +197,62 @@ export default function Vendors() {
         <div className="flex items-center gap-2 text-xs text-red-400 px-1">
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
           <span>{suspended.length} point{suspended.length > 1 ? "s" : ""} de vente suspendu{suspended.length > 1 ? "s" : ""} · Gérez-les dans "Annuaire vendeurs"</span>
+        </div>
+      )}
+
+      {/* ── Confirmation dialog ─────────────────────────────────────────────── */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white">Supprimer le vendeur</h2>
+                  <p className="text-xs text-zinc-500 mt-0.5">Action irréversible</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setConfirmDelete(null); setDeleteError(null); }}
+                className="text-zinc-600 hover:text-zinc-400 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-sm text-zinc-300 mb-2">
+              Voulez-vous vraiment supprimer{" "}
+              <span className="font-bold text-white">{confirmDelete.vendorName}</span> ?
+            </p>
+            <p className="text-xs text-zinc-500 mb-4">
+              Les comptes workers liés seront détachés. Les tickets déjà écoulés restent dans l'historique.
+            </p>
+
+            {deleteError && (
+              <div className="flex items-start gap-2 rounded-xl bg-red-500/10 border border-red-500/20 p-3 mb-4">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-red-300">{deleteError}</p>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setConfirmDelete(null); setDeleteError(null); }}
+                className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900 text-sm font-semibold text-zinc-400 hover:text-white py-2.5 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate(confirmDelete.vendorId)}
+                disabled={deleteMutation.isPending}
+                className="flex-1 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-sm font-bold text-white py-2.5 transition-colors"
+              >
+                {deleteMutation.isPending ? "Suppression…" : "Supprimer"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

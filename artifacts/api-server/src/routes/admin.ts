@@ -1008,4 +1008,52 @@ router.delete("/admin/players/:clerkId", requireAdmin, async (req: Request, res:
   res.json({ ok: true });
 });
 
+// ── DELETE /api/admin/vendors/:vendorId ───────────────────────────────────────
+// Supprime un point de vente et détache ses comptes workers.
+// Refuse la suppression si des tickets non-écoulés sont encore assignés.
+router.delete("/admin/vendors/:vendorId", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const vendorId = parseInt(String(req.params["vendorId"] ?? ""), 10);
+  if (!vendorId || isNaN(vendorId)) {
+    res.status(400).json({ error: "vendorId invalide" });
+    return;
+  }
+
+  const [vendor] = await db.select().from(vendorsTable).where(eq(vendorsTable.id, vendorId)).limit(1);
+  if (!vendor) {
+    res.status(404).json({ error: "Vendeur introuvable" });
+    return;
+  }
+
+  // Vérifier s'il reste des tickets non-écoulés (statut "available" ou "assigned")
+  const [remaining] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(ticketsTable)
+    .where(and(
+      eq(ticketsTable.vendorId, vendorId),
+      or(
+        sql`${ticketsTable.status} = 'available'`,
+        sql`${ticketsTable.status} = 'assigned'`,
+      ),
+    ));
+
+  if ((remaining?.n ?? 0) > 0) {
+    res.status(409).json({
+      error: `Ce vendeur a encore ${remaining!.n} ticket(s) non-écoulés. Récupérez ou transférez-les avant de supprimer.`,
+    });
+    return;
+  }
+
+  // Détacher les comptes workers liés à ce vendeur
+  await db
+    .update(usersTable)
+    .set({ vendorId: null })
+    .where(eq(usersTable.vendorId, vendorId));
+
+  // Supprimer le vendeur
+  await db.delete(vendorsTable).where(eq(vendorsTable.id, vendorId));
+
+  logger.info({ vendorId, vendorName: vendor.name }, "Admin deleted vendor");
+  res.json({ ok: true, deleted: vendor.name });
+});
+
 export default router;
