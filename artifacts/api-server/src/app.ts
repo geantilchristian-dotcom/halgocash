@@ -160,7 +160,7 @@ app.use(
 
 // ── Private-page cache control — prevents browser back-button data leak ───
 // /vendor and /admin pages must never be stored in browser cache.
-app.use(["/vendor", "/admin"], (_req: Request, res: Response, next: NextFunction) => {
+app.use(["/vendor", "/hx7721-admin"], (_req: Request, res: Response, next: NextFunction) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
@@ -205,7 +205,7 @@ app.use("/api", router);
     });
   }
 
-  tryServeApp("/admin", "artifacts/admin-app/dist/public");
+  tryServeApp("/hx7721-admin", "artifacts/admin-app/dist/public");
   tryServeApp("/vendor", "artifacts/vendor-app/dist/public");
   tryServeApp("/display", "artifacts/display-app/dist/public");
 
