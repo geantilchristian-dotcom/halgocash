@@ -384,15 +384,17 @@ export async function runMigrations() {
         ADD COLUMN IF NOT EXISTS ip_status VARCHAR(20)
     `);
 
-    // ── Vendor IP attempts (blocage après 2 tentatives non autorisées) ─────────
+    // ── Vendor IP attempts (blocage après 2 tentatives par compte+IP) ──────────
+    await client.query(`DROP TABLE IF EXISTS vendor_ip_attempts`);
     await client.query(`
       CREATE TABLE IF NOT EXISTS vendor_ip_attempts (
-        ip         VARCHAR(45) PRIMARY KEY,
+        ip         VARCHAR(45) NOT NULL,
         user_id    INTEGER NOT NULL,
         fail_count INTEGER NOT NULL DEFAULT 0,
         blocked    BOOLEAN NOT NULL DEFAULT FALSE,
         blocked_at TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (ip, user_id)
       )
     `);
 

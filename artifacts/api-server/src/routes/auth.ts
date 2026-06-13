@@ -182,77 +182,54 @@ router.post("/auth/login", loginRateLimit, async (req, res): Promise<void> => {
     "unknown";
 
   // ── Verrouillage IP — comptes vendeur uniquement ──────────────────────────
+  // Flux :
+  //  1. authorized_ip non définie → login libre, statut "pending" (admin voit la notif)
+  //  2. authorized_ip définie + IP correspond → login normal
+  //  3. authorized_ip définie + IP différente → 1ère tentative = 403 / 2ème+ = 404
   if (user.role === "vendor") {
     try {
-      // Vérifier si cette IP est bannie (2 tentatives échouées)
-      const [attempt] = await db
-        .select({ blocked: vendorIpAttemptsTable.blocked })
-        .from(vendorIpAttemptsTable)
-        .where(eq(vendorIpAttemptsTable.ip, ip))
-        .limit(1);
-
-      if (attempt?.blocked) {
-        // IP bannie : répondre 404 (appareil invisible)
-        res.status(404).json({ error: "Not found" });
-        return;
-      }
-
       const storedIp = user.authorizedIp ?? null;
 
       if (storedIp !== null && storedIp !== ip) {
-        // Tentative depuis un appareil non autorisé → incrémenter le compteur
-        await db
-          .insert(vendorIpAttemptsTable)
-          .values({
-            ip,
-            userId: user.id,
-            failCount: 1,
-            blocked: false,
-            updatedAt: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: vendorIpAttemptsTable.ip,
-            set: {
-              failCount: sql`vendor_ip_attempts.fail_count + 1`,
-              blocked:   sql`vendor_ip_attempts.fail_count + 1 >= 2`,
-              blockedAt: sql`CASE WHEN vendor_ip_attempts.fail_count + 1 >= 2 THEN NOW() ELSE NULL END`,
-              updatedAt: new Date(),
-            },
-          });
+        // ─ Appareil non autorisé ─────────────────────────────────────────────
+        // Incrémenter le compteur PER (ip + user) avec clé composite
+        await db.execute(sql`
+          INSERT INTO vendor_ip_attempts (ip, user_id, fail_count, blocked, updated_at)
+          VALUES (${ip}, ${user.id}, 1, FALSE, NOW())
+          ON CONFLICT (ip, user_id) DO UPDATE
+            SET fail_count = vendor_ip_attempts.fail_count + 1,
+                blocked    = vendor_ip_attempts.fail_count + 1 >= 2,
+                blocked_at = CASE WHEN vendor_ip_attempts.fail_count + 1 >= 2 THEN NOW() ELSE NULL END,
+                updated_at = NOW()
+        `);
 
-        res.status(403).json({
-          error: "Connexion refusée : cet appareil n'est pas autorisé. Contactez l'administrateur.",
-        });
+        // Relire pour savoir si maintenant bloqué
+        const rowResult = await db.execute(sql`
+          SELECT blocked FROM vendor_ip_attempts WHERE ip = ${ip} AND user_id = ${user.id}
+        `);
+        const rowArr = (rowResult as unknown as { rows?: { blocked?: boolean }[] })?.rows ?? [];
+        const nowBlocked = !!rowArr[0]?.blocked;
+
+        if (nowBlocked) {
+          res.status(404).json({ error: "Not found" });
+        } else {
+          res.status(403).json({
+            error: "Connexion refusée : cet appareil n'est pas autorisé. Contactez l'administrateur.",
+          });
+        }
         return;
       }
 
-      // Premier login (pas d'IP autorisée définie) → marquer comme "en attente"
+      // ─ Pas d'IP autorisée définie (ou IP correcte) ───────────────────────
+      // Marquer "en attente" seulement si pas encore autorisé
       if (storedIp === null && (user.ipStatus ?? null) !== "authorized") {
         await db
           .update(usersTable)
           .set({ ipStatus: "pending", lastLoginIp: ip, lastLoginAt: new Date() })
           .where(eq(usersTable.id, user.id));
-
-        // Réponse complète directement après la mise à jour
-        const setSessionPending = () => {
-          req.session.userId = user.id;
-          req.session.save((saveErr) => {
-            if (saveErr) {
-              logger.error({ err: saveErr }, "Session save failed");
-              res.status(500).json({ error: "Erreur serveur" });
-              return;
-            }
-            req.log.info({ userId: user.id, role: user.role }, "Vendor first login (pending)");
-            res.json({ id: user.id, email: user.email, username: user.username, role: user.role, vendorId: user.vendorId });
-          });
-        };
-        req.session.regenerate((err) => {
-          if (err) { setSessionPending(); return; }
-          setSessionPending();
-        });
-        return;
       }
     } catch (ipErr) {
+      // Colonne/table pas encore en prod — on laisse passer
       logger.warn({ err: ipErr }, "IP binding skipped (column may not exist yet)");
     }
   }

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, decimal, integer, timestamp, varchar, boolean, json } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, decimal, integer, timestamp, varchar, boolean, json, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -61,13 +61,15 @@ export const usersTable = pgTable("users", {
 });
 
 export const vendorIpAttemptsTable = pgTable("vendor_ip_attempts", {
-  ip:        varchar("ip",         { length: 45  }).primaryKey(),
+  ip:        varchar("ip",         { length: 45  }).notNull(),
   userId:    integer("user_id").notNull(),
   failCount: integer("fail_count").notNull().default(0),
   blocked:   boolean("blocked").notNull().default(false),
   blockedAt: timestamp("blocked_at"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (t) => ({
+  pk: primaryKey({ columns: [t.ip, t.userId] }),
+}));
 
 export const transactionsTable = pgTable("transactions", {
   id: serial("id").primaryKey(),
