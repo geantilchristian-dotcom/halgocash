@@ -158,8 +158,12 @@ app.use(
   })),
 );
 
+// ── Block old public paths — former /admin and /vendor URLs return 404 ────
+app.use(["/admin", "/vendor"], (_req: Request, res: Response) => {
+  res.status(404).end();
+});
+
 // ── Private-page cache control — prevents browser back-button data leak ───
-// /vendor and /admin pages must never be stored in browser cache.
 app.use(["/vx5519-espace", "/hx7721-admin"], (_req: Request, res: Response, next: NextFunction) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
   res.setHeader("Pragma", "no-cache");
