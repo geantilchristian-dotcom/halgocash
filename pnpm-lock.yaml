@@ -407,6 +407,9 @@ importers:
       http-proxy-middleware:
         specifier: ^4.1.0
         version: 4.1.0
+      malipo-node:
+        specifier: ^1.1.0
+        version: 1.1.0
       pino:
         specifier: ^9.14.0
         version: 9.14.0
@@ -5087,6 +5090,9 @@ packages:
 
   makeerror@1.0.12:
     resolution: {integrity: sha512-JmqCvUhmt43madlpFzG4BQzG2Z3m6tvQDNKdClZnO3VbIudJYmxsT0FNJMeiB2+JTSlTQTSbU8QdesVmwJcmLg==}
+
+  malipo-node@1.1.0:
+    resolution: {integrity: sha512-js1pEsz4ks3jE0RGM6fzq+NUPZVR9v4AMqGutHMKVDYsCmlLL2nFgnaGCsbxMqyhrY67Vr2ldmDvBjmoPobqSg==}
 
   markdown-it@14.1.1:
     resolution: {integrity: sha512-BuU2qnTti9YKgK5N+IeMubp14ZUKUUw7yeJbkjtosvHiP0AZ5c8IAgEMk79D0eC8F23r4Ac/q8cAIFdm2FtyoA==}
@@ -11224,6 +11230,8 @@ snapshots:
   makeerror@1.0.12:
     dependencies:
       tmpl: 1.0.5
+
+  malipo-node@1.1.0: {}
 
   markdown-it@14.1.1:
     dependencies:

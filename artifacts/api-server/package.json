@@ -24,6 +24,7 @@
     "express-session": "^1.19.0",
     "helmet": "^8.2.0",
     "http-proxy-middleware": "^4.1.0",
+    "malipo-node": "^1.1.0",
     "pino": "^9.14.0",
     "pino-http": "^10.5.0",
     "zod": "catalog:"
