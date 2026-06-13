@@ -37,7 +37,7 @@ async function resolveVendorId(req: Request): Promise<number | null> {
 }
 
 // POST /api/vendor/pos/generate
-router.post("/api/vendor/pos/generate", async (req: Request, res: Response) => {
+router.post("/vendor/pos/generate", async (req: Request, res: Response) => {
   const vendorId = await resolveVendorId(req);
   if (!vendorId) return void res.status(vendorId === null ? 401 : 403).json({ error: "Accès non autorisé" });
 
@@ -72,7 +72,7 @@ router.post("/api/vendor/pos/generate", async (req: Request, res: Response) => {
 });
 
 // GET /api/vendor/pos/history
-router.get("/api/vendor/pos/history", async (req: Request, res: Response) => {
+router.get("/vendor/pos/history", async (req: Request, res: Response) => {
   const vendorId = await resolveVendorId(req);
   if (!vendorId) return void res.status(401).json({ error: "Non authentifié" });
 
