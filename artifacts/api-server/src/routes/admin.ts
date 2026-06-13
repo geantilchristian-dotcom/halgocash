@@ -1045,26 +1045,22 @@ router.delete("/admin/vendors/:vendorId", requireAdmin, async (req: Request, res
     return;
   }
 
-  // Vérifier s'il reste des tickets non-écoulés (statut "available" ou "assigned")
-  const [remaining] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(ticketsTable)
+  // Annuler les tickets non-écoulés encore liés à ce vendeur
+  const cancelResult = await db
+    .update(ticketsTable)
+    .set({ status: "cancelled", vendorId: null })
     .where(and(
       eq(ticketsTable.vendorId, vendorId),
       or(
         sql`${ticketsTable.status} = 'available'`,
         sql`${ticketsTable.status} = 'assigned'`,
       ),
-    ));
+    ))
+    .returning({ id: ticketsTable.id });
 
-  if ((remaining?.n ?? 0) > 0) {
-    res.status(409).json({
-      error: `Ce vendeur a encore ${remaining!.n} ticket(s) non-écoulés. Récupérez ou transférez-les avant de supprimer.`,
-    });
-    return;
-  }
+  const cancelledCount = cancelResult.length;
 
-  // Supprimer les comptes users liés à ce vendeur (ils ne peuvent plus se connecter)
+  // Supprimer les comptes users liés à ce vendeur
   await db
     .delete(usersTable)
     .where(eq(usersTable.vendorId, vendorId));
@@ -1072,8 +1068,8 @@ router.delete("/admin/vendors/:vendorId", requireAdmin, async (req: Request, res
   // Supprimer le vendeur
   await db.delete(vendorsTable).where(eq(vendorsTable.id, vendorId));
 
-  logger.info({ vendorId, vendorName: vendor.name }, "Admin deleted vendor and associated user accounts");
-  res.json({ ok: true, deleted: vendor.name });
+  logger.info({ vendorId, vendorName: vendor.name, cancelledCount }, "Admin deleted vendor, cancelled remaining tickets and removed user accounts");
+  res.json({ ok: true, deleted: vendor.name, cancelledTickets: cancelledCount });
 });
 
 export default router;

@@ -227,7 +227,7 @@ export default function Vendors() {
               <span className="font-bold text-white">{confirmDelete.vendorName}</span> ?
             </p>
             <p className="text-xs text-zinc-500 mb-4">
-              Les comptes workers liés seront détachés. Les tickets déjà écoulés restent dans l'historique.
+              Le compte login sera supprimé définitivement. Les tickets non-écoulés seront annulés automatiquement. Les tickets déjà grattés restent dans l'historique.
             </p>
 
             {deleteError && (
