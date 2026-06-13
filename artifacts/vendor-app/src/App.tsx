@@ -60,7 +60,7 @@ function ProtectedRouter() {
           </p>
         </div>
         <button
-          onClick={() => fetch("/api/auth/logout", { method: "POST", credentials: "include" }).then(() => window.location.replace("/vendor/login"))}
+          onClick={() => fetch("/api/auth/logout", { method: "POST", credentials: "include" }).then(() => window.location.replace("/vx5519-espace/login"))}
           className="px-6 py-2.5 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-600 active:scale-95 transition-all"
         >
           Se déconnecter

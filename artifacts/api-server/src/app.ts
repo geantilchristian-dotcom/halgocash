@@ -160,7 +160,7 @@ app.use(
 
 // ── Private-page cache control — prevents browser back-button data leak ───
 // /vendor and /admin pages must never be stored in browser cache.
-app.use(["/vendor", "/hx7721-admin"], (_req: Request, res: Response, next: NextFunction) => {
+app.use(["/vx5519-espace", "/hx7721-admin"], (_req: Request, res: Response, next: NextFunction) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
@@ -206,7 +206,7 @@ app.use("/api", router);
   }
 
   tryServeApp("/hx7721-admin", "artifacts/admin-app/dist/public");
-  tryServeApp("/vendor", "artifacts/vendor-app/dist/public");
+  tryServeApp("/vx5519-espace", "artifacts/vendor-app/dist/public");
   tryServeApp("/display", "artifacts/display-app/dist/public");
 
   // Root app (halgo-app) — must be registered last so /api and sub-paths match first
