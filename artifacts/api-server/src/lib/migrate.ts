@@ -327,6 +327,41 @@ export async function runMigrations() {
       )
     `);
 
+    // ── Round-based Malette (new model) ─────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS malette_rounds (
+        id              SERIAL PRIMARY KEY,
+        status          TEXT NOT NULL DEFAULT 'betting',
+        multipliers     JSON,
+        bets_per_case   JSON,
+        total_collected DECIMAL(14,2),
+        total_paid      DECIMAL(14,2),
+        created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+        closes_at       TIMESTAMP NOT NULL,
+        closed_at       TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS malette_bets (
+        id          SERIAL PRIMARY KEY,
+        round_id    INTEGER NOT NULL,
+        clerk_id    VARCHAR(255) NOT NULL,
+        case_index  INTEGER NOT NULL,
+        amount      DECIMAL(14,2) NOT NULL,
+        multiplier  DECIMAL(5,2),
+        payout      DECIMAL(14,2),
+        created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_malette_bets_round ON malette_bets (round_id)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_malette_bets_clerk ON malette_bets (round_id, clerk_id)
+    `);
+
     logger.info("Database migrations completed successfully");
   } finally {
     client.release();

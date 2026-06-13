@@ -246,6 +246,32 @@ export const maletteGamesTable = pgTable("malette_games", {
 
 export type MaletteGame = typeof maletteGamesTable.$inferSelect;
 
+// ── Round-based Malette (new model) ───────────────────────────────────────────
+export const maletteRoundsTable = pgTable("malette_rounds", {
+  id:             serial("id").primaryKey(),
+  status:         text("status").notNull().default("betting"), // 'betting' | 'closed'
+  multipliers:    json("multipliers").$type<number[]>(),       // null until closed
+  betsPerCase:    json("bets_per_case").$type<number[]>(),
+  totalCollected: decimal("total_collected", { precision: 14, scale: 2 }),
+  totalPaid:      decimal("total_paid",      { precision: 14, scale: 2 }),
+  createdAt:      timestamp("created_at").notNull().defaultNow(),
+  closesAt:       timestamp("closes_at").notNull(),
+  closedAt:       timestamp("closed_at"),
+});
+export type MaletteRound = typeof maletteRoundsTable.$inferSelect;
+
+export const maletteBetsTable = pgTable("malette_bets", {
+  id:         serial("id").primaryKey(),
+  roundId:    integer("round_id").notNull(),
+  clerkId:    varchar("clerk_id", { length: 255 }).notNull(),
+  caseIndex:  integer("case_index").notNull(),
+  amount:     decimal("amount",     { precision: 14, scale: 2 }).notNull(),
+  multiplier: decimal("multiplier", { precision: 5,  scale: 2 }),
+  payout:     decimal("payout",     { precision: 14, scale: 2 }),
+  createdAt:  timestamp("created_at").notNull().defaultNow(),
+});
+export type MaletteBet = typeof maletteBetsTable.$inferSelect;
+
 export const malipoChargesTable = pgTable("malipo_charges", {
   id: serial("id").primaryKey(),
   chargeId: varchar("charge_id", { length: 100 }).notNull().unique(),
