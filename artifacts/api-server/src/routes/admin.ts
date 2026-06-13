@@ -495,15 +495,27 @@ router.post("/admin/workers", requireAdmin, async (req: Request, res: Response):
 
   // Normalize email to lowercase
   const normalizedEmail = email.toLowerCase().trim();
+  const normalizedUsername = username.trim();
 
-  // Check uniqueness
-  const [existing] = await db
+  // Check username uniqueness
+  const [existingUsername] = await db
     .select({ id: usersTable.id })
     .from(usersTable)
-    .where(or(eq(usersTable.username, username.trim()), eq(usersTable.email, normalizedEmail)))
+    .where(eq(usersTable.username, normalizedUsername))
     .limit(1);
-  if (existing) {
-    res.status(409).json({ error: "Nom d'utilisateur ou email déjà utilisé" });
+  if (existingUsername) {
+    res.status(409).json({ error: "Nom d'utilisateur déjà pris. Retrouvez le compte dans la liste et modifiez le mot de passe si nécessaire." });
+    return;
+  }
+
+  // Check email uniqueness (case-insensitive)
+  const [existingEmail] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(sql`LOWER(${usersTable.email}) = ${normalizedEmail}`)
+    .limit(1);
+  if (existingEmail) {
+    res.status(409).json({ error: "Cet email est déjà associé à un compte. Retrouvez-le dans la liste et modifiez le mot de passe si nécessaire." });
     return;
   }
 

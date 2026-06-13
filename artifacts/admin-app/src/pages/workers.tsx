@@ -387,8 +387,16 @@ export default function Workers() {
                 </div>
               </div>
               {formError && (
-                <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />{formError}
+                <div className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2.5 space-y-1">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{formError}</span>
+                  </div>
+                  {(formError.includes("déjà pris") || formError.includes("déjà associé")) && (
+                    <p className="pl-6 text-xs text-destructive/80">
+                      👉 Fermez ce formulaire et cherchez le compte dans la liste ci-dessous pour modifier le mot de passe.
+                    </p>
+                  )}
                 </div>
               )}
               <div className="flex gap-2 pt-1">
