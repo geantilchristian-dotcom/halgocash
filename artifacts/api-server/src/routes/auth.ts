@@ -57,7 +57,7 @@ declare module "express-session" {
 
 const router: IRouter = Router();
 
-// POST /api/auth/register — only admin can create vendor/admin accounts
+// POST /api/auth/register — admin session required for ALL account creation
 router.post("/auth/register", async (req, res): Promise<void> => {
   const parsed = RegisterBody.safeParse(req.body);
   if (!parsed.success) {
@@ -67,22 +67,21 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 
   const { email, username, password, role, vendorId } = parsed.data;
 
-  // Block self-registration as admin or vendor — must be done by an admin session
-  if (role === "admin" || role === "vendor") {
-    const callerUserId = req.session.userId;
-    if (!callerUserId) {
-      res.status(403).json({ error: "Seul un administrateur peut créer ce type de compte" });
-      return;
-    }
-    const [caller] = await db
-      .select({ role: usersTable.role })
-      .from(usersTable)
-      .where(eq(usersTable.id, callerUserId))
-      .limit(1);
-    if (caller?.role !== "admin") {
-      res.status(403).json({ error: "Seul un administrateur peut créer ce type de compte" });
-      return;
-    }
+  // All account creation (vendor, admin, player) requires an active admin session.
+  // No self-registration is allowed from any public form.
+  const callerUserId = req.session.userId;
+  if (!callerUserId) {
+    res.status(403).json({ error: "Seul un administrateur peut créer des comptes" });
+    return;
+  }
+  const [caller] = await db
+    .select({ role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, callerUserId))
+    .limit(1);
+  if (caller?.role !== "admin") {
+    res.status(403).json({ error: "Seul un administrateur peut créer des comptes" });
+    return;
   }
 
   const existing = await db
