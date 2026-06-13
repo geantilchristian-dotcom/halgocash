@@ -24,7 +24,7 @@ function Clock() {
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type GameMode = "halgo-cash" | "roulette" | "malette";
+type GameMode = "halgo-cash" | "roulette" | "malette" | "crash";
 
 interface MaletteState {
   status: "betting" | "closed" | "idle";
@@ -134,6 +134,14 @@ function GameSelector({ onSelect }: { onSelect: (g: GameMode) => void }) {
         : "En attente du prochain round",
       color: "#3498db",
       glow: "rgba(52,152,219,0.4)",
+    },
+    {
+      game: "crash" as GameMode,
+      icon: "🚀",
+      label: "HALGO CRASH",
+      sub: "En vol — en direct",
+      color: "#22c55e",
+      glow: "rgba(34,197,94,0.4)",
     },
   ];
 
@@ -721,9 +729,209 @@ function MaletteView({ onBack }: { onBack: () => void }) {
   );
 }
 
+// ── Halgo Crash View ───────────────────────────────────────────────────────────
+const FLIGHT_START_MS = 17_000;
+const K = 0.07;
+
+function currentMult(msInFlight: number): number {
+  return Math.exp(K * Math.max(0, msInFlight) / 1000);
+}
+
+interface CrashSSEState {
+  phase: "show" | "betting" | "flying";
+  roundId: number;
+  msIntoRound: number;
+  serverMs: number;
+  crashPoint?: number;
+  prevCrashPoint?: number;
+  history?: number[];
+}
+
+function multColor(m: number): string {
+  if (m >= 10)  return "#f5c518";
+  if (m >= 3)   return "#a855f7";
+  if (m >= 2)   return "#3b82f6";
+  return "#22c55e";
+}
+
+function CrashView({ onBack }: { onBack: () => void }) {
+  const [state, setState] = useState<CrashSSEState | null>(null);
+  const [history, setHistory] = useState<number[]>([]);
+  const [mult, setMult] = useState(1.0);
+  const stateRef = useRef<CrashSSEState | null>(null);
+  const rafRef   = useRef<number | null>(null);
+  const offsetRef = useRef(0); // client-server clock offset
+
+  // SSE connection
+  useEffect(() => {
+    const es = new EventSource("/api/crash/stream");
+    es.onmessage = (e) => {
+      try {
+        const d: CrashSSEState = JSON.parse(e.data as string);
+        offsetRef.current = Date.now() - d.serverMs;
+        stateRef.current  = d;
+        setState(d);
+        if (d.history) setHistory(d.history);
+      } catch {}
+    };
+    return () => es.close();
+  }, []);
+
+  // History fallback poll
+  useEffect(() => {
+    fetch("/api/crash/history").then(r => r.json()).then((d: { history: number[] }) => {
+      if (d.history?.length) setHistory(d.history);
+    }).catch(() => {});
+  }, []);
+
+  // Animate multiplier via rAF
+  useEffect(() => {
+    function tick() {
+      const s = stateRef.current;
+      if (s?.phase === "flying" && s.crashPoint) {
+        const msInRound = s.msIntoRound + (Date.now() - (s.serverMs + offsetRef.current));
+        const msInFlight = msInRound - FLIGHT_START_MS;
+        const live = Math.min(currentMult(msInFlight), s.crashPoint);
+        setMult(live);
+      } else if (s?.phase === "show") {
+        setMult(s.prevCrashPoint ?? 1.0);
+      } else {
+        setMult(1.0);
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    }
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, []);
+
+  const phase = state?.phase ?? "betting";
+  const crashed = phase === "show";
+  const betting = phase === "betting";
+  const flying  = phase === "flying";
+  const dispMult = crashed ? (state?.prevCrashPoint ?? mult) : mult;
+  const color = crashed ? "#ef4444" : multColor(dispMult);
+  const betTimeLeft = state ? Math.max(0, FLIGHT_START_MS - state.msIntoRound - (Date.now() - state.serverMs)) : 0;
+  const betSecs = Math.ceil(betTimeLeft / 1000);
+
+  return (
+    <div className="h-screen w-screen flex flex-col overflow-hidden"
+      style={{ background: "linear-gradient(160deg, #040d08 0%, #051a0a 60%, #030d05 100%)" }}>
+
+      {/* Header */}
+      <header className="flex-none flex items-center justify-between px-8 pt-5 pb-4"
+        style={{ borderBottom: "2px solid rgba(34,197,94,0.25)" }}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-black text-base"
+            style={{ background: "#22c55e", boxShadow: "0 0 20px rgba(34,197,94,0.5)" }}>HC</div>
+          <div>
+            <p className="text-white font-black text-sm uppercase tracking-wide">Halgo Cash</p>
+            <p className="text-[10px] font-bold tracking-[0.3em] uppercase" style={{ color: "#22c55e" }}>🚀 Halgo Crash en direct</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest"
+            style={{ background: flying ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.08)", color: flying ? "#22c55e" : "rgba(255,255,255,0.4)", border: `1px solid ${flying ? "#22c55e55" : "rgba(255,255,255,0.15)"}` }}>
+            {flying ? "🔴 LIVE" : betting ? "⏳ Paris" : "💥 Crash"}
+          </div>
+          <Clock />
+          <button onClick={onBack}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest text-white/50 hover:text-white border border-white/10 hover:border-white/30 transition-colors">
+            Changer
+          </button>
+        </div>
+      </header>
+
+      {/* Main multiplier area */}
+      <div className="flex-1 flex flex-col items-center justify-center gap-6 min-h-0 relative px-8">
+
+        {/* Animated grid background lines */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-20" style={{ background: "repeating-linear-gradient(0deg, transparent, transparent 48px, rgba(34,197,94,0.15) 48px, rgba(34,197,94,0.15) 49px), repeating-linear-gradient(90deg, transparent, transparent 80px, rgba(34,197,94,0.1) 80px, rgba(34,197,94,0.1) 81px)" }} />
+
+        {/* Phase label */}
+        <AnimatePresence mode="wait">
+          {betting && (
+            <motion.div key="betting" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="flex flex-col items-center gap-1">
+              <p className="text-white/40 text-xs font-black uppercase tracking-[0.4em]">Paris ouverts</p>
+              <p className="font-mono font-black tabular-nums" style={{ color: "#22c55e", fontSize: "clamp(1.2rem,3vw,2rem)" }}>
+                {betSecs}s
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Big multiplier */}
+        <motion.div key={crashed ? "crashed" : "flying"}
+          initial={{ scale: crashed ? 1.3 : 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 120, damping: 14 }}
+          className="font-black tabular-nums leading-none text-center relative z-10"
+          style={{
+            fontSize: "clamp(5rem, 16vw, 13rem)",
+            color,
+            textShadow: `0 0 80px ${color}88, 0 0 30px ${color}55`,
+            letterSpacing: "-0.03em",
+          }}>
+          {crashed ? `${dispMult.toFixed(2)}×` : `${dispMult.toFixed(2)}×`}
+        </motion.div>
+
+        {/* Crashed banner */}
+        <AnimatePresence>
+          {crashed && (
+            <motion.div key="crash-banner"
+              initial={{ opacity: 0, scale: 0.8, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0 }} transition={{ type: "spring", stiffness: 150, damping: 14 }}
+              className="px-8 py-3 rounded-2xl font-black text-2xl uppercase tracking-widest"
+              style={{ background: "rgba(239,68,68,0.2)", color: "#ef4444", border: "2px solid rgba(239,68,68,0.5)", boxShadow: "0 0 40px rgba(239,68,68,0.3)" }}>
+              💥 CRASHÉ
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Rocket emoji moving */}
+        {flying && (
+          <motion.div
+            animate={{ x: [0, 8, -4, 6, 0], y: [0, -6, 2, -4, 0] }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+            style={{ fontSize: "clamp(2.5rem, 5vw, 4rem)", filter: "drop-shadow(0 0 20px rgba(34,197,94,0.7))", position: "relative", zIndex: 10 }}>
+            🚀
+          </motion.div>
+        )}
+      </div>
+
+      {/* History pills */}
+      <div className="flex-none px-6 pb-5" style={{ borderTop: "1px solid rgba(34,197,94,0.15)" }}>
+        <p className="text-white/25 text-[10px] font-black uppercase tracking-[0.4em] mb-3 mt-3">Historique</p>
+        <div className="flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
+          {history.map((h, i) => {
+            const c = multColor(h);
+            return (
+              <span key={i} className="flex-none px-3 py-1.5 rounded-full font-black text-sm tabular-nums whitespace-nowrap"
+                style={{ background: `${c}18`, color: c, border: `1px solid ${c}44` }}>
+                {h.toFixed(2)}×
+              </span>
+            );
+          })}
+          {history.length === 0 && (
+            <span className="text-white/20 text-xs font-bold italic">Chargement de l'historique…</span>
+          )}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <footer className="flex-none py-3 text-center" style={{ borderTop: "1px solid rgba(34,197,94,0.15)" }}>
+        <motion.p animate={{ opacity: [0.5, 0.9, 0.5] }} transition={{ duration: 3, repeat: Infinity }}
+          className="text-xs font-black uppercase tracking-[0.4em]" style={{ color: "rgba(34,197,94,0.6)" }}>
+          ✦ Encaissez avant le crash — Jouez via l'application Halgo Cash ✦
+        </motion.p>
+      </footer>
+    </div>
+  );
+}
+
 // ── Root ──────────────────────────────────────────────────────────────────────
 export default function Home() {
-  const VALID_GAMES: GameMode[] = ["halgo-cash", "roulette", "malette"];
+  const VALID_GAMES: GameMode[] = ["halgo-cash", "roulette", "malette", "crash"];
   const [selectedGame, setSelectedGame] = useState<GameMode | null>(() => {
     try {
       const stored = localStorage.getItem("halgo_display_game") as GameMode | null;
@@ -767,6 +975,11 @@ export default function Home() {
       {selectedGame === "malette" && (
         <motion.div key="malette" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
           <MaletteView onBack={handleBack} />
+        </motion.div>
+      )}
+      {selectedGame === "crash" && (
+        <motion.div key="crash" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+          <CrashView onBack={handleBack} />
         </motion.div>
       )}
     </AnimatePresence>

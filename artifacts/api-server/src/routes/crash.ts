@@ -130,6 +130,11 @@ function broadcastCrashState() {
 // Broadcast every 500ms so all clients stay in sync
 setInterval(broadcastCrashState, 500);
 
+// ── Public export for display route ───────────────────────────────────────────
+export function getCrashDisplayState() {
+  return { ...buildCrashState(), history: crashHistory.slice(0, 25) };
+}
+
 // ── GET /api/crash/stream ─────────────────────────────────────────────────────
 router.get("/crash/stream", (req, res): void => {
   res.setHeader("Content-Type", "text/event-stream");

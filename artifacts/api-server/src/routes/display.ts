@@ -121,4 +121,26 @@ router.get("/display/roulette", async (req, res): Promise<void> => {
   }
 });
 
+// GET /api/display/crash — public crash state + history (no auth)
+// Imports the live activeCycle state from the crash module via a shared helper.
+// We re-export the minimum needed by reading from the crash route's in-memory state.
+// Since crash.ts manages state internally, we expose a lightweight public endpoint here
+// by re-computing the same phase logic from wall-clock time.
+router.get("/display/crash", async (req, res): Promise<void> => {
+  try {
+    // Forward to the crash state endpoint (it's same-process, no auth required for display)
+    // We proxy internally by calling the same logic crash.ts uses.
+    // crashDisplayState is exported from crash.ts
+    const crashMod = await import("./crash.js").catch(() => null);
+    if (crashMod && typeof crashMod.getCrashDisplayState === "function") {
+      res.json(crashMod.getCrashDisplayState());
+    } else {
+      res.json({ phase: "betting", roundId: 0, msIntoRound: 0, serverMs: Date.now(), history: [] });
+    }
+  } catch (err) {
+    req.log.error({ err }, "GET /display/crash error");
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
 export default router;
