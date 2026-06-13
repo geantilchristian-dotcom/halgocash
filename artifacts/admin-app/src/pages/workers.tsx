@@ -303,6 +303,16 @@ export default function Workers() {
     createMutation.mutate(form);
   };
 
+  const q = search.toLowerCase().trim();
+  const filtered = q
+    ? workers.filter(w =>
+        w.vendorName.toLowerCase().includes(q) ||
+        w.email.toLowerCase().includes(q) ||
+        w.username.toLowerCase().includes(q) ||
+        (w.vendorLocation ?? "").toLowerCase().includes(q)
+      )
+    : workers;
+
   return (
     <div className="space-y-6">
       {credWorker && <CredentialsModal worker={credWorker} onClose={() => setCredWorker(null)} />}
@@ -504,25 +514,15 @@ export default function Workers() {
             <p className="text-sm">Créez votre premier compte vendeur avec le bouton ci-dessus.</p>
           </CardContent>
         </Card>
-      ) : (() => {
-        const q = search.toLowerCase().trim();
-        const filtered = q
-          ? workers.filter(w =>
-              w.vendorName.toLowerCase().includes(q) ||
-              w.email.toLowerCase().includes(q) ||
-              w.username.toLowerCase().includes(q) ||
-              (w.vendorLocation ?? "").toLowerCase().includes(q)
-            )
-          : workers;
-        return filtered.length === 0 ? (
-          <Card>
-            <CardContent className="py-10 flex flex-col items-center gap-2 text-muted-foreground">
-              <Users className="w-8 h-8" />
-              <p className="font-semibold">Aucun résultat pour « {search} »</p>
-              <p className="text-sm">Essayez avec l'email complet ou le nom du point de vente.</p>
-            </CardContent>
-          </Card>
-        ) : (
+      ) : filtered.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 flex flex-col items-center gap-2 text-muted-foreground">
+            <Users className="w-8 h-8" />
+            <p className="font-semibold">Aucun résultat pour « {search} »</p>
+            <p className="text-sm">Essayez avec l'email complet ou le nom du point de vente.</p>
+          </CardContent>
+        </Card>
+      ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {filtered.map((w) => (
             <Card key={w.userId} className={w.isSuspended ? "opacity-60" : ""}>
@@ -595,8 +595,7 @@ export default function Workers() {
             </Card>
           ))}
         </div>
-        );
-      })()}
+      )}
     </div>
   );
 }

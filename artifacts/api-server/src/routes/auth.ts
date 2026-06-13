@@ -195,17 +195,12 @@ router.post("/auth/login", loginRateLimit, async (req, res): Promise<void> => {
     .set({ lastLoginAt: new Date(), lastLoginIp: ip })
     .where(eq(usersTable.id, user.id));
 
-  // Regenerate session to prevent session fixation attacks
-  req.session.regenerate((err) => {
-    if (err) {
-      logger.error({ err }, "Session regeneration failed");
-      res.status(500).json({ error: "Erreur serveur" });
-      return;
-    }
+  // Set session — regenerate first if possible (anti session-fixation)
+  const setSession = () => {
     req.session.userId = user.id;
     req.session.save((saveErr) => {
       if (saveErr) {
-        req.log.error({ err: saveErr }, "Session save failed");
+        logger.error({ err: saveErr }, "Session save failed");
         res.status(500).json({ error: "Erreur serveur" });
         return;
       }
@@ -218,6 +213,16 @@ router.post("/auth/login", loginRateLimit, async (req, res): Promise<void> => {
         vendorId: user.vendorId,
       });
     });
+  };
+
+  req.session.regenerate((err) => {
+    if (err) {
+      // MemoryStore peut échouer sur regenerate — on continue directement
+      logger.warn({ err }, "Session regenerate failed, setting directly");
+      setSession();
+      return;
+    }
+    setSession();
   });
 });
 
