@@ -16,6 +16,8 @@ interface Worker {
   totalRevenue: number;
   isSuspended: boolean;
   authorizedIp: string | null;
+  lastLoginIp: string | null;
+  lastLoginAt: string | null;
 }
 
 function formatFC(n: number) {
@@ -204,25 +206,54 @@ export default function Vendors() {
                     </div>
                   )}
 
+                  {/* ── IP dernier login ── */}
+                  {w.lastLoginIp && (
+                    <div className="flex items-center justify-between gap-1.5 rounded-lg px-2 py-1.5 mt-1"
+                      style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.18)" }}
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Wifi className="w-3 h-3 text-indigo-400 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[9px] text-zinc-500 uppercase tracking-wider leading-none mb-0.5">Dernier login</p>
+                          <p className="text-[10px] font-mono text-indigo-300 truncate">{w.lastLoginIp}</p>
+                        </div>
+                      </div>
+                      {!hasIp && (
+                        <button
+                          onClick={() => setIpMutation.mutate({ userId: w.userId, ip: w.lastLoginIp! })}
+                          disabled={setIpMutation.isPending}
+                          title="Verrouiller cette IP comme appareil autorisé"
+                          className="shrink-0 text-[9px] font-bold px-2 py-1 rounded-md transition-colors"
+                          style={{ background: "rgba(99,102,241,0.15)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.3)" }}
+                        >
+                          {setIpMutation.isPending ? "…" : "Verrouiller"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   {/* ── IP autorisée ── */}
-                  <div className="flex items-center justify-between gap-1.5 rounded-lg px-2 py-1.5 mt-1"
-                    style={{ background: hasIp ? "rgba(34,197,94,0.06)" : "rgba(239,68,68,0.06)", border: `1px solid ${hasIp ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)"}` }}
+                  <div className="flex items-center justify-between gap-1.5 rounded-lg px-2 py-1.5"
+                    style={{ background: hasIp ? "rgba(34,197,94,0.06)" : "rgba(100,100,100,0.06)", border: `1px solid ${hasIp ? "rgba(34,197,94,0.15)" : "rgba(100,100,100,0.12)"}` }}
                   >
                     <div className="flex items-center gap-1.5 min-w-0">
                       {hasIp
                         ? <Wifi className="w-3 h-3 text-green-500 shrink-0" />
-                        : <WifiOff className="w-3 h-3 text-red-400 shrink-0" />
+                        : <WifiOff className="w-3 h-3 text-zinc-600 shrink-0" />
                       }
-                      <span className={`text-[10px] font-mono truncate ${hasIp ? "text-green-400" : "text-red-400"}`}>
-                        {w.authorizedIp ?? "Aucun appareil enregistré"}
-                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[9px] text-zinc-500 uppercase tracking-wider leading-none mb-0.5">IP autorisée</p>
+                        <p className={`text-[10px] font-mono truncate ${hasIp ? "text-green-400" : "text-zinc-600"}`}>
+                          {w.authorizedIp ?? "Non définie — accès libre"}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {hasIp && (
                         <button
                           onClick={() => resetIpMutation.mutate(w.userId)}
                           disabled={resetIpMutation.isPending}
-                          title="Réinitialiser l'appareil autorisé"
+                          title="Réinitialiser — accès libre jusqu'au prochain verrouillage"
                           className="w-5 h-5 flex items-center justify-center rounded text-zinc-500 hover:text-orange-400 hover:bg-orange-500/10 transition-colors"
                         >
                           <RotateCcw className="w-3 h-3" />

@@ -181,16 +181,14 @@ router.post("/auth/login", loginRateLimit, async (req, res): Promise<void> => {
     "unknown";
 
   // ── Verrouillage IP — comptes vendeur uniquement ──────────────────────────
-  // Premier login → enregistre l'IP comme IP autorisée.
-  // Logins suivants depuis une IP différente → refus.
+  // L'admin fixe l'IP autorisée depuis le panneau "Points de vente".
+  // Tant qu'aucune IP n'est définie → connexion libre.
+  // Une fois l'IP définie → seul cet appareil est autorisé.
   if (user.role === "vendor") {
     try {
       const storedIp = user.authorizedIp ?? null;
 
-      if (storedIp === null) {
-        // Premier login : on enregistre l'IP de cet appareil
-        await db.execute(sql`UPDATE users SET authorized_ip = ${ip} WHERE id = ${user.id}`);
-      } else if (storedIp !== ip) {
+      if (storedIp !== null && storedIp !== ip) {
         res.status(403).json({
           error: "Connexion refusée : cet appareil n'est pas autorisé. Contactez l'administrateur.",
         });

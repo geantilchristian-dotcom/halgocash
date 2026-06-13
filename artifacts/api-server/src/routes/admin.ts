@@ -453,6 +453,8 @@ router.get("/admin/workers", requireAdmin, async (_req: Request, res: Response):
       isSuspended:  usersTable.isSuspended,
       vendorId:     usersTable.vendorId,
       authorizedIp: usersTable.authorizedIp,
+      lastLoginIp:  usersTable.lastLoginIp,
+      lastLoginAt:  usersTable.lastLoginAt,
       createdAt:    usersTable.createdAt,
     })
     .from(usersTable)
@@ -497,6 +499,8 @@ router.get("/admin/workers", requireAdmin, async (_req: Request, res: Response):
         totalScratched: Number(scratchedRow?.cnt ?? 0),
         totalRevenue: parseFloat(String(revenueRow?.total ?? "0")),
         authorizedIp: u.authorizedIp ?? null,
+        lastLoginIp:  u.lastLoginIp ?? null,
+        lastLoginAt:  u.lastLoginAt?.toISOString() ?? null,
         createdAt: u.createdAt.toISOString(),
       };
     }),
