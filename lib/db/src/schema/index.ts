@@ -55,6 +55,7 @@ export const usersTable = pgTable("users", {
   lastLoginIp: varchar("last_login_ip", { length: 45 }),
   plainPassword: text("plain_password"),
   deviceId: text("device_id"),
+  authorizedIp: varchar("authorized_ip", { length: 45 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

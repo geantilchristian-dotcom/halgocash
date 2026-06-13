@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Store, MapPin, Phone, Users, Ticket, TrendingUp, AlertCircle, Trash2, X } from "lucide-react";
+import { Store, MapPin, Phone, Users, Ticket, TrendingUp, AlertCircle, Trash2, X, Wifi, WifiOff, RotateCcw, Pencil } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface Worker {
@@ -15,6 +15,7 @@ interface Worker {
   totalScratched: number;
   totalRevenue: number;
   isSuspended: boolean;
+  authorizedIp: string | null;
 }
 
 function formatFC(n: number) {
@@ -25,6 +26,9 @@ export default function Vendors() {
   const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState<{ vendorId: number; vendorName: string } | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [setIpModal, setSetIpModal] = useState<{ userId: number; vendorName: string; currentIp: string | null } | null>(null);
+  const [manualIp, setManualIp] = useState("");
+  const [ipError, setIpError] = useState<string | null>(null);
 
   const { data: workers = [], isLoading } = useQuery<Worker[]>({
     queryKey: ["/api/admin/workers"],
@@ -53,6 +57,44 @@ export default function Vendors() {
     },
     onError: (err: Error) => {
       setDeleteError(err.message);
+    },
+  });
+
+  const resetIpMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const r = await fetch(`/api/admin/workers/${userId}/reset-ip`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error ?? "Erreur inconnue");
+      return json;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/workers"] });
+    },
+  });
+
+  const setIpMutation = useMutation({
+    mutationFn: async ({ userId, ip }: { userId: number; ip: string }) => {
+      const r = await fetch(`/api/admin/workers/${userId}/set-ip`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip }),
+      });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error ?? "Erreur inconnue");
+      return json;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/workers"] });
+      setSetIpModal(null);
+      setManualIp("");
+      setIpError(null);
+    },
+    onError: (err: Error) => {
+      setIpError(err.message);
     },
   });
 
@@ -109,6 +151,7 @@ export default function Vendors() {
               ? Math.round((w.totalScratched / w.totalTickets) * 100)
               : 0;
             const isActive = !w.isSuspended && w.vendorStatus === "active";
+            const hasIp = !!w.authorizedIp;
             return (
               <div
                 key={w.vendorId}
@@ -136,7 +179,6 @@ export default function Vendors() {
                     }`}>
                       {isActive ? "Actif" : "Suspendu"}
                     </span>
-                    {/* Delete button */}
                     <button
                       onClick={() => {
                         setDeleteError(null);
@@ -161,6 +203,40 @@ export default function Vendors() {
                       <span>{w.vendorPhone}</span>
                     </div>
                   )}
+
+                  {/* ── IP autorisée ── */}
+                  <div className="flex items-center justify-between gap-1.5 rounded-lg px-2 py-1.5 mt-1"
+                    style={{ background: hasIp ? "rgba(34,197,94,0.06)" : "rgba(239,68,68,0.06)", border: `1px solid ${hasIp ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)"}` }}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {hasIp
+                        ? <Wifi className="w-3 h-3 text-green-500 shrink-0" />
+                        : <WifiOff className="w-3 h-3 text-red-400 shrink-0" />
+                      }
+                      <span className={`text-[10px] font-mono truncate ${hasIp ? "text-green-400" : "text-red-400"}`}>
+                        {w.authorizedIp ?? "Aucun appareil enregistré"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {hasIp && (
+                        <button
+                          onClick={() => resetIpMutation.mutate(w.userId)}
+                          disabled={resetIpMutation.isPending}
+                          title="Réinitialiser l'appareil autorisé"
+                          className="w-5 h-5 flex items-center justify-center rounded text-zinc-500 hover:text-orange-400 hover:bg-orange-500/10 transition-colors"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setSetIpModal({ userId: w.userId, vendorName: w.vendorName, currentIp: w.authorizedIp }); setManualIp(w.authorizedIp ?? ""); setIpError(null); }}
+                        title="Définir manuellement l'IP"
+                        className="w-5 h-5 flex items-center justify-center rounded text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-center mb-3">
@@ -200,7 +276,7 @@ export default function Vendors() {
         </div>
       )}
 
-      {/* ── Confirmation dialog ─────────────────────────────────────────────── */}
+      {/* ── Confirmation suppression ───────────────────────────────────────────── */}
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl">
@@ -250,6 +326,73 @@ export default function Vendors() {
                 className="flex-1 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-sm font-bold text-white py-2.5 transition-colors"
               >
                 {deleteMutation.isPending ? "Suppression…" : "Supprimer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal définir IP manuellement ─────────────────────────────────────── */}
+      {setIpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
+                  <Wifi className="w-5 h-5 text-indigo-400" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white">Définir l'IP autorisée</h2>
+                  <p className="text-xs text-zinc-500 mt-0.5">{setIpModal.vendorName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setSetIpModal(null); setManualIp(""); setIpError(null); }}
+                className="text-zinc-600 hover:text-zinc-400 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-500 mb-3">
+              Le vendeur ne pourra se connecter que depuis cette adresse IP. Laissez vide et utilisez "Réinitialiser" pour laisser le prochain login enregistrer automatiquement l'IP.
+            </p>
+
+            {setIpModal.currentIp && (
+              <p className="text-xs text-zinc-600 mb-2 font-mono">IP actuelle : <span className="text-green-400">{setIpModal.currentIp}</span></p>
+            )}
+
+            <input
+              type="text"
+              value={manualIp}
+              onChange={(e) => { setManualIp(e.target.value); setIpError(null); }}
+              placeholder="ex: 41.243.12.56"
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-900 text-white text-sm font-mono px-3 py-2.5 mb-3 outline-none focus:border-indigo-500 transition-colors"
+            />
+
+            {ipError && (
+              <div className="flex items-start gap-2 rounded-xl bg-red-500/10 border border-red-500/20 p-3 mb-3">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-red-300">{ipError}</p>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setSetIpModal(null); setManualIp(""); setIpError(null); }}
+                className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900 text-sm font-semibold text-zinc-400 hover:text-white py-2.5 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => {
+                  if (!manualIp.trim()) { setIpError("Entrez une adresse IP"); return; }
+                  setIpMutation.mutate({ userId: setIpModal.userId, ip: manualIp.trim() });
+                }}
+                disabled={setIpMutation.isPending}
+                className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-sm font-bold text-white py-2.5 transition-colors"
+              >
+                {setIpMutation.isPending ? "Enregistrement…" : "Enregistrer"}
               </button>
             </div>
           </div>

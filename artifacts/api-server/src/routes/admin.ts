@@ -452,6 +452,7 @@ router.get("/admin/workers", requireAdmin, async (_req: Request, res: Response):
       plainPassword: usersTable.plainPassword,
       isSuspended:  usersTable.isSuspended,
       vendorId:     usersTable.vendorId,
+      authorizedIp: usersTable.authorizedIp,
       createdAt:    usersTable.createdAt,
     })
     .from(usersTable)
@@ -495,12 +496,35 @@ router.get("/admin/workers", requireAdmin, async (_req: Request, res: Response):
         totalTickets: Number(tRow?.total ?? 0),
         totalScratched: Number(scratchedRow?.cnt ?? 0),
         totalRevenue: parseFloat(String(revenueRow?.total ?? "0")),
+        authorizedIp: u.authorizedIp ?? null,
         createdAt: u.createdAt.toISOString(),
       };
     }),
   );
 
   res.json(results);
+});
+
+// DELETE /api/admin/workers/:userId/reset-ip — réinitialise l'IP autorisée d'un vendeur
+router.delete("/admin/workers/:userId/reset-ip", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const userId = parseInt(String(req.params["userId"] ?? "0"), 10);
+  if (!userId) { res.status(400).json({ error: "userId invalide" }); return; }
+
+  await db.execute(sql`UPDATE users SET authorized_ip = NULL WHERE id = ${userId} AND vendor_id IS NOT NULL`);
+  res.json({ success: true });
+});
+
+// POST /api/admin/workers/:userId/set-ip — force une IP autorisée manuellement
+router.post("/admin/workers/:userId/set-ip", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const userId = parseInt(String(req.params["userId"] ?? "0"), 10);
+  const { ip } = req.body as { ip?: string };
+  if (!userId) { res.status(400).json({ error: "userId invalide" }); return; }
+  if (!ip || typeof ip !== "string" || ip.trim().length === 0) {
+    res.status(400).json({ error: "IP invalide" });
+    return;
+  }
+  await db.execute(sql`UPDATE users SET authorized_ip = ${ip.trim()} WHERE id = ${userId} AND vendor_id IS NOT NULL`);
+  res.json({ success: true, ip: ip.trim() });
 });
 
 // POST /api/admin/workers — create vendor + user account

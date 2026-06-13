@@ -148,6 +148,7 @@ router.post("/auth/login", loginRateLimit, async (req, res): Promise<void> => {
       lastLoginIp:  usersTable.lastLoginIp,
       plainPassword: usersTable.plainPassword,
       createdAt:    usersTable.createdAt,
+      authorizedIp: usersTable.authorizedIp,
     })
     .from(usersTable)
     .where(or(
@@ -174,36 +175,32 @@ router.post("/auth/login", loginRateLimit, async (req, res): Promise<void> => {
     return;
   }
 
-  // ── Device binding — vendor and admin accounts only ───────────────────────
-  // First login from any device registers that device.
-  // Subsequent logins from a different device are rejected.
-  if (user.role === "vendor" || user.role === "admin") {
-    try {
-      // Requête raw SQL pour éviter l'erreur si device_id n'existe pas encore en prod
-      const rows = await db.execute(sql`SELECT device_id FROM users WHERE id = ${user.id} LIMIT 1`);
-      const rowList = (rows as unknown as { rows?: unknown[] }).rows ?? (rows as unknown as unknown[]);
-      const storedDeviceId = ((rowList[0] as { device_id?: string | null } | undefined)?.device_id) ?? null;
-
-      if (storedDeviceId === null) {
-        if (deviceId) {
-          await db.execute(sql`UPDATE users SET device_id = ${deviceId} WHERE id = ${user.id}`);
-        }
-      } else if (deviceId && storedDeviceId !== deviceId) {
-        res.status(403).json({
-          error: "Connexion refusée : appareil non reconnu. Contactez l'administrateur.",
-        });
-        return;
-      }
-    } catch (deviceErr) {
-      // La colonne device_id n'existe pas encore en production — on ignore et on continue
-      logger.warn({ err: deviceErr }, "Device binding skipped (column may not exist yet)");
-    }
-  }
-
   const ip =
     (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??
     req.socket.remoteAddress ??
     "unknown";
+
+  // ── Verrouillage IP — comptes vendeur uniquement ──────────────────────────
+  // Premier login → enregistre l'IP comme IP autorisée.
+  // Logins suivants depuis une IP différente → refus.
+  if (user.role === "vendor") {
+    try {
+      const storedIp = user.authorizedIp ?? null;
+
+      if (storedIp === null) {
+        // Premier login : on enregistre l'IP de cet appareil
+        await db.execute(sql`UPDATE users SET authorized_ip = ${ip} WHERE id = ${user.id}`);
+      } else if (storedIp !== ip) {
+        res.status(403).json({
+          error: "Connexion refusée : cet appareil n'est pas autorisé. Contactez l'administrateur.",
+        });
+        return;
+      }
+    } catch (ipErr) {
+      // Colonne pas encore en prod — on laisse passer
+      logger.warn({ err: ipErr }, "IP binding skipped (column may not exist yet)");
+    }
+  }
 
   await db
     .update(usersTable)

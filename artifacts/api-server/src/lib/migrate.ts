@@ -373,6 +373,11 @@ export async function runMigrations() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS device_id TEXT
     `);
 
+    // ── authorized_ip — verrouillage IP par appareil vendeur ─────────────────
+    await client.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS authorized_ip VARCHAR(45)
+    `);
+
     // ── POS Sales (tickets générés par les vendeurs) ──────────────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS pos_sales (
