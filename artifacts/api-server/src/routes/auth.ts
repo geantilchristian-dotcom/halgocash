@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
-import { eq, or, sum, and, isNotNull, desc, count } from "drizzle-orm";
+import { eq, or, sum, and, isNotNull, desc, count, sql } from "drizzle-orm";
 import { db, usersTable, ticketsTable, withdrawalsTable, playerProfilesTable, creditAdjustmentsTable } from "@workspace/db";
 import { RegisterBody } from "@workspace/api-zod";
 import { z } from "zod";
@@ -47,6 +47,7 @@ async function getOrCreateProfile(clerkId: string) {
 const VendorLoginBody = z.object({
   email: z.string().min(1).max(200),
   password: z.string().min(1).max(200),
+  deviceId: z.string().max(64).optional(),
 });
 
 declare module "express-session" {
@@ -128,7 +129,7 @@ router.post("/auth/login", loginRateLimit, async (req, res): Promise<void> => {
     return;
   }
 
-  const { email: identifier, password } = parsed.data;
+  const { email: identifier, password, deviceId } = parsed.data;
 
   const [user] = await db
     .select()
@@ -152,6 +153,30 @@ router.post("/auth/login", loginRateLimit, async (req, res): Promise<void> => {
   if (!valid) {
     res.status(401).json({ error: "Email ou mot de passe incorrect" });
     return;
+  }
+
+  // ── Device binding — vendor and admin accounts only ───────────────────────
+  // First login from any device registers that device.
+  // Subsequent logins from a different device are rejected.
+  if (user.role === "vendor" || user.role === "admin") {
+    const rows = await db.execute(
+      sql`SELECT device_id FROM users WHERE id = ${user.id} LIMIT 1`
+    );
+    const rowList = ((rows as unknown as { rows?: unknown[] }).rows ?? (rows as unknown as unknown[]));
+    const storedDeviceId = ((rowList[0] as { device_id?: string | null } | undefined)?.device_id) ?? null;
+
+    if (storedDeviceId === null) {
+      // First time — register this device
+      if (deviceId) {
+        await db.execute(sql`UPDATE users SET device_id = ${deviceId} WHERE id = ${user.id}`);
+      }
+    } else if (deviceId && storedDeviceId !== deviceId) {
+      // Device mismatch — block
+      res.status(403).json({
+        error: "Connexion refusée : appareil non reconnu. Contactez l'administrateur.",
+      });
+      return;
+    }
   }
 
   const ip =

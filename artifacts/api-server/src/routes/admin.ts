@@ -192,19 +192,27 @@ router.post("/admin/login", loginRateLimit, async (req: Request, res: Response):
 
 // GET /api/admin/users
 router.get("/admin/users", requireAdmin, async (_req: Request, res: Response): Promise<void> => {
-  const users = await db.select().from(usersTable).orderBy(desc(usersTable.createdAt));
+  const rows = await db.execute(sql`
+    SELECT id, email, username, role, is_suspended, last_login_at, last_login_ip,
+           created_at, vendor_id,
+           CASE WHEN device_id IS NOT NULL THEN TRUE ELSE FALSE END AS has_device
+    FROM users
+    ORDER BY created_at DESC
+  `);
+  const users = ((rows as { rows?: Record<string, unknown>[] }).rows ?? (rows as unknown as Record<string, unknown>[]));
   const now = Date.now();
   res.json(
     users.map((u) => ({
-      id: u.id,
-      email: u.email,
-      username: u.username,
-      role: u.role,
-      isSuspended: u.isSuspended,
-      isOnline: u.lastLoginAt ? now - u.lastLoginAt.getTime() < 15 * 60 * 1000 : false,
-      lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
-      lastLoginIp: u.lastLoginIp ?? null,
-      createdAt: u.createdAt.toISOString(),
+      id: u["id"],
+      email: u["email"],
+      username: u["username"],
+      role: u["role"],
+      isSuspended: u["is_suspended"],
+      hasDevice: u["has_device"],
+      isOnline: u["last_login_at"] ? now - new Date(u["last_login_at"] as string).getTime() < 15 * 60 * 1000 : false,
+      lastLoginAt: u["last_login_at"] ? new Date(u["last_login_at"] as string).toISOString() : null,
+      lastLoginIp: u["last_login_ip"] ?? null,
+      createdAt: new Date(u["created_at"] as string).toISOString(),
     })),
   );
 });
@@ -212,12 +220,19 @@ router.get("/admin/users", requireAdmin, async (_req: Request, res: Response): P
 // PATCH /api/admin/users/:id
 router.patch("/admin/users/:id", requireAdmin, async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(String(req.params["id"]));
-  const { isSuspended } = req.body as { isSuspended: boolean };
-  if (typeof isSuspended !== "boolean") {
-    res.status(400).json({ error: "isSuspended doit être un booléen" });
+  const body = req.body as { isSuspended?: boolean; resetDevice?: boolean };
+
+  if (body.resetDevice === true) {
+    await db.execute(sql`UPDATE users SET device_id = NULL WHERE id = ${id}`);
+    res.json({ success: true });
     return;
   }
-  await db.update(usersTable).set({ isSuspended }).where(eq(usersTable.id, id));
+
+  if (typeof body.isSuspended !== "boolean") {
+    res.status(400).json({ error: "Paramètre invalide" });
+    return;
+  }
+  await db.update(usersTable).set({ isSuspended: body.isSuspended }).where(eq(usersTable.id, id));
   res.json({ success: true });
 });
 

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Users as UsersIcon, Search, ShieldOff, ShieldCheck, Globe, Clock, CalendarDays } from "lucide-react";
+import { Users as UsersIcon, Search, ShieldOff, ShieldCheck, Globe, Clock, CalendarDays, Smartphone, SmartphoneNfc } from "lucide-react";
 
 interface AdminUser {
   id: number;
@@ -16,6 +16,7 @@ interface AdminUser {
   role: string;
   isSuspended: boolean;
   isOnline: boolean;
+  hasDevice: boolean;
   lastLoginAt: string | null;
   lastLoginIp: string | null;
   createdAt: string;
@@ -75,6 +76,21 @@ export default function UsersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       toast({ title: "Compte mis à jour" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Erreur", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const resetDeviceMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiFetch(`/api/admin/users/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ resetDevice: true }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ title: "Appareil réinitialisé", description: "Le vendeur peut se reconnecter depuis n'importe quel appareil." });
     },
     onError: (err: Error) => {
       toast({ title: "Erreur", description: err.message, variant: "destructive" });
@@ -175,7 +191,10 @@ export default function UsersPage() {
                     <span className="flex items-center gap-1.5"><Globe className="w-3.5 h-3.5" />IP</span>
                   </TableHead>
                   <TableHead className="text-zinc-400">Statut</TableHead>
-                  <TableHead className="text-zinc-400 text-right">Action</TableHead>
+                  <TableHead className="text-zinc-400">
+                    <span className="flex items-center gap-1.5"><Smartphone className="w-3.5 h-3.5" />Appareil</span>
+                  </TableHead>
+                  <TableHead className="text-zinc-400 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -207,22 +226,54 @@ export default function UsersPage() {
                         <Badge variant="outline" className="text-xs border-emerald-700 text-emerald-400">Actif</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">
-                      {u.id !== me?.id && u.role !== "admin" && (
-                        <Button
-                          size="sm"
-                          variant={u.isSuspended ? "outline" : "destructive"}
-                          className={u.isSuspended ? "border-emerald-700 text-emerald-400 hover:bg-emerald-900/20 text-xs h-7" : "text-xs h-7"}
-                          onClick={() => suspendMutation.mutate({ id: u.id, isSuspended: !u.isSuspended })}
-                          disabled={suspendMutation.isPending}
-                        >
-                          {u.isSuspended ? (
-                            <><ShieldCheck className="w-3 h-3 mr-1" />Réactiver</>
-                          ) : (
-                            <><ShieldOff className="w-3 h-3 mr-1" />Suspendre</>
-                          )}
-                        </Button>
+                    <TableCell>
+                      {(u.role === "vendor" || u.role === "admin") ? (
+                        u.hasDevice ? (
+                          <span className="flex items-center gap-1 text-xs text-emerald-400 font-medium">
+                            <SmartphoneNfc className="w-3.5 h-3.5" />Enregistré
+                          </span>
+                        ) : (
+                          <span className="text-xs text-zinc-500 flex items-center gap-1">
+                            <Smartphone className="w-3.5 h-3.5" />Aucun
+                          </span>
+                        )
+                      ) : (
+                        <span className="text-zinc-700 text-xs">—</span>
                       )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {u.id !== me?.id && u.role !== "admin" && (
+                          <Button
+                            size="sm"
+                            variant={u.isSuspended ? "outline" : "destructive"}
+                            className={u.isSuspended ? "border-emerald-700 text-emerald-400 hover:bg-emerald-900/20 text-xs h-7" : "text-xs h-7"}
+                            onClick={() => suspendMutation.mutate({ id: u.id, isSuspended: !u.isSuspended })}
+                            disabled={suspendMutation.isPending}
+                          >
+                            {u.isSuspended ? (
+                              <><ShieldCheck className="w-3 h-3 mr-1" />Réactiver</>
+                            ) : (
+                              <><ShieldOff className="w-3 h-3 mr-1" />Suspendre</>
+                            )}
+                          </Button>
+                        )}
+                        {(u.role === "vendor" || u.role === "admin") && u.hasDevice && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-amber-700 text-amber-400 hover:bg-amber-900/20 text-xs h-7"
+                            onClick={() => {
+                              if (confirm(`Réinitialiser l'appareil de ${u.username} ? Le prochain login enregistrera un nouvel appareil.`)) {
+                                resetDeviceMutation.mutate(u.id);
+                              }
+                            }}
+                            disabled={resetDeviceMutation.isPending}
+                          >
+                            <Smartphone className="w-3 h-3 mr-1" />Reset
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

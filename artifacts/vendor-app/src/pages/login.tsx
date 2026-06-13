@@ -1,34 +1,59 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { useAuth } from "@/lib/auth-context";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, Smartphone } from "lucide-react";
+
+function getOrCreateDeviceId(): string {
+  const KEY = "hlg_device_id";
+  let id = localStorage.getItem(KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(KEY, id);
+  }
+  return id;
+}
 
 export default function Login() {
   const [, setLocation] = useLocation();
-  const { login } = useAuth();
+  const queryClient = useQueryClient();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [deviceId, setDeviceId] = useState("");
+
+  useEffect(() => {
+    setDeviceId(getOrCreateDeviceId());
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      await login({ email: identifier, password });
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: identifier, password, deviceId }),
+      });
+      if (!res.ok) {
+        const body = await res.json() as { error?: string };
+        throw new Error(body.error ?? "Email ou mot de passe incorrect");
+      }
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       setLocation("/");
     } catch (err: unknown) {
-      const message =
-        (err as { data?: { error?: string } })?.data?.error ??
-        "Email ou mot de passe incorrect";
-      setError(message);
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
   };
+
+  // Short display code — first 8 chars for readability
+  const displayCode = deviceId ? deviceId.slice(0, 8).toUpperCase() : "…";
 
   return (
     <div className="min-h-screen w-full bg-white flex items-center justify-center px-6">
@@ -83,11 +108,7 @@ export default function Login() {
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
                 tabIndex={-1}
               >
-                {showPassword ? (
-                  <EyeOff className="w-5 h-5" />
-                ) : (
-                  <Eye className="w-5 h-5" />
-                )}
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
           </div>
@@ -114,8 +135,18 @@ export default function Login() {
           </button>
         </form>
 
+        {/* Device ID */}
+        <div className="mt-6 flex items-center gap-2.5 rounded-lg bg-gray-50 border border-gray-200 px-4 py-3">
+          <Smartphone className="w-4 h-4 text-gray-400 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Code appareil</p>
+            <p className="text-sm font-mono font-black text-gray-700 truncate">{displayCode}</p>
+          </div>
+          <p className="text-[10px] text-gray-400 ml-auto shrink-0">Communiquer à l'admin</p>
+        </div>
+
         {/* Footer */}
-        <p className="text-center text-xs text-gray-400 mt-8">
+        <p className="text-center text-xs text-gray-400 mt-6">
           © 2026 Halgo Cash · Tous droits réservés
         </p>
       </div>
