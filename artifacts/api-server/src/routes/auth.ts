@@ -130,16 +130,15 @@ router.post("/auth/login", loginRateLimit, async (req, res): Promise<void> => {
   }
 
   const { email: rawIdentifier, password, deviceId } = parsed.data;
-  // Normalize: try lowercase email match first, fallback to original for username
-  const identifier = rawIdentifier.trim();
+  const identifier      = rawIdentifier.trim();
   const identifierLower = identifier.toLowerCase();
 
+  // Utilise LOWER() pour une comparaison insensible à la casse (email stocké avec n'importe quelle casse)
   const [user] = await db
     .select()
     .from(usersTable)
     .where(or(
-      eq(usersTable.email, identifierLower),
-      eq(usersTable.email, identifier),
+      sql`LOWER(${usersTable.email}) = ${identifierLower}`,
       eq(usersTable.username, identifier),
     ))
     .limit(1);
