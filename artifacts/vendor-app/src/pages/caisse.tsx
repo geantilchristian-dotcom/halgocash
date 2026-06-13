@@ -170,9 +170,9 @@ export default function Caisse() {
       try {
         const res = await fetch(`/api/payments/mobile-money/status/${mmChargeId}`, { credentials: "include" });
         const data = await res.json() as { status?: string };
-        if (data.status === "successful" || data.status === "success" || data.status === "completed") {
+        if (data.status === "succeeded") {
           setMmStep("success");
-        } else if (data.status === "failed" || data.status === "cancelled") {
+        } else if (data.status === "failed" || data.status === "expired") {
           setMmError("Paiement refusé ou annulé."); setMmStep("error");
         } else { setMmPollCount((c) => c + 1); }
       } catch { setMmPollCount((c) => c + 1); }

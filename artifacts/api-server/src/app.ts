@@ -13,6 +13,7 @@ import {
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
+import { malipoWebhookHandler } from "./routes/webhooks";
 import { logger } from "./lib/logger";
 import path from "path";
 import fs from "fs";
@@ -95,6 +96,14 @@ app.use(
     },
     credentials: true,
   }),
+);
+
+// ── Malipo webhook (doit être avant express.json — nécessite le raw body) ──
+// express.raw() préserve req.body comme Buffer pour la vérification HMAC.
+app.post(
+  "/api/webhooks/malipo",
+  express.raw({ type: "application/json" }),
+  (req, res) => { void malipoWebhookHandler(req, res); },
 );
 
 // ── Body parsing ──────────────────────────────────────────────────────────

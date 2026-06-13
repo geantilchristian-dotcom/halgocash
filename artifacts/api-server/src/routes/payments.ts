@@ -1,11 +1,21 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { Malipo } from "malipo-node";
+import { Malipo, type MalipoNetwork } from "malipo-node";
 import { getAuth } from "@clerk/express";
+import { db } from "@workspace/db";
+import { malipoChargesTable } from "@workspace/db/schema";
 
 const router: IRouter = Router();
 
-const NETWORKS = ["VODACOM_MPESA", "AIRTEL_MONEY", "ORANGE_MONEY"] as const;
-type Network = (typeof NETWORKS)[number];
+const VALID_NETWORKS: MalipoNetwork[] = ["VODACOM_MPESA", "AIRTEL_MONEY", "ORANGE_MONEY"];
+
+function isValidNetwork(n: string): n is MalipoNetwork {
+  return (VALID_NETWORKS as string[]).includes(n);
+}
+
+// Malipo SDK expects MSISDN format without leading "+" (e.g. "243810000000")
+function toMsisdn(phone: string): string {
+  return phone.startsWith("+") ? phone.slice(1) : phone;
+}
 
 function getMalipo() {
   const key = process.env.MALIPO_SECRET_KEY;
@@ -13,7 +23,7 @@ function getMalipo() {
   return new Malipo({ apiKey: key });
 }
 
-// ── POST /payments/mobile-money/initiate ─────────────────────────────────────
+// ── POST /api/payments/mobile-money/initiate ──────────────────────────────────
 // Joueur : recharge son portefeuille via mobile money (requiert Clerk auth)
 router.post("/payments/mobile-money/initiate", async (req: Request, res: Response) => {
   req.log.info({ body: req.body }, "POST /payments/mobile-money/initiate");
@@ -39,32 +49,42 @@ router.post("/payments/mobile-money/initiate", async (req: Request, res: Respons
     res.status(400).json({ error: "Devise invalide (USD ou CDF)" });
     return;
   }
-  if (!phone || !/^\+2438\d{8}$|^\+2439\d{8}$|^\+2437\d{8}$/.test(phone)) {
+  if (!phone || !/^\+243\d{9}$/.test(phone)) {
     res.status(400).json({ error: "Numéro invalide. Format : +243XXXXXXXXX" });
     return;
   }
-  if (!network || !NETWORKS.includes(network as Network)) {
-    res.status(400).json({ error: `Réseau invalide. Choisissez parmi : ${NETWORKS.join(", ")}` });
+  if (!network || !isValidNetwork(network)) {
+    res.status(400).json({ error: `Réseau invalide. Choisissez parmi : ${VALID_NETWORKS.join(", ")}` });
     return;
   }
 
   try {
     const malipo = getMalipo();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const charge = await (malipo.charges.create as (opts: any) => Promise<any>)({
+    const charge = await malipo.charges.create({
       amount,
       currency,
-      phone,
+      phone: toMsisdn(phone),
       network,
-    }) as { id?: string; chargeId?: string; status?: string; message?: string };
+      description: `Recharge Halgo Cash — ${userId}`,
+    });
 
-    const chargeId = charge.id ?? charge.chargeId;
+    const chargeId = charge.id;
     req.log.info({ chargeId, userId, amount, currency, network }, "Malipo charge created");
+
+    if (chargeId) {
+      await db.insert(malipoChargesTable).values({
+        chargeId,
+        clerkId: userId,
+        amount: String(amount),
+        currency,
+        type: "player_recharge",
+      }).onConflictDoNothing();
+    }
 
     res.json({
       chargeId,
-      status: charge.status ?? "pending",
-      message: charge.message ?? "Confirmez le paiement sur votre téléphone.",
+      status: charge.status,
+      message: "Confirmez le paiement sur votre téléphone.",
     });
   } catch (err: unknown) {
     const e = err as { message?: string; status?: number };
@@ -73,7 +93,7 @@ router.post("/payments/mobile-money/initiate", async (req: Request, res: Respons
   }
 });
 
-// ── POST /payments/mobile-money/vendor ───────────────────────────────────────
+// ── POST /api/payments/mobile-money/vendor ────────────────────────────────────
 // Vendeur : encaisser un paiement mobile money client (requiert session vendeur)
 router.post("/payments/mobile-money/vendor", async (req: Request, res: Response) => {
   req.log.info({ body: req.body }, "POST /payments/mobile-money/vendor");
@@ -104,28 +124,38 @@ router.post("/payments/mobile-money/vendor", async (req: Request, res: Response)
     res.status(400).json({ error: "Numéro invalide. Format : +243XXXXXXXXX" });
     return;
   }
-  if (!network || !NETWORKS.includes(network as Network)) {
-    res.status(400).json({ error: `Réseau invalide. Choisissez parmi : ${NETWORKS.join(", ")}` });
+  if (!network || !isValidNetwork(network)) {
+    res.status(400).json({ error: `Réseau invalide. Choisissez parmi : ${VALID_NETWORKS.join(", ")}` });
     return;
   }
 
   try {
     const malipo = getMalipo();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const charge = await (malipo.charges.create as (opts: any) => Promise<any>)({
+    const charge = await malipo.charges.create({
       amount,
       currency,
-      phone,
+      phone: toMsisdn(phone),
       network,
-    }) as { id?: string; chargeId?: string; status?: string; message?: string };
+      description: customerName ? `Encaissement Halgo — ${customerName}` : "Encaissement Halgo Cash",
+    });
 
-    const chargeId = charge.id ?? charge.chargeId;
+    const chargeId = charge.id;
     req.log.info({ chargeId, vendorUserId: sess.userId, amount, currency, network, customerName }, "Malipo vendor charge created");
+
+    if (chargeId) {
+      await db.insert(malipoChargesTable).values({
+        chargeId,
+        vendorUserId: sess.userId,
+        amount: String(amount),
+        currency,
+        type: "vendor_collection",
+      }).onConflictDoNothing();
+    }
 
     res.json({
       chargeId,
-      status: charge.status ?? "pending",
-      message: charge.message ?? "Demande envoyée. Le client doit confirmer sur son téléphone.",
+      status: charge.status,
+      message: "Demande envoyée. Le client doit confirmer sur son téléphone.",
     });
   } catch (err: unknown) {
     const e = err as { message?: string; status?: number };
@@ -134,7 +164,7 @@ router.post("/payments/mobile-money/vendor", async (req: Request, res: Response)
   }
 });
 
-// ── GET /payments/mobile-money/status/:chargeId ──────────────────────────────
+// ── GET /api/payments/mobile-money/status/:chargeId ──────────────────────────
 // Vérifier le statut d'un paiement (polling côté client)
 router.get("/payments/mobile-money/status/:chargeId", async (req: Request, res: Response) => {
   req.log.info({ params: req.params }, "GET /payments/mobile-money/status");
@@ -147,17 +177,11 @@ router.get("/payments/mobile-money/status/:chargeId", async (req: Request, res: 
 
   try {
     const malipo = getMalipo();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tx = await (malipo.transactions.retrieve as (id: string) => Promise<any>)(chargeId) as {
-      status?: string;
-      id?: string;
-      amount?: number;
-      currency?: string;
-    };
+    const tx = await malipo.transactions.retrieve(chargeId);
 
     res.json({
       chargeId,
-      status: tx.status ?? "pending",
+      status: tx.status,
       amount: tx.amount,
       currency: tx.currency,
     });

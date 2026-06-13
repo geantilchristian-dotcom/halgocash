@@ -246,6 +246,21 @@ export const maletteGamesTable = pgTable("malette_games", {
 
 export type MaletteGame = typeof maletteGamesTable.$inferSelect;
 
+export const malipoChargesTable = pgTable("malipo_charges", {
+  id: serial("id").primaryKey(),
+  chargeId: varchar("charge_id", { length: 100 }).notNull().unique(),
+  clerkId: varchar("clerk_id", { length: 255 }),
+  vendorUserId: integer("vendor_user_id"),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 10 }).notNull(),
+  type: varchar("type", { length: 30 }).notNull().default("player_recharge"),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  settledAt: timestamp("settled_at"),
+});
+
+export type MalipoCharge = typeof malipoChargesTable.$inferSelect;
+
 export const insertVendorSchema = createInsertSchema(vendorsTable).omit({ id: true, createdAt: true });
 export const insertDrawSchema = createInsertSchema(drawsTable).omit({ id: true, createdAt: true, drawnAt: true, winningTicketCode: true, winningNumbers: true, prizePool: true });
 export const insertTicketSchema = createInsertSchema(ticketsTable).omit({ id: true, createdAt: true });

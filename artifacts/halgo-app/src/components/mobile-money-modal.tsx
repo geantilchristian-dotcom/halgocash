@@ -81,10 +81,10 @@ export function MobileMoneyModal({ open, onClose, onSuccess }: Props) {
       try {
         const res = await fetch(`/api/payments/mobile-money/status/${chargeId}`, { credentials: "include" });
         const data = await res.json() as { status?: string; amount?: number; currency?: string };
-        if (data.status === "successful" || data.status === "success" || data.status === "completed") {
+        if (data.status === "succeeded") {
           setStep("success");
           onSuccess?.(parseFloat(amount), currency);
-        } else if (data.status === "failed" || data.status === "cancelled") {
+        } else if (data.status === "failed" || data.status === "expired") {
           setErrorMsg("Paiement refusé ou annulé.");
           setStep("error");
         } else {
