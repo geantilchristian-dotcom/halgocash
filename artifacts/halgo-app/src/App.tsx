@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ThemeProvider } from "@/lib/theme-context";
+import { BalanceProvider } from "@/lib/balance-context";
 import { Switch, Route, useLocation, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -232,7 +233,11 @@ const AppContent = (
 );
 
 function AppRoutes() {
-  return <AuthGuard>{AppContent}</AuthGuard>;
+  return (
+    <BalanceProvider>
+      <AuthGuard>{AppContent}</AuthGuard>
+    </BalanceProvider>
+  );
 }
 
 function Routes() {

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { useAuth } from "@clerk/react";
+import { useBalance } from "@/lib/balance-context";
 import { useLocation } from "wouter";
 import { ArrowLeft, Trophy, Clock, Loader2, ChevronRight, CheckCircle, XCircle, AlertCircle, Wallet, RefreshCw } from "lucide-react";
 
@@ -67,7 +67,8 @@ interface BetSlip {
 }
 
 export default function SportPage() {
-  const { getToken } = useAuth();
+  const { balance: ctxBalance, setBalance, authFetch } = useBalance();
+  const sportBalance = ctxBalance ?? 0;
   const [, navigate] = useLocation();
   const [tab, setTab] = useState<Tab>("matchs");
 
@@ -76,21 +77,12 @@ export default function SportPage() {
   const [matchError, setMatchError] = useState<string | null>(null);
 
   const [bets, setBets] = useState<Bet[]>([]);
-  const [sportBalance, setSportBalance] = useState<number>(50000);
   const [loadingBets, setLoadingBets] = useState(false);
 
   const [betSlip, setBetSlip] = useState<BetSlip | null>(null);
   const [betAmount, setBetAmount] = useState("1000");
   const [placingBet, setPlacingBet] = useState(false);
   const [betResult, setBetResult] = useState<{ ok: boolean; msg: string } | null>(null);
-
-  const authFetch = useCallback(async (url: string, options: RequestInit = {}) => {
-    const token = await getToken().catch(() => null);
-    const headers: Record<string, string> = { ...(options.headers as Record<string, string> ?? {}) };
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    if (options.body) headers["Content-Type"] = "application/json";
-    return fetch(url, { ...options, headers, credentials: "include" });
-  }, [getToken]);
 
   const loadMatches = useCallback(async () => {
     setLoadingMatches(true);
@@ -114,7 +106,7 @@ export default function SportPage() {
       if (!r.ok) return;
       const d = await r.json() as { bets: Bet[]; balance: number };
       setBets(d.bets ?? []);
-      setSportBalance(d.balance ?? 50000);
+      if (d.balance != null) setBalance(d.balance);
     } finally {
       setLoadingBets(false);
     }
@@ -148,7 +140,7 @@ export default function SportPage() {
       if (!r.ok) {
         setBetResult({ ok: false, msg: d.error ?? "Erreur" });
       } else {
-        setSportBalance(d.newBalance ?? sportBalance - amount);
+        setBalance(d.newBalance ?? sportBalance - amount);
         setBetResult({ ok: true, msg: "Pari enregistré !" });
         setTimeout(() => { setBetSlip(null); setBetResult(null); }, 1400);
       }

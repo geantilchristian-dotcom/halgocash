@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, TrendingUp, CheckCircle, Ticket } from "lucide-react";
-import { useUser, useAuth } from "@clerk/react";
+import { useUser } from "@clerk/react";
+import { useBalance } from "@/lib/balance-context";
 
 type Phase = "waiting" | "flying" | "crashed";
 
@@ -166,13 +167,6 @@ function getOrCreatePlayerId(): string {
   } catch { return "HG#????" }
 }
 
-function readCachedBalance(userId: string): number {
-  try { const v = localStorage.getItem(`halgo_balance_${userId}`); return v !== null ? Math.max(0, parseFloat(v)) : 0; }
-  catch { return 0; }
-}
-function writeCachedBalance(userId: string, n: number) {
-  try { localStorage.setItem(`halgo_balance_${userId}`, String(Math.max(0, Math.round(n)))); } catch { /* ignore */ }
-}
 
 // ── Unique feed ID generator — format ID:145-96F ─────────────────────────────
 let _feedIdSeq = 0;
@@ -359,14 +353,9 @@ interface CrashStreamEvent {
 export default function CrashGame() {
   const [, setLocation] = useLocation();
   const { user, isLoaded } = useUser();
-  const { getToken } = useAuth();
-
-  const authFetch = useCallback(async (url: string, options: RequestInit = {}): Promise<Response> => {
-    const token = await getToken().catch(() => null);
-    const headers: Record<string, string> = { "Content-Type": "application/json", ...(options.headers as Record<string, string> | undefined ?? {}) };
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    return fetch(url, { ...options, headers, credentials: "include" });
-  }, [getToken]);
+  const { balance: ctxBalance, setBalance, refreshBalance, authFetch } = useBalance();
+  const balance = ctxBalance ?? 0;
+  const balanceLoaded = ctxBalance !== null;
 
   const [playerId] = useState<string>(() => getOrCreatePlayerId());
 
@@ -375,8 +364,6 @@ export default function CrashGame() {
   const [multiplier, setMultiplier]     = useState(1.0);
   const [countdown, setCountdown]       = useState(BET_WINDOW_S);
   const [history, setHistory]           = useState<HistoryEntry[]>([]);
-  const [balance, setBalance]           = useState<number>(0);
-  const [balanceLoaded, setBalanceLoaded] = useState(false);
   const [balanceFlash, setBalanceFlash] = useState(false);
 
   const [activeTab, setActiveTab]       = useState<"manual" | "auto">("manual");
@@ -421,26 +408,6 @@ export default function CrashGame() {
   useEffect(() => { autoBetEnabledRef.current = autoBetEnabled; }, [autoBetEnabled]);
   useEffect(() => { autoBetAmountRef.current = parseInt(autoBetAmountInput.replace(/\D/g, ""), 10) || 0; }, [autoBetAmountInput]);
 
-  // ── Load balance ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isLoaded) return;
-    if (user?.id) {
-      const cached = readCachedBalance(user.id);
-      if (cached > 0) setBalance(cached);
-    }
-    authFetch("/api/auth/balance")
-      .then(r => r.ok ? r.json() : null)
-      .then((d: { balance: number } | null) => {
-        if (d !== null) {
-          const bal = Math.max(0, d.balance);
-          setBalance(bal);
-          if (user?.id) writeCachedBalance(user.id, bal);
-        }
-        setBalanceLoaded(true);
-      })
-      .catch(() => { setBalanceLoaded(true); });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded]);
 
   // ── Load real crash history from server on mount ───────────────────────────
   useEffect(() => {
@@ -517,23 +484,16 @@ export default function CrashGame() {
     setCashedOut(true);
     setCashoutMult(atMult);
     setWinAmount(won);
-    setBalance((prev) => {
-      const nb = prev + won;
-      if (user?.id) writeCachedBalance(user.id, nb);
-      return nb;
-    });
+    setBalance(balance + won);
     setBalanceFlash(true);
     setTimeout(() => setBalanceFlash(false), 600);
     authFetch("/api/crash/cashout", { method: "POST", body: JSON.stringify({ roundId: currentRoundRef.current, cashoutMult: atMult, betType: "full" }) })
       .then(r => r.ok ? r.json() : null)
       .then((d: { newBalance: number; wonAmount?: number } | null) => {
-        if (d?.newBalance !== undefined) {
-          setBalance(d.newBalance);
-          if (user?.id) writeCachedBalance(user.id, d.newBalance);
-        }
+        if (d?.newBalance !== undefined) setBalance(d.newBalance);
       })
       .catch(() => {});
-  }, [authFetch, user?.id]);
+  }, [authFetch, balance, setBalance]);
 
   // ── Cash-out (50% partial) ────────────────────────────────────────────────
   const doHalfCashOut = useCallback((atMult: number) => {
@@ -546,23 +506,16 @@ export default function CrashGame() {
     setHalfCashedOut(true);
     setHalfCashoutMult(atMult);
     setHalfWonAmount(halfWin);
-    setBalance((prev) => {
-      const nb = prev + halfWin;
-      if (user?.id) writeCachedBalance(user.id, nb);
-      return nb;
-    });
+    setBalance(balance + halfWin);
     setBalanceFlash(true);
     setTimeout(() => setBalanceFlash(false), 600);
     authFetch("/api/crash/cashout", { method: "POST", body: JSON.stringify({ roundId: currentRoundRef.current, cashoutMult: atMult, betType: "half" }) })
       .then(r => r.ok ? r.json() : null)
       .then((d: { newBalance: number; wonAmount?: number } | null) => {
-        if (d?.newBalance !== undefined) {
-          setBalance(d.newBalance);
-          if (user?.id) writeCachedBalance(user.id, d.newBalance);
-        }
+        if (d?.newBalance !== undefined) setBalance(d.newBalance);
       })
       .catch(() => {});
-  }, [authFetch, user?.id]);
+  }, [authFetch, balance, setBalance]);
 
   // ── Game loop ─────────────────────────────────────────────────────────────
   const startRound = useCallback((roundId: number, msIntoOverride?: number, serverCrashPoint?: number) => {
@@ -928,7 +881,6 @@ export default function CrashGame() {
       setBetError(null);
       const nb = data.newBalance !== undefined ? data.newBalance : Math.max(0, balance - amt);
       setBalance(nb);
-      if (user?.id) writeCachedBalance(user.id, nb);
     } catch { setBetError("Erreur réseau, réessayez"); } finally { setBetLoading(false); }
   }, [syncing, phase, betLoading, betInput, balance, authFetch, user?.id]);
 
@@ -938,18 +890,11 @@ export default function CrashGame() {
     betRef.current.placed = false;
     betRef.current.amount = 0;
     setBetPlaced(false);
-    setBalance((prev) => {
-      const nb = prev + amt;
-      if (user?.id) writeCachedBalance(user.id, nb);
-      return nb;
-    });
+    setBalance(balance + amt);
     authFetch("/api/crash/cancel-bet", { method: "POST", body: JSON.stringify({ roundId: currentRoundRef.current }) })
       .then(r => r.ok ? r.json() : null)
       .then((d: { newBalance: number } | null) => {
-        if (d?.newBalance !== undefined) {
-          setBalance(d.newBalance);
-          if (user?.id) writeCachedBalance(user.id, d.newBalance);
-        }
+        if (d?.newBalance !== undefined) setBalance(d.newBalance);
       })
       .catch(() => {});
   }, [phase, authFetch, user?.id]);

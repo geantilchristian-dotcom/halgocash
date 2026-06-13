@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { LucideProps } from "lucide-react";
 import { useUser, useAuth } from "@clerk/react";
+import { useBalance } from "@/lib/balance-context";
 import { QRCodeSVG } from "qrcode.react";
 import { useLocation } from "wouter";
 import { QrScanner } from "@/components/qr-scanner";
@@ -280,16 +281,10 @@ function AgeGateModal({ onConfirm, onDeny }: { onConfirm: () => void; onDeny: ()
 
 export default function Home() {
   const { user, isLoaded } = useUser();
-  const { getToken, isSignedIn } = useAuth();
+  const { isSignedIn } = useAuth();
+  const { balance, setBalance, refreshBalance, authFetch } = useBalance();
   const [, navigate] = useLocation();
   const countdown = useJackpotCountdown();
-
-  const authFetch = useCallback(async (url: string, options: RequestInit = {}): Promise<Response> => {
-    const token = await getToken().catch(() => null);
-    const headers: Record<string, string> = { ...(options.headers as Record<string, string> | undefined ?? {}) };
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    return fetch(url, { ...options, headers, credentials: "include" });
-  }, [getToken]);
 
   // ── Age gate ──
   const [ageConfirmed, setAgeConfirmed] = useState(() => {
@@ -353,20 +348,7 @@ export default function Home() {
   const [transferToast, setTransferToast] = useState<string | null>(null);
   const supportUnreadRef = useRef(0);
 
-  // Balance — clé par utilisateur pour éviter les fuites entre comptes
-  const lsKey = user?.id ? `halgo_balance_${user.id}` : null;
-  const [balance, setBalance] = useState<number | null>(null);
   const [balanceFlash, setBalanceFlash] = useState(false);
-
-  // Pré-charger depuis localStorage dès que l'ID utilisateur est connu
-  // pour afficher une valeur immédiatement pendant que l'API charge.
-  useEffect(() => {
-    if (!lsKey) return;
-    try {
-      const stored = localStorage.getItem(lsKey);
-      if (stored !== null) setBalance(prev => prev === null ? parseFloat(stored) : prev);
-    } catch { /* ignore */ }
-  }, [lsKey]);
 
   // Ticket activation
   const [ticketCode,       setTicketCode]       = useState("");
@@ -410,68 +392,6 @@ export default function Home() {
   const [retraitError,   setRetraitError]   = useState<string | null>(null);
   const [retraitPaid,    setRetraitPaid]    = useState<{ paidAt: string } | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const balanceRetryCountRef = useRef<number>(0);
-  const balanceRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ── Fetch helpers ──
-  const fetchBalance = useCallback(async () => {
-    const key = user?.id ? `halgo_balance_${user.id}` : null;
-    const readLocal = (): number | null => {
-      if (!key) return null;
-      try { const v = localStorage.getItem(key); return v !== null ? parseFloat(v) : null; } catch { return null; }
-    };
-    try {
-      const res = await authFetch("/api/auth/balance");
-      if (res.ok) {
-        const d = await res.json() as { balance: number };
-        if (d.balance > 0) {
-          balanceRetryCountRef.current = 0;
-          if (balanceRetryTimerRef.current) { clearTimeout(balanceRetryTimerRef.current); balanceRetryTimerRef.current = null; }
-          setBalance(d.balance);
-          if (key) { try { localStorage.setItem(key, String(d.balance)); } catch { /* ignore */ } }
-        } else {
-          // Server returned 0 — only trust it if we have no locally-confirmed wins
-          // and the current displayed balance is already 0/null (avoids race where
-          // Clerk token is slow and overwrites a just-won balance).
-          const localWins = localWinsRef.current;
-          if (localWins > 0) {
-            setBalance(localWins);
-          } else {
-            // Only zero out if the current balance is null or already 0;
-            // keep any positive balance the user already sees.
-            setBalance(prev => {
-              if (prev !== null && prev > 0) return prev;
-              if (key) { try { localStorage.removeItem(key); } catch { /* ignore */ } }
-              return 0;
-            });
-            // Retry: if the user is authenticated but we got 0, the Clerk JWT may
-            // not have been ready on the first request.  Retry up to 3 times with
-            // increasing delays so we don't leave a real balance stuck at 0.
-            if (user?.id && balanceRetryCountRef.current < 3) {
-              balanceRetryCountRef.current++;
-              const delay = 1500 * balanceRetryCountRef.current;
-              if (balanceRetryTimerRef.current) clearTimeout(balanceRetryTimerRef.current);
-              balanceRetryTimerRef.current = setTimeout(() => {
-                balanceRetryTimerRef.current = null;
-                void fetchBalance();
-              }, delay);
-            }
-          }
-        }
-      } else {
-        // API returned an error (4xx/5xx) — keep whatever is in localStorage rather
-        // than leaving the display stuck on the skeleton indefinitely.
-        const cached = readLocal();
-        if (cached !== null) setBalance(prev => prev === null ? cached : prev);
-        else setBalance(prev => prev === null ? 0 : prev);
-      }
-    } catch {
-      // Network error — fall back to localStorage so balance never stays blank.
-      const cached = readLocal();
-      if (cached !== null) setBalance(prev => prev === null ? cached : prev);
-      else setBalance(prev => prev === null ? 0 : prev);
-    }
-  }, [authFetch, user?.id]);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -490,9 +410,9 @@ export default function Home() {
     try { localStorage.removeItem("halgo_pending_referral"); } catch { /* ignore */ }
     try {
       const res = await authFetch("/api/auth/referral/use", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: pending }) });
-      if (res.ok) { void fetchBalance(); void fetchProfile(); }
+      if (res.ok) { void refreshBalance(); void fetchProfile(); }
     } catch { /* silent */ }
-  }, [authFetch, fetchBalance]);
+  }, [authFetch, refreshBalance, fetchProfile]);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -507,40 +427,16 @@ export default function Home() {
     } catch { /* silent */ }
   }, [authFetch]);
 
-  // Only fetch once Clerk has finished loading — avoids a race where the
-  // unauthenticated first fetch (no token) returns 0 and overwrites the real balance.
+  // Only fetch once Clerk has finished loading
   useEffect(() => {
     if (isLoaded) {
-      void fetchBalance();
       void fetchNotifications();
       void fetchProfile();
       void claimPendingReferral();
     }
   }, [isLoaded]);
 
-  // Secondary trigger: fires only when isSignedIn TRANSITIONS to true (not on
-  // initial mount), meaning the JWT just became available for the first time.
-  // Guards against double-call by tracking the previous value in a ref.
-  const prevIsSignedInRef = useRef<boolean | undefined>(undefined);
-  useEffect(() => {
-    const prev = prevIsSignedInRef.current;
-    prevIsSignedInRef.current = isSignedIn ?? false;
-    // Only act when transitioning from non-true → true (skip first-render where
-    // both isLoaded and isSignedIn fire simultaneously and cause rate-limiting).
-    if (isSignedIn && prev === false) {
-      balanceRetryCountRef.current = 0;
-      if (balanceRetryTimerRef.current) {
-        clearTimeout(balanceRetryTimerRef.current);
-        balanceRetryTimerRef.current = null;
-      }
-      void fetchBalance();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSignedIn]);
-
   // QR scan auto-fill
-  // Tracks locally-confirmed wins not yet reflected by server balance.
-  const localWinsRef = useRef<number>(0);
 
   const autoSubmitRef = useRef(false);
   useEffect(() => {
@@ -600,7 +496,7 @@ export default function Home() {
         const { count } = await res.json() as { count: number };
         if (count > supportUnreadRef.current) {
           // New message arrived — refetch balance immediately and show toast
-          void fetchBalance();
+          void refreshBalance();
           // Read the latest admin message to extract transfer info for toast
           authFetch("/api/support/messages")
             .then(r => r.ok ? r.json() : null)
@@ -621,7 +517,7 @@ export default function Home() {
     };
     const id = setInterval(check, 15_000);
     return () => clearInterval(id);
-  }, [isSignedIn, authFetch, fetchBalance]);
+  }, [isSignedIn, authFetch, refreshBalance]);
 
   const activateTicket = useCallback(async () => {
     const code = ticketCode.trim().toUpperCase();
@@ -638,31 +534,17 @@ export default function Home() {
         setActivationResult(data);
         if (data.isWinner && data.prizeAmount) {
           if (typeof data.newBalance === "number") {
-            // Server confirmed balance — reset local tracking and use server value
-            localWinsRef.current = 0;
             setBalance(data.newBalance);
-            const key = user?.id ? `halgo_balance_${user.id}` : null;
-            if (key) { try { localStorage.setItem(key, String(data.newBalance)); } catch { /* ignore */ } }
-            setTimeout(() => { void fetchBalance(); }, 2000);
           } else {
-            // Server couldn't compute balance (Clerk auth failing on server) —
-            // increment locally and track so fetchBalance won't wipe it with 0
-            localWinsRef.current += data.prizeAmount as number;
-            setBalance((prev) => {
-              const nb = (prev ?? 0) + (data.prizeAmount as number);
-              const key = user?.id ? `halgo_balance_${user.id}` : null;
-              if (key) { try { localStorage.setItem(key, String(nb)); } catch { /* ignore */ } }
-              return nb;
-            });
-            // Still try to refetch — it will NOT overwrite thanks to localWinsRef guard
-            setTimeout(() => { void fetchBalance(); }, 2000);
+            setBalance((balance ?? 0) + (data.prizeAmount as number));
           }
           setBalanceFlash(true);
-        } else { void fetchBalance(); }
+          setTimeout(() => { void refreshBalance(); }, 2000);
+        } else { void refreshBalance(); }
       }
     } catch { setActivationError("Erreur de connexion"); }
     finally { setActivating(false); }
-  }, [ticketCode, fetchBalance, authFetch]);
+  }, [ticketCode, refreshBalance, authFetch, balance]);
 
   useEffect(() => {
     if (autoSubmitRef.current && ticketCode) { autoSubmitRef.current = false; void activateTicket(); }
@@ -699,7 +581,7 @@ export default function Home() {
         if (match?.status === "paid" && match.paidAt) {
           clearInterval(pollRef.current!); pollRef.current = null;
           setRetraitPaid({ paidAt: match.paidAt });
-          void fetchBalance();
+          void refreshBalance();
           void fetchNotifications();
         }
       } catch { /* silent */ }
@@ -713,7 +595,7 @@ export default function Home() {
   const closeRetrait = () => {
     if (retraitQR && !retraitPaid) void cancelPendingRetrait(retraitQR.token);
     setShowRetrait(false); setRetraitQR(null); setRetraitPaid(null); setRetraitAmount(""); setRetraitError(null);
-    void fetchBalance();
+    void refreshBalance();
   };
   const openRetrait = () => { setRetraitAmount(""); setRetraitQR(null); setRetraitPaid(null); setRetraitError(null); setShowRetrait(true); };
 
@@ -760,7 +642,7 @@ export default function Home() {
       const d = await res.json() as { ok?: boolean; error?: string; refId?: string };
       if (!res.ok) { setSendError(d.error ?? "Erreur lors du transfert"); return; }
       setSendSuccess({ refId: d.refId ?? "", amount: amt });
-      void fetchBalance();
+      void refreshBalance();
     } catch { setSendError("Erreur de connexion"); }
     finally { setSendLoading(false); }
   };
@@ -782,7 +664,7 @@ export default function Home() {
         return;
       }
       setRetraitQR({ token: data.token!, amount: amt, qrValue: data.token! });
-      void fetchBalance();
+      void refreshBalance();
     } catch { setRetraitError("Erreur de connexion"); }
     finally { setRetraitLoading(false); }
   };
@@ -2140,7 +2022,7 @@ export default function Home() {
                           setJackpotBetDone(true);
                           setJackpotParticipated(true);
                           try { localStorage.setItem(`jackpot_p_${currentWeekId()}`, "1"); } catch { /* */ }
-                          void fetchBalance();
+                          void refreshBalance();
                         } else {
                           const d = await res.json().catch(() => ({})) as { error?: string };
                           alert(d.error ?? "Erreur — veuillez réessayer");
@@ -2266,7 +2148,7 @@ export default function Home() {
         onClose={() => setShowRechargeModal(false)}
         onSuccess={() => {
           setShowRechargeModal(false);
-          void fetchBalance();
+          void refreshBalance();
         }}
       />
     </div>

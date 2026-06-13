@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { useAuth } from "@clerk/react";
+import { useBalance } from "@/lib/balance-context";
 import { useLocation } from "wouter";
 import { ArrowLeft, Gem, Bomb, TrendingUp, Loader2 } from "lucide-react";
 
@@ -24,14 +24,8 @@ interface ActiveGame {
 
 export default function MinesPage() {
   const [, navigate] = useLocation();
-  const { getToken } = useAuth();
-
-  const authFetch = useCallback(async (url: string, opts: RequestInit = {}): Promise<Response> => {
-    const token = await getToken().catch(() => null);
-    const headers: Record<string, string> = { "Content-Type": "application/json", ...(opts.headers as Record<string, string> ?? {}) };
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    return fetch(url, { ...opts, headers });
-  }, [getToken]);
+  const { balance: ctxBalance, setBalance, authFetch } = useBalance();
+  const balance = ctxBalance ?? 0;
 
   const [phase, setPhase] = useState<Phase>("setup");
   const [mineCount, setMineCount] = useState(3);
@@ -39,17 +33,9 @@ export default function MinesPage() {
   const [game, setGame] = useState<ActiveGame | null>(null);
   const [cells, setCells] = useState<CellState[]>(Array(GRID_SIZE).fill("hidden"));
   const [minePositions, setMinePositions] = useState<number[]>([]);
-  const [balance, setBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [revealingCell, setRevealingCell] = useState<number | null>(null);
   const [cashingOut, setCashingOut] = useState(false);
-
-  // Fetch balance
-  useEffect(() => {
-    authFetch("/api/auth/balance").then(r => r.ok ? r.json() as Promise<{ balance: number }> : null).then(d => {
-      if (d) setBalance(d.balance);
-    }).catch(() => {});
-  }, [authFetch, phase]);
 
   // Check for active game on mount
   useEffect(() => {
@@ -84,7 +70,7 @@ export default function MinesPage() {
       setCells(Array(GRID_SIZE).fill("hidden"));
       setMinePositions([]);
       setPhase("playing");
-      setBalance(prev => prev !== null ? Math.max(0, prev - bet) : null);
+      setBalance(Math.max(0, balance - bet));
     } finally {
       setLoading(false);
     }
@@ -129,7 +115,7 @@ export default function MinesPage() {
 
       if (data.allRevealed) {
         setPhase("won");
-        setBalance(prev => prev !== null ? prev + (data.cashoutAmount ?? 0) : null);
+        setBalance(balance + (data.cashoutAmount ?? 0));
         setGame(null);
       }
     } finally {
@@ -156,7 +142,7 @@ export default function MinesPage() {
       setMinePositions(data.minePositions);
       setGame(prev => prev ? { ...prev, cashoutAmount: data.cashoutAmount, multiplier: data.multiplier } : null);
       setPhase("won");
-      setBalance(prev => prev !== null ? prev + data.cashoutAmount : null);
+      setBalance(balance + data.cashoutAmount);
     } finally {
       setCashingOut(false);
     }
@@ -168,9 +154,6 @@ export default function MinesPage() {
     setMinePositions([]);
     setGame(null);
     setRevealingCell(null);
-    authFetch("/api/auth/balance").then(r => r.ok ? r.json() as Promise<{ balance: number }> : null).then(d => {
-      if (d) setBalance(d.balance);
-    }).catch(() => {});
   };
 
   const safeSoFar = cells.filter(c => c === "safe").length;

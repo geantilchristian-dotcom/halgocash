@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import { useAuth, useUser } from "@clerk/react";
+import { useUser } from "@clerk/react";
+import { useBalance } from "@/lib/balance-context";
 import { ArrowLeft, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 
 // ── Segments must match backend order exactly ────────────────────────────────
@@ -203,18 +204,11 @@ function drawWheel(
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function RouletteGame() {
   const [, setLocation] = useLocation();
-  const { getToken } = useAuth();
   const { user, isLoaded } = useUser();
+  const { balance: ctxBalance, setBalance, authFetch } = useBalance();
+  const balance = ctxBalance ?? 0;
+  const balanceLoaded = ctxBalance !== null;
 
-  const authFetch = useCallback(async (url: string, opts: RequestInit = {}): Promise<Response> => {
-    const token = await getToken().catch(() => null);
-    const headers: Record<string, string> = { "Content-Type": "application/json", ...(opts.headers as Record<string, string> | undefined ?? {}) };
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    return fetch(url, { ...opts, headers, credentials: "include" });
-  }, [getToken]);
-
-  const [balance, setBalance]         = useState(0);
-  const [balanceLoaded, setBalLoaded] = useState(false);
   const [balFlash, setBalFlash]       = useState(false);
   const [betInput, setBetInput]       = useState("1000");
   const [spinState, setSpinState]     = useState<SpinState>("idle");
@@ -231,14 +225,6 @@ export default function RouletteGame() {
   const rafRef       = useRef<number | null>(null);
   const rotRef       = useRef(0);
 
-  // ── Balance load ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isLoaded) return;
-    authFetch("/api/auth/balance")
-      .then(r => r.json())
-      .then((d: { balance: number }) => { setBalance(d.balance); setBalLoaded(true); })
-      .catch(() => setBalLoaded(true));
-  }, [isLoaded, authFetch]);
 
   // ── Dynamic live count ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -334,7 +320,7 @@ export default function RouletteGame() {
       return;
     }
 
-    setBalance(b => b - betAmt);
+    setBalance(balance - betAmt);
     setSpinState("spinning");
 
     animateTo(idx, () => {
