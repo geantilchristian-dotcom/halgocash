@@ -493,11 +493,14 @@ router.post("/admin/workers", requireAdmin, async (req: Request, res: Response):
     return;
   }
 
+  // Normalize email to lowercase
+  const normalizedEmail = email.toLowerCase().trim();
+
   // Check uniqueness
   const [existing] = await db
     .select({ id: usersTable.id })
     .from(usersTable)
-    .where(or(eq(usersTable.username, username), eq(usersTable.email, email)))
+    .where(or(eq(usersTable.username, username.trim()), eq(usersTable.email, normalizedEmail)))
     .limit(1);
   if (existing) {
     res.status(409).json({ error: "Nom d'utilisateur ou email déjà utilisé" });
@@ -515,8 +518,8 @@ router.post("/admin/workers", requireAdmin, async (req: Request, res: Response):
   const [newUser] = await db
     .insert(usersTable)
     .values({
-      email,
-      username,
+      email: normalizedEmail,
+      username: username.trim(),
       passwordHash,
       plainPassword: password,
       role: "vendor",
@@ -552,15 +555,16 @@ router.patch("/admin/workers/:userId", requireAdmin, async (req: Request, res: R
     const [clash] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username)).limit(1);
     if (clash) { res.status(409).json({ error: "Nom d'utilisateur déjà pris" }); return; }
   }
-  if (email && email !== worker.email) {
-    const [clash] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email)).limit(1);
+  const normalizedEditEmail = email ? email.toLowerCase().trim() : undefined;
+  if (normalizedEditEmail && normalizedEditEmail !== worker.email) {
+    const [clash] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, normalizedEditEmail)).limit(1);
     if (clash) { res.status(409).json({ error: "Email déjà utilisé" }); return; }
   }
 
   // Update user record
   const userUpdates: Partial<typeof usersTable.$inferInsert> = {};
-  if (username) userUpdates.username = username;
-  if (email) userUpdates.email = email;
+  if (username) userUpdates.username = username.trim();
+  if (normalizedEditEmail) userUpdates.email = normalizedEditEmail;
   if (password) { userUpdates.passwordHash = await bcrypt.hash(password, 10); userUpdates.plainPassword = password; }
   if (Object.keys(userUpdates).length > 0) {
     await db.update(usersTable).set(userUpdates).where(eq(usersTable.id, userId));
@@ -1048,16 +1052,15 @@ router.delete("/admin/vendors/:vendorId", requireAdmin, async (req: Request, res
     return;
   }
 
-  // Détacher les comptes workers liés à ce vendeur
+  // Supprimer les comptes users liés à ce vendeur (ils ne peuvent plus se connecter)
   await db
-    .update(usersTable)
-    .set({ vendorId: null })
+    .delete(usersTable)
     .where(eq(usersTable.vendorId, vendorId));
 
   // Supprimer le vendeur
   await db.delete(vendorsTable).where(eq(vendorsTable.id, vendorId));
 
-  logger.info({ vendorId, vendorName: vendor.name }, "Admin deleted vendor");
+  logger.info({ vendorId, vendorName: vendor.name }, "Admin deleted vendor and associated user accounts");
   res.json({ ok: true, deleted: vendor.name });
 });
 

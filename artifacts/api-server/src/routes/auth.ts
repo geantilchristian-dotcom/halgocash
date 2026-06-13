@@ -129,12 +129,19 @@ router.post("/auth/login", loginRateLimit, async (req, res): Promise<void> => {
     return;
   }
 
-  const { email: identifier, password, deviceId } = parsed.data;
+  const { email: rawIdentifier, password, deviceId } = parsed.data;
+  // Normalize: try lowercase email match first, fallback to original for username
+  const identifier = rawIdentifier.trim();
+  const identifierLower = identifier.toLowerCase();
 
   const [user] = await db
     .select()
     .from(usersTable)
-    .where(or(eq(usersTable.email, identifier), eq(usersTable.username, identifier)))
+    .where(or(
+      eq(usersTable.email, identifierLower),
+      eq(usersTable.email, identifier),
+      eq(usersTable.username, identifier),
+    ))
     .limit(1);
 
   if (!user) {
