@@ -261,6 +261,32 @@ export const malipoChargesTable = pgTable("malipo_charges", {
 
 export type MalipoCharge = typeof malipoChargesTable.$inferSelect;
 
+export const vendorDayClosuresTable = pgTable("vendor_day_closures", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id").notNull(),
+  userId: integer("user_id").notNull(),
+  dayDate: varchar("day_date", { length: 10 }).notNull(),
+  totalTickets: integer("total_tickets").notNull().default(0),
+  totalAmountUsd: decimal("total_amount_usd", { precision: 12, scale: 2 }).notNull().default("0"),
+  totalAmountFc: decimal("total_amount_fc", { precision: 12, scale: 2 }).notNull().default("0"),
+  closedAt: timestamp("closed_at").notNull().defaultNow(),
+});
+
+export const vendorAlarmsTable = pgTable("vendor_alarms", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id").notNull(),
+  userId: integer("user_id").notNull(),
+  vendorName: text("vendor_name").notNull().default(""),
+  username: text("username").notNull().default(""),
+  message: text("message").notNull().default("Alarme déclenchée"),
+  status: varchar("status", { length: 20 }).notNull().default("active"),
+  triggeredAt: timestamp("triggered_at").notNull().defaultNow(),
+  dismissedAt: timestamp("dismissed_at"),
+});
+
+export type VendorDayClosure = typeof vendorDayClosuresTable.$inferSelect;
+export type VendorAlarm = typeof vendorAlarmsTable.$inferSelect;
+
 export const insertVendorSchema = createInsertSchema(vendorsTable).omit({ id: true, createdAt: true });
 export const insertDrawSchema = createInsertSchema(drawsTable).omit({ id: true, createdAt: true, drawnAt: true, winningTicketCode: true, winningNumbers: true, prizePool: true });
 export const insertTicketSchema = createInsertSchema(ticketsTable).omit({ id: true, createdAt: true });

@@ -24,6 +24,8 @@ import {
   ChevronRight,
   ShieldCheck,
   Dices,
+  CalendarCheck,
+  Siren,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -36,6 +38,7 @@ interface PendingCounts {
   pendingWithdrawals: number;
   pendingKyc: number;
   unreadSupport: number;
+  activeAlarms: number;
 }
 
 interface NavItem {
@@ -77,10 +80,11 @@ const navSections: NavSection[] = [
   {
     label: "Commerce",
     items: [
-      { href: "/workers",    label: "Annuaire vendeurs", icon: Users    },
-      { href: "/vendors",    label: "Points de vente",  icon: Store    },
-      { href: "/sport-bets", label: "Paris sportifs",   icon: Dices    },
-      { href: "/rapport",    label: "Rapport",          icon: BarChart2 },
+      { href: "/workers",        label: "Annuaire vendeurs", icon: Users,         },
+      { href: "/vendors",        label: "Points de vente",  icon: Store,          },
+      { href: "/vendor-reports", label: "Journée vendeurs", icon: CalendarCheck,  badgeKey: "activeAlarms" },
+      { href: "/sport-bets",     label: "Paris sportifs",   icon: Dices,          },
+      { href: "/rapport",        label: "Rapport",          icon: BarChart2,      },
     ],
   },
   {

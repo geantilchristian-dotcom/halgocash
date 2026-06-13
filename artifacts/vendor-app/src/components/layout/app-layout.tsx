@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   CheckCircle,
@@ -6,6 +6,8 @@ import {
   LayoutDashboard,
   History,
   ReceiptText,
+  Siren,
+  X,
 } from "lucide-react";
 
 interface AppLayoutProps {
@@ -22,11 +24,87 @@ const navItems = [
 
 const HEADER_BG = "linear-gradient(135deg, #0a2010 0%, #0f3d1c 45%, #1a5c2a 80%, #0f3d1c 100%)";
 
+function AlarmButton() {
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const trigger = async () => {
+    setSending(true);
+    try {
+      await fetch("/api/vendor/alarm", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "Alarme déclenchée — besoin d'assistance immédiate" }),
+      });
+      setSent(true);
+      setTimeout(() => setSent(false), 4000);
+    } catch {
+      // silent
+    }
+    setSending(false);
+    setShowConfirm(false);
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => setShowConfirm(true)}
+        disabled={sending}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all active:scale-95"
+        style={{ background: "rgba(220,38,38,0.18)", color: sent ? "#86efac" : "#fca5a5", border: "1px solid rgba(220,38,38,0.35)" }}
+      >
+        <Siren className="w-3.5 h-3.5" />
+        {sent ? "Envoyée !" : "Alarme"}
+      </button>
+
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center pb-28 px-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowConfirm(false)} />
+          <div className="relative w-full max-w-sm rounded-2xl bg-zinc-900 border border-red-800/40 shadow-2xl p-5">
+            <button onClick={() => setShowConfirm(false)} className="absolute top-3 right-3 p-1 text-zinc-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-red-600/20 border border-red-600/40 flex items-center justify-center">
+                <Siren className="w-5 h-5 text-red-400" />
+              </div>
+              <div>
+                <p className="font-black text-white text-sm">Déclencher une alarme ?</p>
+                <p className="text-xs text-zinc-400">L'admin sera alerté immédiatement.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => void trigger()}
+              disabled={sending}
+              className="w-full py-3 rounded-xl bg-red-600 text-white font-black text-sm hover:bg-red-700 active:scale-[0.98] transition-all"
+            >
+              {sending ? "Envoi…" : "Confirmer l'alarme"}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function AppLayout({ children }: AppLayoutProps) {
   const [location] = useLocation();
 
   return (
     <div className="min-h-[100dvh] w-full flex flex-col" style={{ background: "#f2f5f2" }}>
+
+      {/* ── Top header with alarm ── */}
+      <header
+        className="sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 shrink-0"
+        style={{ background: HEADER_BG, boxShadow: "0 2px 12px rgba(10,32,16,0.3)" }}
+      >
+        <span className="text-sm font-black tracking-tight" style={{ color: "#fff" }}>
+          halgo<span style={{ color: "#F5C518" }}>Cash</span>
+        </span>
+        <AlarmButton />
+      </header>
 
       {/* ── Main Content ── */}
       <main className="flex-1 overflow-auto pb-24 px-4 pt-5 max-w-md mx-auto w-full">

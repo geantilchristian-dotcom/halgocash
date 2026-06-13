@@ -21,6 +21,7 @@ import SportBetsAdmin from "@/pages/sport-bets-admin";
 import JackpotSettings from "@/pages/jackpot-settings";
 import GameCovers from "@/pages/game-covers";
 import Vendors from "@/pages/vendors";
+import VendorReports from "@/pages/vendor-reports";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Loader2 } from "lucide-react";
 
@@ -73,6 +74,7 @@ function ProtectedRouter() {
         <Route path="/sport-bets" component={SportBetsAdmin} />
         <Route path="/game-covers" component={GameCovers} />
         <Route path="/vendors" component={Vendors} />
+        <Route path="/vendor-reports" component={VendorReports} />
         <Route path="/jackpot-settings" component={JackpotSettings} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />

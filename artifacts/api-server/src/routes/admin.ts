@@ -986,10 +986,15 @@ router.get("/admin/pending-counts", requireAdmin, async (_req: Request, res: Res
     .from(supportMessagesTable)
     .where(and(eq(supportMessagesTable.fromAdmin, false), eq(supportMessagesTable.isRead, false)));
 
+  const [aRow] = await db.execute(sql`SELECT COUNT(*) AS cnt FROM vendor_alarms WHERE status = 'active'`);
+  const alarmsArr = (aRow as unknown as { rows?: { cnt: string }[] })?.rows ?? [aRow as unknown as { cnt: string }];
+  const activeAlarms = Number((alarmsArr[0] as { cnt: string })?.cnt ?? 0);
+
   res.json({
     pendingWithdrawals: Number(wRow?.cnt ?? 0),
     pendingKyc: Number(kRow?.cnt ?? 0),
     unreadSupport: Number(sRow?.cnt ?? 0),
+    activeAlarms,
   });
 });
 

@@ -28,6 +28,7 @@ import liveFeedRouter from "./live-feed";
 import maletteRouter from "./malette";
 import posRouter from "./pos";
 import paymentsRouter from "./payments";
+import vendorDayRouter from "./vendor-day";
 
 const router: IRouter = Router();
 
@@ -60,5 +61,6 @@ router.use(liveFeedRouter);
 router.use(maletteRouter);
 router.use(posRouter);
 router.use(paymentsRouter);
+router.use(vendorDayRouter);
 
 export default router;
