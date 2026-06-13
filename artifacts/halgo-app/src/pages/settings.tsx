@@ -137,28 +137,26 @@ export default function Settings() {
               </span>
             </button>
             <div className={`border-t ${divider}`} />
-            <a
-              href="https://halgocash.com/halgo-cash.apk"
-              download
-              className={`w-full flex items-center gap-3 p-4 transition-colors text-left ${isDark ? "hover:bg-white/5" : "hover:bg-gray-50"}`}
+            <div
+              className={`w-full flex items-center gap-3 p-4 text-left opacity-60 cursor-not-allowed`}
             >
               <div
                 className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-                style={{ background: "rgba(141,198,63,0.15)" }}
+                style={{ background: "rgba(141,198,63,0.10)" }}
               >
                 <Download className="w-4 h-4" style={{ color: "#8DC63F" }} />
               </div>
               <div className="flex-1">
                 <p className={`font-bold text-sm ${cardText}`}>Télécharger APK Android</p>
-                <p className={`text-xs ${sub}`}>Installation directe · v1.0</p>
+                <p className={`text-xs ${sub}`}>Installation directe · Bientôt disponible</p>
               </div>
               <span
                 className="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-lg shrink-0"
-                style={{ background: "rgba(141,198,63,0.15)", color: "#8DC63F", border: "1px solid rgba(141,198,63,0.3)" }}
+                style={{ background: "rgba(120,120,120,0.12)", color: "#888", border: "1px solid rgba(120,120,120,0.2)" }}
               >
-                APK
+                BIENTÔT
               </span>
-            </a>
+            </div>
           </div>
         </div>
 
@@ -203,20 +201,18 @@ export default function Settings() {
                 Scannez avec l'appareil photo de votre téléphone
               </p>
             </div>
-            {/* Direct APK download */}
-            <a
-              href="https://halgocash.com/halgo-cash.apk"
-              download
-              className="flex items-center gap-3 w-full px-4 py-3 rounded-2xl mb-3 active:scale-95 transition-transform"
-              style={{ background: "linear-gradient(135deg,#1a5c2a,#8DC63F)", boxShadow: "0 4px 20px rgba(141,198,63,0.35)" }}
+            {/* Direct APK download — bientôt disponible */}
+            <div
+              className="flex items-center gap-3 w-full px-4 py-3 rounded-2xl mb-3 opacity-50 cursor-not-allowed"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
             >
-              <Download style={{ width: 20, height: 20, color: "#fff", flexShrink: 0 }} />
+              <Download style={{ width: 20, height: 20, color: "#8DC63F", flexShrink: 0 }} />
               <div className="flex-1 text-left">
-                <p className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.7)" }}>Installation directe</p>
-                <p className="text-[14px] font-black text-white leading-tight">Télécharger APK Android</p>
+                <p className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.5)" }}>Installation directe</p>
+                <p className="text-[14px] font-black text-white leading-tight">APK Android · Bientôt disponible</p>
               </div>
-              <span className="text-[10px] font-black bg-white/20 text-white px-2 py-0.5 rounded-lg shrink-0">v1.0</span>
-            </a>
+              <span className="text-[10px] font-black bg-white/10 text-white/60 px-2 py-0.5 rounded-lg shrink-0">BIENTÔT</span>
+            </div>
             <div className="flex gap-3">
               <a
                 href="https://play.google.com/store"
